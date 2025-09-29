@@ -1,0 +1,175 @@
+// SPDX-License-Identifier: MIT License
+pragma solidity >=0.8.20;
+
+import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
+
+import { BaseScript } from "../Base.s.sol";
+import { console2 } from "forge-std/console2.sol";
+
+import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
+import { GardenFactory } from "src/factory/GardenFactory.sol";
+
+import { DiamondCutFacet } from "src/diamond/facets/baseFacets/DiamondCutFacet.sol";
+import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/DiamondLoupeFacet.sol";
+import { OwnershipFacet } from "src/diamond/facets/baseFacets/OwnershipFacet.sol";
+import { UpgradeFacet } from "src/diamond/facets/baseFacets/UpgradeFacet.sol";
+import { WithdrawFacet } from "src/diamond/facets/utilityFacets/WithdrawFacet.sol";
+import { UniswapFacet } from "src/diamond/facets/utilityFacets/UniswapFacet.sol";
+import { AaveFacet } from "src/diamond/facets/utilityFacets/AaveFacet.sol";
+
+import { IERC165 } from "src/interfaces/IERC165.sol";
+
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { KillSwitch } from "src/killSwitch/KillSwitch.sol";
+import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
+contract Deploy is BaseScript {
+    ProxyAdmin internal registryProxyAdmin;
+    FacetRegistry internal registryImpl;
+    TransparentUpgradeableProxy internal registryProxy;
+
+    ProxyAdmin internal poolRegistryProxyAdmin;
+    PoolRegistry internal poolRegistryImpl;
+    TransparentUpgradeableProxy internal poolRegistryProxy;
+
+    ProxyAdmin internal factoryProxyAdmin;
+    GardenFactory internal factoryImpl;
+    TransparentUpgradeableProxy internal factoryProxy;
+
+    KillSwitch internal killSwitch;
+
+    function run() public broadcaster {
+        setUp();
+
+        // --- Deploy FacetRegistry implementation & transparent proxy ---
+        registryImpl = new FacetRegistry{ salt: salt }();
+
+        // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
+        registryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "REGISTRY")) }(deployer);
+
+        // Use deployer (EOA set in BaseScript) as the owner for the registry initialization
+        bytes memory initRegistry = abi.encodeWithSelector(FacetRegistry.initialize.selector, deployer);
+        registryProxy = new TransparentUpgradeableProxy{ salt: salt }(
+            address(registryImpl), address(registryProxyAdmin), initRegistry
+        );
+
+        console2.log("FacetRegistry proxy deployed at:", address(registryProxy));
+        console2.log("FacetRegistry implementation at:", address(registryImpl));
+        console2.log("FacetRegistry ProxyAdmin deployed at:", address(registryProxyAdmin));
+
+        // --- Deploy PoolRegistry implementation & transparent proxy ---
+        poolRegistryImpl = new PoolRegistry{ salt: salt }();
+
+        // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
+        poolRegistryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "POOL")) }(deployer);
+
+        // Use deployer (EOA set in BaseScript) as the owner for the pool registry initialization
+        bytes memory initPoolRegistry = abi.encodeWithSelector(PoolRegistry.initialize.selector, deployer);
+        poolRegistryProxy = new TransparentUpgradeableProxy{ salt: salt }(
+            address(poolRegistryImpl), address(poolRegistryProxyAdmin), initPoolRegistry
+        );
+        console2.log("PoolRegistry proxy deployed at:", address(poolRegistryProxy));
+        console2.log("PoolRegistry implementation at:", address(poolRegistryImpl));
+        console2.log("PoolRegistry ProxyAdmin deployed at:", address(poolRegistryProxyAdmin));
+
+        // --- Deploy KillSwitch (no proxy) ---
+        killSwitch = new KillSwitch{ salt: salt }();
+        console2.log("KillSwitch deployed at:", address(killSwitch));
+
+        // --- Deploy GardenFactory implementation & transparent proxy ---
+        factoryImpl = new GardenFactory{ salt: salt }();
+
+        // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
+        factoryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "FACTORY")) }(deployer);
+
+        // Initialize GardenFactory with deployer as owner, facetRegistry = registryProxy, killSwitch address
+        bytes memory factoryInitData = abi.encodeWithSelector(
+            GardenFactory.initialize.selector,
+            deployer,
+            address(registryProxy),
+            address(killSwitch),
+            address(poolRegistryProxy)
+        );
+
+        factoryProxy = new TransparentUpgradeableProxy{ salt: salt }(
+            address(factoryImpl), address(factoryProxyAdmin), factoryInitData
+        );
+
+        console2.log("GardenFactory proxy deployed at:", address(factoryProxy));
+        console2.log("GardenFactory implementation at:", address(factoryImpl));
+        console2.log("GardenFactory ProxyAdmin deployed at:", address(factoryProxyAdmin));
+
+        // --- Transfer ProxyAdmin ownership to the deployer (or multisig) ---
+        registryProxyAdmin.transferOwnership(deployer);
+        poolRegistryProxyAdmin.transferOwnership(deployer);
+        factoryProxyAdmin.transferOwnership(deployer);
+
+        // Register default facets
+        DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
+        bytes4[] memory cutSelectors = new bytes4[](1);
+        cutSelectors[0] = cutFacet.diamondCut.selector;
+        FacetRegistry(address(registryProxy)).addFunctions(address(cutFacet), cutSelectors);
+
+        console2.log("DiamondCutFacet deployed at:", address(cutFacet));
+
+        DiamondLoupeFacet loupeFacet = new DiamondLoupeFacet{ salt: salt }();
+        bytes4[] memory loupeSelectors = new bytes4[](5);
+        loupeSelectors[0] = loupeFacet.facets.selector;
+        loupeSelectors[1] = loupeFacet.facetFunctionSelectors.selector;
+        loupeSelectors[2] = loupeFacet.facetAddresses.selector;
+        loupeSelectors[3] = loupeFacet.facetAddress.selector;
+        loupeSelectors[4] = IERC165.supportsInterface.selector;
+        FacetRegistry(address(registryProxy)).addFunctions(address(loupeFacet), loupeSelectors);
+
+        console2.log("DiamondLoupeFacet deployed at:", address(loupeFacet));
+
+        OwnershipFacet ownershipFacet = new OwnershipFacet{ salt: salt }();
+        bytes4[] memory ownableSelectors = new bytes4[](2);
+        ownableSelectors[0] = ownershipFacet.owner.selector;
+        ownableSelectors[1] = ownershipFacet.transferOwnership.selector;
+
+        FacetRegistry(address(registryProxy)).addFunctions(address(ownershipFacet), ownableSelectors);
+        console2.log("ownershipFacet deployed at:", address(ownershipFacet));
+
+        UpgradeFacet upgradeFacet = new UpgradeFacet{ salt: salt }();
+        bytes4[] memory upgradeSelectors = new bytes4[](2);
+        upgradeSelectors[0] = upgradeFacet.upgrade.selector;
+        upgradeSelectors[1] = upgradeFacet.getCurrentVersion.selector;
+        FacetRegistry(address(registryProxy)).addFunctions(address(upgradeFacet), upgradeSelectors);
+        console2.log("UpgradeFacet deployed at:", address(upgradeFacet));
+
+        WithdrawFacet withdrawFacet = new WithdrawFacet();
+        bytes4[] memory withdrawSelectors = new bytes4[](1);
+        withdrawSelectors[0] = withdrawFacet.withdrawUSDC.selector;
+
+        FacetRegistry(address(registryProxy)).addFunctions(address(withdrawFacet), withdrawSelectors);
+        console2.log("WithdrawFacet deployed at:", address(withdrawFacet));
+
+        UniswapFacet uniswapFacet = new UniswapFacet();
+        bytes4[] memory uniswapFacetSelectors = new bytes4[](4);
+        uniswapFacetSelectors[0] = UniswapFacet.swapExactInputSingleHop.selector;
+        uniswapFacetSelectors[1] = UniswapFacet.swapExactInputMultiHop.selector;
+        uniswapFacetSelectors[2] = UniswapFacet.getSqrtTwapX96.selector;
+        uniswapFacetSelectors[3] = UniswapFacet.getCombinedTwapX96.selector;
+
+        address uniswapFactoryAddress = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD; // Uniswap V3 Factory Base
+
+        FacetRegistry(address(registryProxy)).addFunctions(address(uniswapFacet), uniswapFacetSelectors);
+        console2.log("UniswapFacet deployed at:", address(uniswapFacet));
+
+        AaveFacet aaveFacet = new AaveFacet();
+        bytes4[] memory aaveFacetSelectors = new bytes4[](3);
+        aaveFacetSelectors[0] = aaveFacet.aaveReserveData.selector;
+        aaveFacetSelectors[1] = aaveFacet.lendToAave.selector;
+        aaveFacetSelectors[2] = aaveFacet.withdrawFromAave.selector;
+
+        FacetRegistry(address(registryProxy)).addFunctions(address(aaveFacet), aaveFacetSelectors);
+        console2.log("AaveFacet deployed at:", address(aaveFacet));
+
+        address garden = GardenFactory(address(factoryProxy)).createGarden(1);
+        console2.log("Garden address: ", garden);
+
+        UpgradeFacet(garden).upgrade();
+    }
+}

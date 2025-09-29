@@ -1,0 +1,8 @@
+@openzeppelin/contracts=lib/openzeppelin-contracts/contracts
+@openzeppelin/contracts-upgradeable=lib/openzeppelin-contracts-upgradeable/contracts
+@uniswap/v3-core/contracts=lib/v3-core/contracts
+@uniswap/v3-periphery/contracts=lib/v3-periphery/contracts
+@aave/aave-v3-core/contracts=lib/aave-v3-core/contracts
+@prb/test=lib/prb-test/src
+forge-std=lib/forge-std/src
+src/=src/
