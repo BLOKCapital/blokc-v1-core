@@ -3,7 +3,7 @@ pragma solidity >=0.8.20;
 
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 
-import { BaseScript } from "../Base.s.sol";
+import { BaseScript } from "../../Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 
 import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
@@ -13,9 +13,9 @@ import { DiamondCutFacet } from "src/diamond/facets/baseFacets/DiamondCutFacet.s
 import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "src/diamond/facets/baseFacets/OwnershipFacet.sol";
 import { UpgradeFacet } from "src/diamond/facets/baseFacets/UpgradeFacet.sol";
-import { WithdrawFacet } from "src/diamond/facets/utilityFacets/WithdrawFacet.sol";
-import { UniswapFacet } from "src/diamond/facets/utilityFacets/UniswapFacet.sol";
-import { AaveFacet } from "src/diamond/facets/utilityFacets/AaveFacet.sol";
+import { UniswapFacet } from "src/diamond/facets/utilityFacets/base/UniswapFacet.sol";
+import { AaveFacet } from "src/diamond/facets/utilityFacets/base/AaveFacet.sol";
+import { CCTPFacet } from "src/diamond/facets/utilityFacets/base/CCTPFacet.sol";
 
 import { IERC165 } from "src/interfaces/IERC165.sol";
 
@@ -105,7 +105,7 @@ contract Deploy is BaseScript {
         poolRegistryProxyAdmin.transferOwnership(deployer);
         factoryProxyAdmin.transferOwnership(deployer);
 
-        // Register default facets
+        // --- Register default facets ---
         DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
         bytes4[] memory cutSelectors = new bytes4[](1);
         cutSelectors[0] = cutFacet.diamondCut.selector;
@@ -115,10 +115,10 @@ contract Deploy is BaseScript {
 
         DiamondLoupeFacet loupeFacet = new DiamondLoupeFacet{ salt: salt }();
         bytes4[] memory loupeSelectors = new bytes4[](5);
-        loupeSelectors[0] = loupeFacet.facets.selector;
-        loupeSelectors[1] = loupeFacet.facetFunctionSelectors.selector;
-        loupeSelectors[2] = loupeFacet.facetAddresses.selector;
-        loupeSelectors[3] = loupeFacet.facetAddress.selector;
+        loupeSelectors[0] = DiamondLoupeFacet.facets.selector;
+        loupeSelectors[1] = DiamondLoupeFacet.facetFunctionSelectors.selector;
+        loupeSelectors[2] = DiamondLoupeFacet.facetAddresses.selector;
+        loupeSelectors[3] = DiamondLoupeFacet.facetAddress.selector;
         loupeSelectors[4] = IERC165.supportsInterface.selector;
         FacetRegistry(address(registryProxy)).addFunctions(address(loupeFacet), loupeSelectors);
 
@@ -126,26 +126,20 @@ contract Deploy is BaseScript {
 
         OwnershipFacet ownershipFacet = new OwnershipFacet{ salt: salt }();
         bytes4[] memory ownableSelectors = new bytes4[](2);
-        ownableSelectors[0] = ownershipFacet.owner.selector;
-        ownableSelectors[1] = ownershipFacet.transferOwnership.selector;
+        ownableSelectors[0] = OwnershipFacet.owner.selector;
+        ownableSelectors[1] = OwnershipFacet.transferOwnership.selector;
 
         FacetRegistry(address(registryProxy)).addFunctions(address(ownershipFacet), ownableSelectors);
         console2.log("ownershipFacet deployed at:", address(ownershipFacet));
 
         UpgradeFacet upgradeFacet = new UpgradeFacet{ salt: salt }();
         bytes4[] memory upgradeSelectors = new bytes4[](2);
-        upgradeSelectors[0] = upgradeFacet.upgrade.selector;
-        upgradeSelectors[1] = upgradeFacet.getCurrentVersion.selector;
+        upgradeSelectors[0] = UpgradeFacet.upgrade.selector;
+        upgradeSelectors[1] = UpgradeFacet.getCurrentVersion.selector;
         FacetRegistry(address(registryProxy)).addFunctions(address(upgradeFacet), upgradeSelectors);
         console2.log("UpgradeFacet deployed at:", address(upgradeFacet));
 
-        WithdrawFacet withdrawFacet = new WithdrawFacet();
-        bytes4[] memory withdrawSelectors = new bytes4[](1);
-        withdrawSelectors[0] = withdrawFacet.withdrawUSDC.selector;
-
-        FacetRegistry(address(registryProxy)).addFunctions(address(withdrawFacet), withdrawSelectors);
-        console2.log("WithdrawFacet deployed at:", address(withdrawFacet));
-
+        // --- Register utility facets ---
         UniswapFacet uniswapFacet = new UniswapFacet();
         bytes4[] memory uniswapFacetSelectors = new bytes4[](4);
         uniswapFacetSelectors[0] = UniswapFacet.swapExactInputSingleHop.selector;
@@ -153,23 +147,24 @@ contract Deploy is BaseScript {
         uniswapFacetSelectors[2] = UniswapFacet.getSqrtTwapX96.selector;
         uniswapFacetSelectors[3] = UniswapFacet.getCombinedTwapX96.selector;
 
-        address uniswapFactoryAddress = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD; // Uniswap V3 Factory Base
-
         FacetRegistry(address(registryProxy)).addFunctions(address(uniswapFacet), uniswapFacetSelectors);
         console2.log("UniswapFacet deployed at:", address(uniswapFacet));
 
         AaveFacet aaveFacet = new AaveFacet();
         bytes4[] memory aaveFacetSelectors = new bytes4[](3);
-        aaveFacetSelectors[0] = aaveFacet.aaveReserveData.selector;
-        aaveFacetSelectors[1] = aaveFacet.lendToAave.selector;
-        aaveFacetSelectors[2] = aaveFacet.withdrawFromAave.selector;
+        aaveFacetSelectors[0] = AaveFacet.aaveReserveData.selector;
+        aaveFacetSelectors[1] = AaveFacet.lendToAave.selector;
+        aaveFacetSelectors[2] = AaveFacet.withdrawFromAave.selector;
 
         FacetRegistry(address(registryProxy)).addFunctions(address(aaveFacet), aaveFacetSelectors);
         console2.log("AaveFacet deployed at:", address(aaveFacet));
 
-        address garden = GardenFactory(address(factoryProxy)).createGarden(1);
-        console2.log("Garden address: ", garden);
+        CCTPFacet cctpFacet = new CCTPFacet();
+        bytes4[] memory cctpFacetSelectors = new bytes4[](2);
+        cctpFacetSelectors[0] = CCTPFacet.sendUSDC.selector;
+        cctpFacetSelectors[1] = CCTPFacet.redeemUSDC.selector;
 
-        UpgradeFacet(garden).upgrade();
+        FacetRegistry(address(registryProxy)).addFunctions(address(cctpFacet), cctpFacetSelectors);
+        console2.log("CCTPFacet deployed at:", address(cctpFacet));
     }
 }
