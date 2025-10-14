@@ -3,8 +3,7 @@ pragma solidity ^0.8.20;
 
 import { IFacetRegistry } from "../../interfaces/IFacetRegistry.sol";
 import { IPoolRegistry } from "../../interfaces/IPoolRegistry.sol";
-import { Client } from "@chainlink/chains/evm/contracts/libraries/Client.sol";
-import { CCIPReceiver } from "@chainlink/chains/evm/contracts/applications/CCIPReceiver.sol";
+import { Client, CCIPReceiver } from "src/interfaces/ICCIP.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 

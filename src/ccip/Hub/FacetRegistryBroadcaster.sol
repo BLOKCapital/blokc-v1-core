@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { Client } from "@chainlink/chains/evm/contracts/libraries/Client.sol";
-import { IRouterClient } from "@chainlink/chains/evm/contracts/interfaces/IRouterClient.sol";
+import { Client, IRouterClient } from "src/interfaces/ICCIP.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
@@ -32,7 +31,7 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
 
     /// @param _ccipRouter The address of the CCIP router contract. (In this case, the router on Arbitrum mainnet).
     /// @param _destinationChainSelector The chain selector for the destination chain. Here the destination chain is Base mainnet.
-    constructor(address _ccipRouter, uint64 _destinationChainSelector) Ownable(msg.sender) {
+    constructor(address initialOwner, address _ccipRouter, uint64 _destinationChainSelector) Ownable(initialOwner) {
         require(_ccipRouter != address(0), "Invalid router address");
         require(_destinationChainSelector != 0, "Invalid chain selector");
         ccipRouter = IRouterClient(_ccipRouter);

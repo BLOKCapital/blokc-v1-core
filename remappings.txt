@@ -4,5 +4,6 @@
 @uniswap/v3-periphery/contracts=lib/v3-periphery/contracts
 @aave/aave-v3-core/contracts=lib/aave-v3-core/contracts
 @prb/test=lib/prb-test/src
+@chainlink/contracts-ccip=lib/ccip/contracts
 forge-std=lib/forge-std/src
 src/=src/
