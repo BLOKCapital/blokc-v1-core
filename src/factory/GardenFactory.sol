@@ -28,10 +28,11 @@ import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/O
 import { console } from "forge-std/console.sol";
 
 error GardenFactory_FacetRegistryNotSet();
-error GardenFactory_NFTAlreadyUsed(uint256 nftId);
+error GardenFactory_IndexAlreadyUsed(address user, uint256 index);
 error GardenFactory_LoupeNotSupported();
 error GardenFactory_DefaultFacetNotRegistered();
 error GardenFactory_GardenAlreadyRegistered();
+error GardenFactory_IndexOutOfRange(uint256 index);
 
 contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
     /// @notice The address of the facet registry
@@ -44,10 +45,10 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
     address[] gardens;
     /// @notice A mapping of user address to the set of gardens they have
     mapping(address user => address[]) userGardens;
-    /// @notice A mapping of NFT ID to the garden address
-    mapping(uint256 nftId => address) nftToGarden;
+    /// @notice A mapping of user -> index (1..10) -> garden address
+    mapping(address user => mapping(uint256 index => address)) userIndexToGarden;
 
-    event GardenCreated(address garden, address owner);
+    event GardenCreated(address garden, address owner, uint256 index);
 
     constructor() {
         _disableInitializers();
@@ -70,7 +71,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
     }
 
     /// @inheritdoc IGardenFactory
-    function createGarden(uint256 nftId) external returns (address gardenAddress) {
+    function createGarden(uint256 index) external returns (address gardenAddress) {
         address owner = msg.sender;
         if (facetRegistry == address(0)) {
             revert GardenFactory_FacetRegistryNotSet();
@@ -110,11 +111,18 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
             functionSelectors: registry.getFacetFunctionSelectors(upgradeFacetAddress)
         });
 
-        // Generate a unique salt using the owner address and nftId
-        bytes32 salt = keccak256(abi.encode(owner, nftId));
-        if (nftToGarden[nftId] != address(0)) {
-            revert GardenFactory_NFTAlreadyUsed(nftId);
+        // index must be between 1 and 10 (inclusive) per user
+        if (index < 1 || index > 10) {
+            revert GardenFactory_IndexOutOfRange(index);
         }
+
+        // ensure the user hasn't already used this index
+        if (userIndexToGarden[owner][index] != address(0)) {
+            revert GardenFactory_IndexAlreadyUsed(owner, index);
+        }
+
+        // Generate a unique salt using the owner address and index
+        bytes32 salt = keccak256(abi.encode(owner, index));
         // bytes memory creationCode = type(Diamond).creationCode;
         // bytes memory initCode = abi.encodePacked(creationCode, abi.encode(params, facetRegistry, killSwitch));
 
@@ -130,10 +138,10 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
 
         userGardens[owner].push(gardenAddress);
 
-        nftToGarden[nftId] = gardenAddress;
+        userIndexToGarden[owner][index] = gardenAddress;
 
-        // Emit event for garden creation
-        emit GardenCreated(gardenAddress, owner);
+        // Emit event for garden creation including the user index
+        emit GardenCreated(gardenAddress, owner, index);
     }
 
     /// @inheritdoc IGardenFactory
@@ -147,8 +155,8 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
     }
 
     /// @inheritdoc IGardenFactory
-    function getGarden(uint256 nftId) external view returns (address) {
-        return nftToGarden[nftId];
+    function getGarden(address user, uint256 index) external view returns (address) {
+        return userIndexToGarden[user][index];
     }
 
     /// @inheritdoc IGardenFactory

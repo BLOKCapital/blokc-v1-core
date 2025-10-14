@@ -12,13 +12,16 @@
   "solidity.compileUsingRemoteVersion": "v0.8.20+commit.c7dfd78e",
   "cSpell.words": [
     "blokc",
+    "CCTP",
     "delegatecall",
     "IIERC",
     "inheritdoc",
     "Initializable",
+    "ISBT",
     "Reentrancy",
     "reinitializer",
     "returndata",
+    "soulbound",
     "staticcall",
     "Twap",
     "UUPS"

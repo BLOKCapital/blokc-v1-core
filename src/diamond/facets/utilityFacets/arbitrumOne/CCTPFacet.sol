@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+/*###############################################################################
+
+    @title CCTP Facet
+    @author BLOK Capital DAO
+    @notice Facet exposing Circle Cross-Chain Transfer Protocol (CCTP) functions (send / redeem).
+    @dev This facet wires the Circle CCTP interfaces to internal implementations and
+         registers the interface id during initialization.
+
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
+    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
+    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
+
+
+################################################################################*/
+
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import { LibDiamond } from "src/diamond/libraries/LibDiamond.sol";
+
+interface ITokenMessengerV2 {
+    function depositForBurn(
+        uint256 amount,
+        uint32 destinationDomain,
+        bytes32 mintRecipient,
+        address burnToken,
+        bytes32 destinationCaller,
+        uint256 maxFee,
+        uint32 minFinalityThreshold
+    )
+        external;
+}
+
+interface IMessageTransmitterV2 {
+    function receiveMessage(bytes calldata message, bytes calldata attestation) external;
+}
+
+contract CCTPFacet {
+    using SafeERC20 for IERC20;
+
+    /// Hardcoded CCTP/USDC addresses for Arbitrum One (from Circle docs)
+    address public constant TOKEN_MESSENGER_V2 = 0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
+    address public constant MESSAGE_TRANSMITTER_V2 = 0x81D40F21F12A8F0E3252Bccb954D722d4c464B64;
+    address public constant TOKEN_MINTER_V2 = 0xfd78EE919681417d192449715b2594ab58f5D002;
+    address public constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+
+    event CCTPFacetUSDCSent(address indexed sender, uint256 amount, uint32 destinationDomain, bytes32 mintRecipient);
+    event CCTPFacetUSDCRedeemed(uint256 mintedAmount);
+
+    /// @notice Send (burn) native USDC here and instruct Circle to mint on destination
+    /// @param amount USDC amount (USDC usually 6 decimals)
+    /// @param destinationDomain Circle domain id of destination chain
+    /// @param mintRecipient bytes32-encoded recipient on destination chain
+    function sendUSDC(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external {
+        require(amount > 0, "CCTP: zero amount");
+
+        // pull USDC from caller
+        IERC20(USDC).safeTransferFrom(msg.sender, address(this), amount);
+
+        // approve TokenMessenger to burn the tokens
+        IERC20(USDC).approve(TOKEN_MESSENGER_V2, 0);
+        IERC20(USDC).approve(TOKEN_MESSENGER_V2, amount);
+
+        // call Circle TokenMessengerV2.depositForBurn
+        ITokenMessengerV2(TOKEN_MESSENGER_V2).depositForBurn(
+            amount,
+            destinationDomain,
+            mintRecipient,
+            USDC,
+            bytes32(0), // destinationCaller (optional)
+            0, // maxFee
+            0 // minFinalityThreshold
+        );
+
+        emit CCTPFacetUSDCSent(msg.sender, amount, destinationDomain, mintRecipient);
+    }
+
+    /// @notice Redeem (submit Circle attestation) to mint USDC to this contract
+    /// @param message raw message bytes from Circle attestation flow
+    /// @param attestation attestation bytes
+    /// @return mintedAmount amount minted to this contract as a result of the call
+    function redeem(bytes calldata message, bytes calldata attestation) external returns (uint256 mintedAmount) {
+        uint256 beforeBalance = IERC20(USDC).balanceOf(address(this));
+
+        // submit the attestation -> MessageTransmitterV2 will route to TokenMinterV2 and mint USDC here
+        IMessageTransmitterV2(MESSAGE_TRANSMITTER_V2).receiveMessage(message, attestation);
+
+        uint256 afterBalance = IERC20(USDC).balanceOf(address(this));
+        require(afterBalance >= beforeBalance, "CCTP: no mint");
+        mintedAmount = afterBalance - beforeBalance;
+
+        emit CCTPFacetUSDCRedeemed(mintedAmount);
+        return mintedAmount;
+    }
+
+    /// @notice View function returning the configured addresses (handy for UI / sanity checks)
+    function getConfig()
+        external
+        pure
+        returns (address tokenMessenger, address messageTransmitter, address tokenMinter, address usdc)
+    {
+        return (TOKEN_MESSENGER_V2, MESSAGE_TRANSMITTER_V2, TOKEN_MINTER_V2, USDC);
+    }
+}
