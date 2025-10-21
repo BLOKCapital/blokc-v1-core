@@ -1,6 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+/*###############################################################################
+
+
+    @title Facet Registry Broadcaster Contract for Multichain
+    @author BLOK Capital DAO
+    @notice Single contract that is responsible for Facet and Pool management via simple orchestration from 
+            this very contract 
+
+
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
+    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
+    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
+
+
+################################################################################*/
+
+
 import { Client, IRouterClient } from "src/interfaces/ICCIP.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
@@ -9,6 +27,7 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
     IRouterClient public ccipRouter;
     uint64 public destinationChainSelector; 
     address public receiver;
+    uint256 public gasLimit;
 
     enum FacetAction { Add, Replace, Remove }
     enum PoolAction { Add, Remove }
@@ -16,11 +35,13 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
     error ReceiverNotSet();
     error InsufficientETHBalance(uint256 required, uint256 available);
     error InvalidChainSelector();
+    error InvalidGasLimit();
 
     event FacetUpdateSent(address indexed facet, bytes4[] selectors, FacetAction action, uint256 fee);
     event PoolUpdateSent(address indexed pool, string pairName, string dexId, PoolAction action, uint256 fee);
     event ReceiverSet(address indexed receiver);
     event DestinationChainSelectorSet(uint64 indexed chainSelector);
+    event GasLimitSet(uint256 indexed gasLimit);
     event ETHWithdrawn(address indexed to, uint256 amount);
 
     /// @dev This is the broadcasting contract that sends facet update instructions to the receiver contract on another chain.
@@ -36,6 +57,8 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
         require(_destinationChainSelector != 0, "Invalid chain selector");
         ccipRouter = IRouterClient(_ccipRouter);
         destinationChainSelector = _destinationChainSelector;
+        // Set higher default gas limit for any complex payload
+        gasLimit = 500000; 
     }
     
     /// @notice Set the receiver contract address on the destination chain.
@@ -51,6 +74,15 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
         destinationChainSelector = _chainSelector;
         emit DestinationChainSelectorSet(_chainSelector);
     }
+
+    /// @notice Sets and emits the gas limit for CCIP execution on destination chain
+    ///@dev this is only to notice what gas limit is set for easy developer experience & settings and nothing more
+    function setGasLimit(uint256 _gasLimit) external onlyOwner {
+        require(_gasLimit >= 100000, "Gas limit too low");
+        require(_gasLimit <= 2000000, "Gas limit too high");
+        gasLimit = _gasLimit;
+        emit GasLimitSet(_gasLimit);
+    }
     
     ///@dev Only prepares and broadcasts facet update instructions. Does not perform facet management.
     function broadcastFacetUpdate(address facet, bytes4[] memory selectors, FacetAction action) public onlyOwner whenNotPaused {
@@ -63,7 +95,7 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
         bytes memory data = abi.encode(uint8(1), abi.encode(facet, selectors, action));
 
         bytes memory extraArgs = Client._argsToBytes(
-            Client.EVMExtraArgsV1({ gasLimit: 300000 })
+            Client.EVMExtraArgsV1({ gasLimit: gasLimit })
         );
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
@@ -111,7 +143,7 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
         bytes memory data = abi.encode(uint8(2), abi.encode(pool, pairName, dexId, action));
 
         bytes memory extraArgs = Client._argsToBytes(
-            Client.EVMExtraArgsV1({ gasLimit: 300000 })
+            Client.EVMExtraArgsV1({ gasLimit: gasLimit })
         );
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
@@ -210,7 +242,7 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
         bytes memory data = abi.encode(uint8(1), abi.encode(facet, selectors, action));
         
         bytes memory extraArgs = Client._argsToBytes(
-            Client.EVMExtraArgsV1({ gasLimit: 300000 })
+            Client.EVMExtraArgsV1({ gasLimit: gasLimit })
         );
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
@@ -229,7 +261,7 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
         bytes memory data = abi.encode(uint8(2), abi.encode(pool, pairName, dexId, action));
         
         bytes memory extraArgs = Client._argsToBytes(
-            Client.EVMExtraArgsV1({ gasLimit: 300000 })
+            Client.EVMExtraArgsV1({ gasLimit: gasLimit })
         );
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({

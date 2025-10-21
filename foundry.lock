@@ -1,4 +1,16 @@
 {
+  "lib/ccip": {
+    "rev": "8bb7aa9cc008ad883a4a3f23e0345c6aff6333a5"
+  },
+  "lib/chainlink": {
+    "rev": "a60ce26cca3c8706faac72e0cbceab47e70617e5"
+  },
+  "lib/forge-std": {
+    "tag": {
+      "name": "v1.11.0",
+      "rev": "8e40513d678f392f398620b3ef2b418648b33e89"
+    }
+  },
   "lib\\ccip": {
     "tag": {
       "name": "v1.5.1",
@@ -10,8 +22,5 @@
       "name": "v2.28.0",
       "rev": "6289ad570fcb2b4255871d397e85daa00bb945c0"
     }
-  },
-  "lib/forge-std": {
-    "rev": "0768d9c08c085c79bb31d88683a78770764fec49"
   }
 }
