@@ -17,11 +17,11 @@ import { WithdrawFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/With
 import { UniswapFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/UniswapFacet.sol";
 import { AaveFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/AaveFacet.sol";
 import { CCTPFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/CCTPFacet.sol";
+import { ProtocolStatus } from "src/protocolStatus/ProtocolStatus.sol";
 
 import { IERC165 } from "src/interfaces/IERC165.sol";
 
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { KillSwitch } from "src/killSwitch/KillSwitch.sol";
 import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -38,7 +38,7 @@ contract Deploy is BaseScript {
     GardenFactory internal factoryImpl;
     TransparentUpgradeableProxy internal factoryProxy;
 
-    KillSwitch internal killSwitch;
+    ProtocolStatus internal protocolStatus;
 
     function run() public broadcaster {
         setUp();
@@ -74,9 +74,9 @@ contract Deploy is BaseScript {
         console2.log("PoolRegistry implementation at:", address(poolRegistryImpl));
         console2.log("PoolRegistry ProxyAdmin deployed at:", address(poolRegistryProxyAdmin));
 
-        // --- Deploy KillSwitch (no proxy) ---
-        killSwitch = new KillSwitch{ salt: salt }();
-        console2.log("KillSwitch deployed at:", address(killSwitch));
+        // --- Deploy ProtocolStatus (no proxy) ---
+        protocolStatus = new ProtocolStatus{ salt: salt }(new ProtocolStatus.SecurityCouncilMember[](0));
+        console2.log("ProtocolStatus deployed at:", address(protocolStatus));
 
         // --- Deploy GardenFactory implementation & transparent proxy ---
         factoryImpl = new GardenFactory{ salt: salt }();
@@ -84,12 +84,12 @@ contract Deploy is BaseScript {
         // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
         factoryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "FACTORY")) }(deployer);
 
-        // Initialize GardenFactory with deployer as owner, facetRegistry = registryProxy, killSwitch address
+        // Initialize GardenFactory with deployer as owner
         bytes memory factoryInitData = abi.encodeWithSelector(
             GardenFactory.initialize.selector,
             deployer,
             address(registryProxy),
-            address(killSwitch),
+            address(protocolStatus),
             address(poolRegistryProxy)
         );
 

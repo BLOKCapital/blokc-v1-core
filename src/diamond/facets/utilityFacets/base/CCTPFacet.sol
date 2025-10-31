@@ -20,26 +20,13 @@ pragma solidity ^0.8.19;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import { ICCTP, IMessageTransmitterV2, ITokenMessengerV2 } from "src/interfaces/ICCTP.sol";
 import { LibDiamond } from "src/diamond/libraries/LibDiamond.sol";
 
-interface ITokenMessengerV2 {
-    function depositForBurn(
-        uint256 amount,
-        uint32 destinationDomain,
-        bytes32 mintRecipient,
-        address burnToken,
-        bytes32 destinationCaller,
-        uint256 maxFee,
-        uint32 minFinalityThreshold
-    )
-        external;
-}
+error CCTPFacet_ZeroAmount();
+error CCTPFacet_NoUSDCMinted();
 
-interface IMessageTransmitterV2 {
-    function receiveMessage(bytes calldata message, bytes calldata attestation) external;
-}
-
-contract CCTPFacet {
+contract CCTPFacet is ICCTP {
     using SafeERC20 for IERC20;
 
     address public constant TOKEN_MESSENGER_V2 = 0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
@@ -54,7 +41,9 @@ contract CCTPFacet {
     /// @param destinationDomain Circle domain id of destination chain
     /// @param mintRecipient bytes32-encoded recipient on destination chain
     function sendUSDC(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external {
-        require(amount > 0, "CCTP: zero amount");
+        if (amount == 0) {
+            revert CCTPFacet_ZeroAmount();
+        }
 
         // pull USDC from caller
         IERC20(USDC).safeTransferFrom(msg.sender, address(this), amount);
@@ -80,18 +69,19 @@ contract CCTPFacet {
     /// @notice Redeem (submit Circle attestation) to mint USDC to this contract
     /// @param message raw message bytes from Circle attestation flow
     /// @param attestation attestation bytes
-    /// @return mintedAmount amount minted to this contract as a result of the call
-    function redeemUSDC(bytes calldata message, bytes calldata attestation) external returns (uint256 mintedAmount) {
+    function redeemUSDC(bytes calldata message, bytes calldata attestation) external {
         uint256 beforeBalance = IERC20(USDC).balanceOf(address(this));
 
         // submit the attestation -> MessageTransmitterV2 will route to TokenMinterV2 and mint USDC here
         IMessageTransmitterV2(MESSAGE_TRANSMITTER_V2).receiveMessage(message, attestation);
 
         uint256 afterBalance = IERC20(USDC).balanceOf(address(this));
-        require(afterBalance >= beforeBalance, "CCTP: no mint");
-        mintedAmount = afterBalance - beforeBalance;
+        if (afterBalance <= beforeBalance) {
+            revert CCTPFacet_NoUSDCMinted();
+        }
+
+        uint256 mintedAmount = afterBalance - beforeBalance;
 
         emit CCTPFacetUSDCRedeemed(mintedAmount);
-        return mintedAmount;
     }
 }

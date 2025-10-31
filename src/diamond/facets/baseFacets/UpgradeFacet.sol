@@ -28,29 +28,31 @@ error UpgradeFacet_InvalidRegistryAddress();
 error UpgradeFacet_AlreadyAtLatestVersion();
 
 contract UpgradeFacet is DiamondLoupeFacet {
-    event GardenUpgraded(uint256 newVersion);
+    uint256 private latestRegistryVersion;
+    IDiamondCut.FacetCut[] private latestFacetCuts;
 
-    /**
-     * @notice Apply the registry-specified upgrade to this diamond.
-     * @dev Delegates to internal `_upgrade()` which performs validation and structural changes.
-     *      Note: consider adding an access control modifier (e.g. onlyDiamondOwner) if upgrades
-     *      should be restricted.
-     */
-    function upgrade() external {
+    event GardenUpgraded(uint256 indexed newVersion);
+
+    function upgradeDetails() external returns (IDiamondCut.FacetCut[] memory) {
         address registry = LibDiamond.facetRegistry();
         if (registry == address(0)) revert UpgradeFacet_InvalidRegistryAddress();
         uint256 registryVersion = IFacetRegistry(registry).getCurrentVersion();
         uint256 diamondCurrentVersion = LibDiamond.currentVersion();
         if (diamondCurrentVersion == registryVersion) {
-            revert UpgradeFacet_AlreadyAtLatestVersion();
+            return new IDiamondCut.FacetCut[](0);
         }
 
         address[] memory registryFacets = IFacetRegistry(registry).getFacetAddresses();
         IDiamondCut.FacetCut[] memory facetCuts = _buildFacetCuts(registry, registryFacets);
-        if (facetCuts.length == 0) revert UpgradeFacet_AlreadyAtLatestVersion();
-        LibDiamond.diamondCut(facetCuts, address(0), bytes(""));
-        LibDiamond.setCurrentVersion(registryVersion);
-        emit GardenUpgraded(registryVersion);
+        latestFacetCuts = facetCuts;
+        latestRegistryVersion = registryVersion;
+        return facetCuts;
+    }
+
+    function upgrade() external {
+        LibDiamond.diamondCut(latestFacetCuts, address(0), bytes(""));
+        LibDiamond.setCurrentVersion(latestRegistryVersion);
+        emit GardenUpgraded(latestRegistryVersion);
     }
 
     function _buildFacetCuts(

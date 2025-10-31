@@ -39,9 +39,14 @@ error FacetRegistry_CannotRemoveFunctionThatDoesNotExist(address facetAddress, b
 
 error FacetRegistry_CannotRemoveImmutableFunction(address facetAddress, bytes4 selector);
 
+error FacetRegistry_IncorrectBaseFacetsLength(uint256 length);
+
+error FacetRegistry_CannotModifyBaseFacet(address facetAddress);
+
 contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     uint256 internal currentVersion;
     address[] internal facetAddresses;
+    address[4] internal baseFacets;
     mapping(bytes4 => FacetAddressAndPosition) internal selectorToFacetAndPosition;
     mapping(address => FacetFunctionSelectors) internal facetFunctionSelectors;
 
@@ -52,9 +57,34 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
 
     /// @notice Initialize owner (call via proxy only).
     /// @param initialOwner owner of the registry (use address(0) to keep msg.sender as owner)
-    // function initializeV2(address initialOwner) public reinitializer(2) {
-    function initialize(address initialOwner) public initializer {
+    function initialize(
+        address initialOwner,
+        address[4] memory _baseFacets,
+        bytes4[4][] memory _functionSelectors
+    )
+        public
+        initializer
+    {
+        for (uint8 i = 0; i < _baseFacets.length; i++) {
+            if (_baseFacets[i] == address(0)) {
+                revert FacetRegistry_IncorrectBaseFacetsLength(_baseFacets.length);
+            }
+            baseFacets[i] = _baseFacets[i];
+            addBaseFacet(_baseFacets[i], _functionSelectors[i]);
+        }
         _transferOwnership(initialOwner);
+    }
+
+    function addBaseFacet(address _facetAddress, bytes4[4] memory _functionSelectors) internal {
+        if (_facetAddress.code.length == 0) {
+            revert FacetRegistry_FacetIsNotContract(_facetAddress);
+        }
+        facetFunctionSelectors[_facetAddress].facetAddressPosition = facetAddresses.length;
+        facetAddresses.push(_facetAddress);
+        for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
+            bytes4 selector = _functionSelectors[selectorIndex];
+            addFunction(selector, uint96(selectorIndex), _facetAddress);
+        }
     }
 
     function addFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external {
@@ -64,6 +94,13 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         if (_facetAddress == address(0)) {
             revert FacetRegistry_FacetAddressIsZero();
         }
+
+        for (uint256 i = 0; i < baseFacets.length; i++) {
+            if (_facetAddress == baseFacets[i]) {
+                revert FacetRegistry_CannotModifyBaseFacet(_facetAddress);
+            }
+        }
+
         uint96 selectorPosition = uint96(facetFunctionSelectors[_facetAddress].functionSelectors.length);
         // add new facet address if it does not exist
         if (selectorPosition == 0) {
@@ -88,6 +125,11 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
 
         if (_facetAddress == address(0)) {
             revert FacetRegistry_FacetAddressIsZero();
+        }
+        for (uint256 i = 0; i < baseFacets.length; i++) {
+            if (_facetAddress == baseFacets[i]) {
+                revert FacetRegistry_CannotModifyBaseFacet(_facetAddress);
+            }
         }
         uint96 selectorPosition = uint96(facetFunctionSelectors[_facetAddress].functionSelectors.length);
         // add new facet address if it does not exist
@@ -114,6 +156,11 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         // if function does not exist then do nothing and return
         if (_facetAddress != address(0)) {
             revert FacetRegistry_RemoveFacetAddressMustBeZero(_facetAddress);
+        }
+        for (uint256 i = 0; i < baseFacets.length; i++) {
+            if (_facetAddress == baseFacets[i]) {
+                revert FacetRegistry_CannotModifyBaseFacet(_facetAddress);
+            }
         }
         for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];

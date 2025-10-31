@@ -16,6 +16,11 @@ pragma solidity >=0.8.20;
 
 ################################################################################*/
 
+//Should we implement functions to set facetRegistry, killSwitch, liquidityPoolRegistry, sbtCollectionRegistry?
+//No because some gardens may create arb now, and when they they will try to create garden on other chain and those
+// addresses will be different.
+
+import { console } from "forge-std/console.sol";
 import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { Diamond } from "src/diamond/Diamond.sol";
@@ -25,7 +30,8 @@ import { IERC173 } from "src/interfaces/IERC173.sol";
 import { IUpgrade } from "src/interfaces/IUpgrade.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { console } from "forge-std/console.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 error GardenFactory_FacetRegistryNotSet();
 error GardenFactory_IndexAlreadyUsed(address user, uint256 index);
@@ -33,22 +39,34 @@ error GardenFactory_LoupeNotSupported();
 error GardenFactory_DefaultFacetNotRegistered();
 error GardenFactory_GardenAlreadyRegistered();
 error GardenFactory_IndexOutOfRange(uint256 index);
+error GardenFactory_KillSwitchNotSet();
+error GardenFactory_LiquidityPoolRegistryNotSet();
 
-contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
+contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, ReentrancyGuardUpgradeable {
+    using EnumerableSet for EnumerableSet.AddressSet;
     /// @notice The address of the facet registry
+
     address facetRegistry;
+
     /// @notice The address of the kill switch
     address killSwitch;
+
     /// @notice The address of the liquidity pool registry
     address liquidityPoolRegistry;
+
     /// @notice The set of all gardens created by the factory
-    address[] gardens;
+    EnumerableSet.AddressSet private gardens;
+
     /// @notice A mapping of user address to the set of gardens they have
     mapping(address user => address[]) userGardens;
+
     /// @notice A mapping of user -> index (1..10) -> garden address
     mapping(address user => mapping(uint256 index => address)) userIndexToGarden;
 
     event GardenCreated(address garden, address owner, uint256 index);
+    event FactoryInitialized(
+        address initialOwner, address killSwitch, address facetRegistry, address liquidityPoolRegistry
+    );
 
     constructor() {
         _disableInitializers();
@@ -56,8 +74,8 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
 
     function initialize(
         address _initialOwner,
-        address _facetRegistry,
         address _killSwitch,
+        address _facetRegistry,
         address _liquidityPoolRegistry
     )
         public
@@ -65,13 +83,24 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
     {
         __Ownable_init(_initialOwner);
 
+        if (_facetRegistry == address(0)) {
+            revert GardenFactory_FacetRegistryNotSet();
+        }
+        if (_killSwitch == address(0)) {
+            revert GardenFactory_KillSwitchNotSet();
+        }
+        if (_liquidityPoolRegistry == address(0)) {
+            revert GardenFactory_LiquidityPoolRegistryNotSet();
+        }
         facetRegistry = _facetRegistry;
         killSwitch = _killSwitch;
         liquidityPoolRegistry = _liquidityPoolRegistry;
+
+        emit FactoryInitialized(_initialOwner, _killSwitch, _facetRegistry, _liquidityPoolRegistry);
     }
 
     /// @inheritdoc IGardenFactory
-    function createGarden(uint256 index) external returns (address gardenAddress) {
+    function createGarden(uint256 index) external nonReentrant returns (address gardenAddress) {
         address owner = msg.sender;
         if (facetRegistry == address(0)) {
             revert GardenFactory_FacetRegistryNotSet();
@@ -82,12 +111,6 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
         address ownableFacetAddress = registry.getFacetAddress(IERC173.owner.selector);
         address upgradeFacetAddress = registry.getFacetAddress(IUpgrade.upgrade.selector);
 
-        if (
-            cutFacetAddress == address(0) || loupeFacetAddress == address(0) || ownableFacetAddress == address(0)
-                || upgradeFacetAddress == address(0)
-        ) {
-            revert GardenFactory_DefaultFacetNotRegistered();
-        }
         IDiamondCut.FacetCut[] memory baseFacets = new IDiamondCut.FacetCut[](4);
 
         baseFacets[0] = IDiamondCut.FacetCut({
@@ -122,7 +145,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
         }
 
         // Generate a unique salt using the owner address and index
-        bytes32 salt = keccak256(abi.encode(owner, index));
+        bytes32 salt = keccak256(abi.encode(owner, index, address(this)));
         // bytes memory creationCode = type(Diamond).creationCode;
         // bytes memory initCode = abi.encodePacked(creationCode, abi.encode(params, facetRegistry, killSwitch));
 
@@ -134,7 +157,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
 
         gardenAddress = address(garden);
 
-        gardens.push(gardenAddress);
+        gardens.add(gardenAddress);
 
         userGardens[owner].push(gardenAddress);
 
@@ -146,7 +169,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
 
     /// @inheritdoc IGardenFactory
     function getAllGardens() external view returns (address[] memory gardens_) {
-        gardens_ = gardens;
+        gardens_ = gardens.values();
     }
 
     /// @inheritdoc IGardenFactory
@@ -161,11 +184,6 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory {
 
     /// @inheritdoc IGardenFactory
     function isGardenRegistered(address garden) external view returns (bool) {
-        for (uint256 i; i < gardens.length; i++) {
-            if (garden == gardens[i]) {
-                return true;
-            }
-        }
-        return false;
+        return gardens.contains(garden);
     }
 }
