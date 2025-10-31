@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 /*###############################################################################
 
 
-    @title Facet Registry Receiver Contract for Multichain
+    @title Base Registry Receiver Contract for Multichain
     @author BLOK Capital DAO
     @notice Single contract that is responsible for Facet and Pool management with core logic and not 
             orchestration
