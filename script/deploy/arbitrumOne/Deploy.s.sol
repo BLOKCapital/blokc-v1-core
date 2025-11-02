@@ -18,6 +18,7 @@ import { UniswapFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/Unisw
 import { AaveFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/AaveFacet.sol";
 import { CCTPFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/CCTPFacet.sol";
 import { ProtocolStatus } from "src/protocolStatus/ProtocolStatus.sol";
+import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 
 import { IERC165 } from "src/interfaces/IERC165.sol";
 
@@ -49,8 +50,50 @@ contract Deploy is BaseScript {
         // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
         registryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "REGISTRY")) }(deployer);
 
+        // Register default facets
+        DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
+        bytes4[] memory cutSelectors = new bytes4[](1);
+        cutSelectors[0] = cutFacet.diamondCut.selector;
+
+        console2.log("DiamondCutFacet deployed at:", address(cutFacet));
+
+        DiamondLoupeFacet loupeFacet = new DiamondLoupeFacet{ salt: salt }();
+        bytes4[] memory loupeSelectors = new bytes4[](5);
+        loupeSelectors[0] = loupeFacet.facets.selector;
+        loupeSelectors[1] = loupeFacet.facetFunctionSelectors.selector;
+        loupeSelectors[2] = loupeFacet.facetAddresses.selector;
+        loupeSelectors[3] = loupeFacet.facetAddress.selector;
+        loupeSelectors[4] = IERC165.supportsInterface.selector;
+
+        console2.log("DiamondLoupeFacet deployed at:", address(loupeFacet));
+
+        OwnershipFacet ownershipFacet = new OwnershipFacet{ salt: salt }();
+        bytes4[] memory ownableSelectors = new bytes4[](2);
+        ownableSelectors[0] = ownershipFacet.owner.selector;
+        ownableSelectors[1] = ownershipFacet.transferOwnership.selector;
+
+        console2.log("ownershipFacet deployed at:", address(ownershipFacet));
+
+        UpgradeFacet upgradeFacet = new UpgradeFacet{ salt: salt }();
+        bytes4[] memory upgradeSelectors = new bytes4[](3);
+
+        upgradeSelectors[0] = upgradeFacet.upgrade.selector;
+        upgradeSelectors[1] = upgradeFacet.getCurrentVersion.selector;
+        upgradeSelectors[2] = upgradeFacet.upgradeDetails.selector;
+        console2.log("UpgradeFacet deployed at:", address(upgradeFacet));
+
+        address[4] memory baseFacets =
+            [address(cutFacet), address(loupeFacet), address(ownershipFacet), address(upgradeFacet)];
+
+        bytes4[][] memory baseFacetFunctionSelectors = new bytes4[][](4);
+        baseFacetFunctionSelectors[0] = cutSelectors;
+        baseFacetFunctionSelectors[1] = loupeSelectors;
+        baseFacetFunctionSelectors[2] = ownableSelectors;
+        baseFacetFunctionSelectors[3] = upgradeSelectors;
+
         // Use deployer (EOA set in BaseScript) as the owner for the registry initialization
-        bytes memory initRegistry = abi.encodeWithSelector(FacetRegistry.initialize.selector, deployer);
+        bytes memory initRegistry =
+            abi.encodeWithSelector(FacetRegistry.initialize.selector, deployer, baseFacets, baseFacetFunctionSelectors);
         registryProxy = new TransparentUpgradeableProxy{ salt: salt }(
             address(registryImpl), address(registryProxyAdmin), initRegistry
         );
@@ -62,7 +105,6 @@ contract Deploy is BaseScript {
         // --- Deploy PoolRegistry implementation & transparent proxy ---
         poolRegistryImpl = new PoolRegistry{ salt: salt }();
 
-        // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
         poolRegistryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "POOL")) }(deployer);
 
         // Use deployer (EOA set in BaseScript) as the owner for the pool registry initialization
@@ -75,7 +117,11 @@ contract Deploy is BaseScript {
         console2.log("PoolRegistry ProxyAdmin deployed at:", address(poolRegistryProxyAdmin));
 
         // --- Deploy ProtocolStatus (no proxy) ---
-        protocolStatus = new ProtocolStatus{ salt: salt }(new ProtocolStatus.SecurityCouncilMember[](0));
+        IProtocolStatus.SecurityCouncilMember[] memory securityCouncilMembers =
+            new IProtocolStatus.SecurityCouncilMember[](1);
+        address sec = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+        securityCouncilMembers[0] = IProtocolStatus.SecurityCouncilMember({ memberAddress: sec, name: "name" });
+        protocolStatus = new ProtocolStatus{ salt: salt }(securityCouncilMembers);
         console2.log("ProtocolStatus deployed at:", address(protocolStatus));
 
         // --- Deploy GardenFactory implementation & transparent proxy ---
@@ -88,8 +134,8 @@ contract Deploy is BaseScript {
         bytes memory factoryInitData = abi.encodeWithSelector(
             GardenFactory.initialize.selector,
             deployer,
-            address(registryProxy),
             address(protocolStatus),
+            address(registryProxy),
             address(poolRegistryProxy)
         );
 
@@ -105,40 +151,6 @@ contract Deploy is BaseScript {
         registryProxyAdmin.transferOwnership(deployer);
         poolRegistryProxyAdmin.transferOwnership(deployer);
         factoryProxyAdmin.transferOwnership(deployer);
-
-        // Register default facets
-        DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
-        bytes4[] memory cutSelectors = new bytes4[](1);
-        cutSelectors[0] = cutFacet.diamondCut.selector;
-        FacetRegistry(address(registryProxy)).addFunctions(address(cutFacet), cutSelectors);
-
-        console2.log("DiamondCutFacet deployed at:", address(cutFacet));
-
-        DiamondLoupeFacet loupeFacet = new DiamondLoupeFacet{ salt: salt }();
-        bytes4[] memory loupeSelectors = new bytes4[](5);
-        loupeSelectors[0] = loupeFacet.facets.selector;
-        loupeSelectors[1] = loupeFacet.facetFunctionSelectors.selector;
-        loupeSelectors[2] = loupeFacet.facetAddresses.selector;
-        loupeSelectors[3] = loupeFacet.facetAddress.selector;
-        loupeSelectors[4] = IERC165.supportsInterface.selector;
-        FacetRegistry(address(registryProxy)).addFunctions(address(loupeFacet), loupeSelectors);
-
-        console2.log("DiamondLoupeFacet deployed at:", address(loupeFacet));
-
-        OwnershipFacet ownershipFacet = new OwnershipFacet{ salt: salt }();
-        bytes4[] memory ownableSelectors = new bytes4[](2);
-        ownableSelectors[0] = ownershipFacet.owner.selector;
-        ownableSelectors[1] = ownershipFacet.transferOwnership.selector;
-
-        FacetRegistry(address(registryProxy)).addFunctions(address(ownershipFacet), ownableSelectors);
-        console2.log("ownershipFacet deployed at:", address(ownershipFacet));
-
-        UpgradeFacet upgradeFacet = new UpgradeFacet{ salt: salt }();
-        bytes4[] memory upgradeSelectors = new bytes4[](2);
-        upgradeSelectors[0] = upgradeFacet.upgrade.selector;
-        upgradeSelectors[1] = upgradeFacet.getCurrentVersion.selector;
-        FacetRegistry(address(registryProxy)).addFunctions(address(upgradeFacet), upgradeSelectors);
-        console2.log("UpgradeFacet deployed at:", address(upgradeFacet));
 
         WithdrawFacet withdrawFacet = new WithdrawFacet();
         bytes4[] memory withdrawSelectors = new bytes4[](1);

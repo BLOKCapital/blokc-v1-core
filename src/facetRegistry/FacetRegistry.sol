@@ -60,14 +60,14 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     function initialize(
         address initialOwner,
         address[4] memory _baseFacets,
-        bytes4[4][] memory _functionSelectors
+        bytes4[][] memory _functionSelectors
     )
         public
         initializer
     {
         for (uint8 i = 0; i < _baseFacets.length; i++) {
             if (_baseFacets[i] == address(0)) {
-                revert FacetRegistry_IncorrectBaseFacetsLength(_baseFacets.length);
+                revert FacetRegistry_FacetAddressIsZero();
             }
             baseFacets[i] = _baseFacets[i];
             addBaseFacet(_baseFacets[i], _functionSelectors[i]);
@@ -75,7 +75,7 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         _transferOwnership(initialOwner);
     }
 
-    function addBaseFacet(address _facetAddress, bytes4[4] memory _functionSelectors) internal {
+    function addBaseFacet(address _facetAddress, bytes4[] memory _functionSelectors) internal {
         if (_facetAddress.code.length == 0) {
             revert FacetRegistry_FacetIsNotContract(_facetAddress);
         }
@@ -242,6 +242,10 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         facetAddress_ = selectorToFacetAndPosition[_functionSelector].facetAddress;
     }
 
+    function getBaseFacets() external view returns (address[4] memory baseFacets_) {
+        baseFacets_ = baseFacets;
+    }
+
     /// @inheritdoc IFacetRegistry
     function isFacetRegistered(address _facet) external view returns (bool) {
         uint256 numFacets = facetAddresses.length;
@@ -255,6 +259,9 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
 
     /// @inheritdoc IFacetRegistry
     function isSelectorRegistered(address _facet, bytes4 _functionSelector) external view returns (bool) {
+        if (_facet == address(0)) {
+            revert FacetRegistry_FacetAddressIsZero();
+        }
         address facetAddress_ = selectorToFacetAndPosition[_functionSelector].facetAddress;
         if (facetAddress_ == _facet) {
             return true;

@@ -25,7 +25,7 @@ contract Diamond {
         address _contractOwner,
         address _facetRegistry,
         address _liquidityPoolRegistry,
-        address _killSwitch
+        address _protocolStatus
     )
         payable
     {
@@ -33,7 +33,7 @@ contract Diamond {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.facetRegistry = _facetRegistry;
         ds.liquidityPoolRegistry = _liquidityPoolRegistry;
-        ds.killSwitch = _killSwitch;
+        ds.protocolStatus = _protocolStatus;
         LibDiamond.diamondCut(_diamondCut, address(0), "");
 
         ds.supportedInterfaces[type(IERC165).interfaceId] = true;

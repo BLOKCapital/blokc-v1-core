@@ -6,7 +6,8 @@ pragma solidity >=0.8.20;
     @title GardenFactory
     @author BLOK Capital DAO
     @notice Factory that deploys new gardens.
-    NOTE: This contract is structured so that it can be a facet itself.
+    @dev This contract is a implementation of Transparent Proxy pattern with upgradeability.
+    It uses OpenZeppelin's upgradeable contracts library for security and reliability.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -15,10 +16,6 @@ pragma solidity >=0.8.20;
 
 
 ################################################################################*/
-
-//Should we implement functions to set facetRegistry, killSwitch, liquidityPoolRegistry, sbtCollectionRegistry?
-//No because some gardens may create arb now, and when they they will try to create garden on other chain and those
-// addresses will be different.
 
 import { console } from "forge-std/console.sol";
 import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
@@ -39,7 +36,7 @@ error GardenFactory_LoupeNotSupported();
 error GardenFactory_DefaultFacetNotRegistered();
 error GardenFactory_GardenAlreadyRegistered();
 error GardenFactory_IndexOutOfRange(uint256 index);
-error GardenFactory_KillSwitchNotSet();
+error GardenFactory_ProtocolStatusNotSet();
 error GardenFactory_LiquidityPoolRegistryNotSet();
 
 contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, ReentrancyGuardUpgradeable {
@@ -49,7 +46,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     address facetRegistry;
 
     /// @notice The address of the kill switch
-    address killSwitch;
+    address protocolStatus;
 
     /// @notice The address of the liquidity pool registry
     address liquidityPoolRegistry;
@@ -74,7 +71,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
 
     function initialize(
         address _initialOwner,
-        address _killSwitch,
+        address _protocolStatus,
         address _facetRegistry,
         address _liquidityPoolRegistry
     )
@@ -86,17 +83,17 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
         if (_facetRegistry == address(0)) {
             revert GardenFactory_FacetRegistryNotSet();
         }
-        if (_killSwitch == address(0)) {
-            revert GardenFactory_KillSwitchNotSet();
+        if (_protocolStatus == address(0)) {
+            revert GardenFactory_ProtocolStatusNotSet();
         }
         if (_liquidityPoolRegistry == address(0)) {
             revert GardenFactory_LiquidityPoolRegistryNotSet();
         }
         facetRegistry = _facetRegistry;
-        killSwitch = _killSwitch;
+        protocolStatus = _protocolStatus;
         liquidityPoolRegistry = _liquidityPoolRegistry;
 
-        emit FactoryInitialized(_initialOwner, _killSwitch, _facetRegistry, _liquidityPoolRegistry);
+        emit FactoryInitialized(_initialOwner, _protocolStatus, _facetRegistry, _liquidityPoolRegistry);
     }
 
     /// @inheritdoc IGardenFactory
@@ -105,34 +102,23 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
         if (facetRegistry == address(0)) {
             revert GardenFactory_FacetRegistryNotSet();
         }
+
         IFacetRegistry registry = IFacetRegistry(facetRegistry);
-        address cutFacetAddress = registry.getFacetAddress(IDiamondCut.diamondCut.selector);
-        address loupeFacetAddress = registry.getFacetAddress(IDiamondLoupe.facetAddress.selector);
-        address ownableFacetAddress = registry.getFacetAddress(IERC173.owner.selector);
-        address upgradeFacetAddress = registry.getFacetAddress(IUpgrade.upgrade.selector);
 
-        IDiamondCut.FacetCut[] memory baseFacets = new IDiamondCut.FacetCut[](4);
+        address[4] memory baseFacets = registry.getBaseFacets();
 
-        baseFacets[0] = IDiamondCut.FacetCut({
-            facetAddress: cutFacetAddress,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: registry.getFacetFunctionSelectors(cutFacetAddress)
-        });
-        baseFacets[1] = IDiamondCut.FacetCut({
-            facetAddress: loupeFacetAddress,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: registry.getFacetFunctionSelectors(loupeFacetAddress)
-        });
-        baseFacets[2] = IDiamondCut.FacetCut({
-            facetAddress: ownableFacetAddress,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: registry.getFacetFunctionSelectors(ownableFacetAddress)
-        });
-        baseFacets[3] = IDiamondCut.FacetCut({
-            facetAddress: upgradeFacetAddress,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: registry.getFacetFunctionSelectors(upgradeFacetAddress)
-        });
+        IDiamondCut.FacetCut[] memory diamondCut = new IDiamondCut.FacetCut[](4);
+
+        for (uint256 i = 0; i < baseFacets.length; i++) {
+            if (baseFacets[i] == address(0)) {
+                revert GardenFactory_DefaultFacetNotRegistered();
+            }
+            diamondCut[i] = IDiamondCut.FacetCut({
+                facetAddress: baseFacets[i],
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: registry.getFacetFunctionSelectors(baseFacets[i])
+            });
+        }
 
         // index must be between 1 and 10 (inclusive) per user
         if (index < 1 || index > 10) {
@@ -146,14 +132,12 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
 
         // Generate a unique salt using the owner address and index
         bytes32 salt = keccak256(abi.encode(owner, index, address(this)));
-        // bytes memory creationCode = type(Diamond).creationCode;
-        // bytes memory initCode = abi.encodePacked(creationCode, abi.encode(params, facetRegistry, killSwitch));
 
         console.log("Deploying diamond");
-        // gardenAddress = Create2.deploy(0, salt, initCode);
 
         // Deploy the Diamond contract using Create2
-        Diamond garden = new Diamond{ salt: salt }(baseFacets, owner, facetRegistry, liquidityPoolRegistry, killSwitch);
+        Diamond garden =
+            new Diamond{ salt: salt }(diamondCut, owner, facetRegistry, liquidityPoolRegistry, protocolStatus);
 
         gardenAddress = address(garden);
 
