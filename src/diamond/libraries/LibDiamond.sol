@@ -78,7 +78,7 @@ library LibDiamond {
         // Registry of the Liquidity Pools
         address liquidityPoolRegistry;
         // Kill switch
-        address killSwitch;
+        address protocolStatus;
         // Version
         uint256 currentVersion;
     }

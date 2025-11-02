@@ -83,6 +83,12 @@ interface IFacetRegistry {
     function getFacetAddress(bytes4 _functionSelector) external view returns (address facetAddress_);
 
     /**
+     * @notice Returns base facets
+     * @return baseFacets_ Array of base facet addresses
+     */
+    function getBaseFacets() external view returns (address[4] memory baseFacets_);
+
+    /**
      * @notice Returns if a facet registered or not
      * @param facet The address of the facet
      * @return isRegistered returns true if registered else false

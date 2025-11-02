@@ -25,31 +25,45 @@ import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/DiamondLoupeFacet.sol";
 
 error UpgradeFacet_InvalidRegistryAddress();
-error UpgradeFacet_AlreadyAtLatestVersion();
+error UpgradeFacet_AlreadyAtLatestVersion(uint256 registryVersion);
 
 contract UpgradeFacet is DiamondLoupeFacet {
-    uint256 private latestRegistryVersion;
-    IDiamondCut.FacetCut[] private latestFacetCuts;
-
     event GardenUpgraded(uint256 indexed newVersion);
 
-    function upgradeDetails() external returns (IDiamondCut.FacetCut[] memory) {
+    function upgradeDetails()
+        external
+        view
+        returns (IDiamondCut.FacetCut[] memory facetCuts, uint256 registryVersion, bytes32 hashData)
+    {
         address registry = LibDiamond.facetRegistry();
         if (registry == address(0)) revert UpgradeFacet_InvalidRegistryAddress();
-        uint256 registryVersion = IFacetRegistry(registry).getCurrentVersion();
+        registryVersion = IFacetRegistry(registry).getCurrentVersion();
         uint256 diamondCurrentVersion = LibDiamond.currentVersion();
         if (diamondCurrentVersion == registryVersion) {
-            return new IDiamondCut.FacetCut[](0);
+            revert UpgradeFacet_AlreadyAtLatestVersion(registryVersion);
         }
 
         address[] memory registryFacets = IFacetRegistry(registry).getFacetAddresses();
-        IDiamondCut.FacetCut[] memory facetCuts = _buildFacetCuts(registry, registryFacets);
-        latestFacetCuts = facetCuts;
-        latestRegistryVersion = registryVersion;
-        return facetCuts;
+        facetCuts = _buildFacetCuts(registry, registryFacets);
+        hashData = keccak256(abi.encode(facetCuts, registryVersion));
+        return (facetCuts, registryVersion, hashData);
     }
 
-    function upgrade() external {
+    function upgrade(bytes32 hashData) external {
+        address registry = LibDiamond.facetRegistry();
+        if (registry == address(0)) revert UpgradeFacet_InvalidRegistryAddress();
+        uint256 latestRegistryVersion = IFacetRegistry(registry).getCurrentVersion();
+        uint256 diamondCurrentVersion = LibDiamond.currentVersion();
+        if (diamondCurrentVersion == latestRegistryVersion) {
+            revert UpgradeFacet_AlreadyAtLatestVersion(latestRegistryVersion);
+        }
+        address[] memory registryFacets = IFacetRegistry(registry).getFacetAddresses();
+        IDiamondCut.FacetCut[] memory latestFacetCuts = _buildFacetCuts(registry, registryFacets);
+        bytes32 computedHash = keccak256(abi.encode(latestFacetCuts, latestRegistryVersion));
+        if (computedHash != hashData) {
+            revert UpgradeFacet_InvalidRegistryAddress();
+        }
+
         LibDiamond.diamondCut(latestFacetCuts, address(0), bytes(""));
         LibDiamond.setCurrentVersion(latestRegistryVersion);
         emit GardenUpgraded(latestRegistryVersion);
