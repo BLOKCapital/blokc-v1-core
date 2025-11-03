@@ -10,7 +10,7 @@ import { UpgradeFacet } from "src/diamond/facets/baseFacets/UpgradeFacet.sol";
 import { IDiamondCut } from "src/interfaces/IDiamondCut.sol";
 
 contract UpgradeDiamond is Script {
-    address internal gardenAddress = 0xB53d797EE9b946C8274d770770D156f6CE934141;
+    address internal gardenAddress = 0x2e33ecC981EB4ec7c0Dd4BBA9cBc902F035fE091;
 
     function run() external {
         IDiamondCut.FacetCut[] memory facetCuts;

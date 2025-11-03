@@ -96,12 +96,19 @@ interface IFacetRegistry {
     function isFacetRegistered(address facet) external view returns (bool isRegistered);
 
     /**
-     * @notice Returns if a selector is registered or not
-     * @param facet The address of the facet
-     * @param selector The function selector
-     * @return isRegistered returns true if selector is registered
+     * @notice Checks if a function selector is registered in the registry (any facet)
+     * @param selector The function selector to check
+     * @return isRegistered True if the selector is registered for any facet, false otherwise
      */
-    function isSelectorRegistered(address facet, bytes4 selector) external view returns (bool isRegistered);
+    function isSelectorRegistered(bytes4 selector) external view returns (bool isRegistered);
+
+    /**
+     * @notice Checks if a function selector is registered for a specific facet
+     * @param facet The address of the facet to check
+     * @param selector The function selector to check
+     * @return isRegistered True if the selector is registered for the specified facet, false otherwise
+     */
+    function isSelectorRegisteredWithFacet(address facet, bytes4 selector) external view returns (bool isRegistered);
 
     /**
      * @notice Returns the current version of the registry.

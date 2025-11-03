@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity ^0.8.20;
 
 /*###############################################################################
 
-    @title Uniswap Interface
+    @title IUniswap
     @author BLOK Capital DAO
-    @notice Minimal typed interface used by the Uniswap facet to perform swaps and TWAP lookups.
+    @notice Interface for Uniswap V3 integration (swaps and TWAP queries)
+    @dev This interface provides functions for executing token swaps on Uniswap V3
+         and querying TWAP (Time-Weighted Average Price) prices from pools.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -16,15 +18,19 @@ pragma solidity >=0.8.20;
 ################################################################################*/
 
 interface IUniswap {
+    // ========================================================================
+    // Structs
+    // ========================================================================
+
     /**
-     * @notice Parameters for a single-hop exact-input swap.
-     * @param routerAddress Address of the Uniswap V3 periphery swap router.
-     * @param swapFee Fee tier (e.g. 3000 for 0.3%).
-     * @param amountIn Amount of input token to swap.
-     * @param amountOutMinimum Minimum acceptable output amount (slippage protection).
-     * @param deadline Unix timestamp after which the swap is invalid.
-     * @param tokenIn Address of the ERC20 input token.
-     * @param tokenOut Address of the ERC20 output token.
+     * @notice Parameters for a single-hop exact-input swap
+     * @param routerAddress Address of the Uniswap V3 periphery swap router
+     * @param swapFee Fee tier (e.g., 3000 for 0.3%)
+     * @param amountIn Amount of input token to swap
+     * @param amountOutMinimum Minimum acceptable output amount (slippage protection)
+     * @param deadline Unix timestamp after which the swap is invalid
+     * @param tokenIn Address of the ERC20 input token
+     * @param tokenOut Address of the ERC20 output token
      */
     struct UniswapSingleHopSwapParams {
         address routerAddress;
@@ -37,9 +43,9 @@ interface IUniswap {
     }
 
     /**
-     * @notice Encodes a token + pool fee entry for multi-hop paths.
-     * @param token Token address for this path step.
-     * @param fee Fee tier (uint24) used by the following pool.
+     * @notice Encodes a token + pool fee entry for multi-hop paths
+     * @param token Token address for this path step
+     * @param fee Fee tier (uint24) used by the following pool
      */
     struct TokenWithFee {
         address token;
@@ -47,12 +53,12 @@ interface IUniswap {
     }
 
     /**
-     * @notice Parameters for a multi-hop exact-input swap.
-     * @param routerAddress Address of the Uniswap V3 periphery swap router.
-     * @param pathWithFees Array describing the token path and fees between hops.
-     * @param deadline Unix timestamp after which the swap is invalid.
-     * @param amountIn Amount of input token to swap.
-     * @param amountOutMin Minimum acceptable output amount.
+     * @notice Parameters for a multi-hop exact-input swap
+     * @param routerAddress Address of the Uniswap V3 periphery swap router
+     * @param pathWithFees Array describing the token path and fees between hops
+     * @param deadline Unix timestamp after which the swap is invalid
+     * @param amountIn Amount of input token to swap
+     * @param amountOutMin Minimum acceptable output amount (slippage protection)
      */
     struct UniswapMultiHopSwapParams {
         address routerAddress;
@@ -63,9 +69,9 @@ interface IUniswap {
     }
 
     /**
-     * @notice Parameters to fetch a TWAP sqrt price for a single hop pool.
-     * @param uniswapV3Pool Address of the Uniswap V3 pool to query.
-     * @param twapInterval TWAP interval in seconds. If zero, returns current slot0 price.
+     * @notice Parameters to fetch a TWAP sqrt price for a single hop pool
+     * @param uniswapV3Pool Address of the Uniswap V3 pool to query
+     * @param twapInterval TWAP interval in seconds. If zero, returns current slot0 price
      */
     struct UniswapSingleHopTwapParams {
         address uniswapV3Pool;
@@ -73,9 +79,9 @@ interface IUniswap {
     }
 
     /**
-     * @notice Pool info for multi-hop TWAP aggregation.
-     * @param pool Address of the Uniswap V3 pool.
-     * @param inverse If true, the price from this pool is inverted when combining.
+     * @notice Pool info for multi-hop TWAP aggregation
+     * @param pool Address of the Uniswap V3 pool
+     * @param inverse If true, the price from this pool is inverted when combining
      */
     struct UniswapPoolInfo {
         address pool;
@@ -83,32 +89,57 @@ interface IUniswap {
     }
 
     /**
-     * @notice Parameters for computing a combined TWAP across multiple pools.
-     * @param pools Array of PoolInfo describing which pools to combine.
-     * @param twapInterval TWAP observation interval in seconds (applies to all pools).
+     * @notice Parameters for computing a combined TWAP across multiple pools
+     * @param pools Array of PoolInfo describing which pools to combine
+     * @param twapInterval TWAP observation interval in seconds (applies to all pools)
      */
     struct UniswapMultiHopTwapParams {
         UniswapPoolInfo[] pools;
         uint32 twapInterval;
     }
 
-    /// @notice Swap exact `amountIn` from tokenIn -> tokenOut using a single Uniswap V3 pool.
+    // ========================================================================
+    // Functions
+    // ========================================================================
+
+    /**
+     * @notice Executes a single-hop exact-input swap on Uniswap V3
+     * @dev Swaps an exact amount of input token for output token using a single pool.
+     *      Pool must be registered in the PoolRegistry. All operations are restricted
+     *      to the diamond owner.
+     * @param params Swap parameters including tokens, amounts, fees, and deadline
+     */
     function swapExactInputSingleHop(UniswapSingleHopSwapParams calldata params) external;
 
-    /// @notice Swap exact `amountIn` over a multi-hop path described by `pathWithFees`.
+    /**
+     * @notice Executes a multi-hop exact-input swap on Uniswap V3
+     * @dev Swaps an exact amount of input token across multiple pools in a path.
+     *      All pools in the path must be registered in the PoolRegistry.
+     * @param params Multi-hop swap parameters including path, amounts, and deadline
+     */
     function swapExactInputMultiHop(UniswapMultiHopSwapParams calldata params) external;
 
-    /// @notice Get sqrt(price) X96 for the given pool using a TWAP or current price.
-    /// @return sqrtPriceX96 Q64.96 sqrt price.
-    /// @return deadline Suggests a client-side expiry for any swap using this price (now + 300s).
+    /**
+     * @notice Gets the TWAP sqrt price for a single Uniswap V3 pool
+     * @dev Returns either the current spot price (if twapInterval is 0) or the
+     *      TWAP price over the specified interval. Price is returned in Q64.96 format.
+     * @param params Parameters containing pool address and TWAP interval
+     * @return sqrtPriceX96 The sqrt price in Q64.96 format
+     * @return deadline Suggested deadline for swaps using this price (now + 300s)
+     */
     function getSqrtTwapX96(UniswapSingleHopTwapParams memory params)
         external
         view
         returns (uint160 sqrtPriceX96, uint256 deadline);
 
-    /// @notice Get a combined TWAP price (as Q96) across multiple pools.
-    /// @return combinedPriceX96 Aggregated price (scaled to 2**96).
-    /// @return deadline Suggests a client-side expiry for any swap using this price (now + 300s).
+    /**
+     * @notice Gets a combined TWAP price across multiple Uniswap V3 pools
+     * @dev Multiplies prices from multiple pools together, with optional inversion.
+     *      Useful for calculating prices across complex paths (e.g., ETH -> USDC -> DAI).
+     * @param params Parameters containing pool array and TWAP interval
+     * @return combinedPriceX96 The combined price in Q96 format
+     * @return deadline Suggested deadline for swaps using this price (now + 300s)
+     */
     function getCombinedTwapX96(UniswapMultiHopTwapParams memory params)
         external
         view

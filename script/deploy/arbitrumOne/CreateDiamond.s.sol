@@ -7,7 +7,7 @@ import { GardenFactory } from "src/factory/GardenFactory.sol";
 
 contract CreateSimpleDiamond is Script {
     function run() external {
-        address factoryAddress = 0xaBbBDD1d5a4E731b6384DD0c622a8C24B26a60c1;
+        address factoryAddress = 0x950B29f718b406e7318771a97E1C5A19D7A23b3e;
         vm.startBroadcast();
         address gardenAddress = GardenFactory(factoryAddress).createGarden(2);
         console.log("Garden deployed at:", gardenAddress);
