@@ -47,7 +47,6 @@ contract Deploy is BaseScript {
         // --- Deploy FacetRegistry implementation & transparent proxy ---
         registryImpl = new FacetRegistry{ salt: salt }();
 
-        // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
         registryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "REGISTRY")) }(deployer);
 
         // Register default facets
@@ -91,7 +90,6 @@ contract Deploy is BaseScript {
         baseFacetFunctionSelectors[2] = ownableSelectors;
         baseFacetFunctionSelectors[3] = upgradeSelectors;
 
-        // Use deployer (EOA set in BaseScript) as the owner for the registry initialization
         bytes memory initRegistry =
             abi.encodeWithSelector(FacetRegistry.initialize.selector, deployer, baseFacets, baseFacetFunctionSelectors);
         registryProxy = new TransparentUpgradeableProxy{ salt: salt }(
@@ -102,12 +100,13 @@ contract Deploy is BaseScript {
         console2.log("FacetRegistry implementation at:", address(registryImpl));
         console2.log("FacetRegistry ProxyAdmin deployed at:", address(registryProxyAdmin));
 
+        registryProxyAdmin.transferOwnership(deployer);
+
         // --- Deploy PoolRegistry implementation & transparent proxy ---
         poolRegistryImpl = new PoolRegistry{ salt: salt }();
 
         poolRegistryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "POOL")) }(deployer);
 
-        // Use deployer (EOA set in BaseScript) as the owner for the pool registry initialization
         bytes memory initPoolRegistry = abi.encodeWithSelector(PoolRegistry.initialize.selector, deployer);
         poolRegistryProxy = new TransparentUpgradeableProxy{ salt: salt }(
             address(poolRegistryImpl), address(poolRegistryProxyAdmin), initPoolRegistry
@@ -116,21 +115,21 @@ contract Deploy is BaseScript {
         console2.log("PoolRegistry implementation at:", address(poolRegistryImpl));
         console2.log("PoolRegistry ProxyAdmin deployed at:", address(poolRegistryProxyAdmin));
 
+        poolRegistryProxyAdmin.transferOwnership(deployer);
+
         // --- Deploy ProtocolStatus (no proxy) ---
         IProtocolStatus.SecurityCouncilMember[] memory securityCouncilMembers =
             new IProtocolStatus.SecurityCouncilMember[](1);
         address sec = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-        securityCouncilMembers[0] = IProtocolStatus.SecurityCouncilMember({ memberAddress: sec, name: "name" });
-        protocolStatus = new ProtocolStatus{ salt: salt }(securityCouncilMembers);
+        securityCouncilMembers[0] = IProtocolStatus.SecurityCouncilMember({ memberAddress: sec, name: "Chintan" });
+        protocolStatus = new ProtocolStatus{ salt: salt }(securityCouncilMembers, deployer);
         console2.log("ProtocolStatus deployed at:", address(protocolStatus));
 
         // --- Deploy GardenFactory implementation & transparent proxy ---
         factoryImpl = new GardenFactory{ salt: salt }();
 
-        // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
         factoryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "FACTORY")) }(deployer);
 
-        // Initialize GardenFactory with deployer as owner
         bytes memory factoryInitData = abi.encodeWithSelector(
             GardenFactory.initialize.selector,
             deployer,
@@ -147,35 +146,6 @@ contract Deploy is BaseScript {
         console2.log("GardenFactory implementation at:", address(factoryImpl));
         console2.log("GardenFactory ProxyAdmin deployed at:", address(factoryProxyAdmin));
 
-        // --- Transfer ProxyAdmin ownership to the deployer (or multisig) ---
-        registryProxyAdmin.transferOwnership(deployer);
-        poolRegistryProxyAdmin.transferOwnership(deployer);
         factoryProxyAdmin.transferOwnership(deployer);
-
-        WithdrawFacet withdrawFacet = new WithdrawFacet();
-        bytes4[] memory withdrawSelectors = new bytes4[](1);
-        withdrawSelectors[0] = withdrawFacet.withdrawUSDC.selector;
-
-        FacetRegistry(address(registryProxy)).addFunctions(address(withdrawFacet), withdrawSelectors);
-        console2.log("WithdrawFacet deployed at:", address(withdrawFacet));
-
-        UniswapFacet uniswapFacet = new UniswapFacet();
-        bytes4[] memory uniswapFacetSelectors = new bytes4[](4);
-        uniswapFacetSelectors[0] = UniswapFacet.swapExactInputSingleHop.selector;
-        uniswapFacetSelectors[1] = UniswapFacet.swapExactInputMultiHop.selector;
-        uniswapFacetSelectors[2] = UniswapFacet.getSqrtTwapX96.selector;
-        uniswapFacetSelectors[3] = UniswapFacet.getCombinedTwapX96.selector;
-
-        FacetRegistry(address(registryProxy)).addFunctions(address(uniswapFacet), uniswapFacetSelectors);
-        console2.log("UniswapFacet deployed at:", address(uniswapFacet));
-
-        AaveFacet aaveFacet = new AaveFacet();
-        bytes4[] memory aaveFacetSelectors = new bytes4[](3);
-        aaveFacetSelectors[0] = AaveFacet.aaveReserveData.selector;
-        aaveFacetSelectors[1] = AaveFacet.lendToAave.selector;
-        aaveFacetSelectors[2] = AaveFacet.withdrawFromAave.selector;
-
-        FacetRegistry(address(registryProxy)).addFunctions(address(aaveFacet), aaveFacetSelectors);
-        console2.log("AaveFacet deployed at:", address(aaveFacet));
     }
 }

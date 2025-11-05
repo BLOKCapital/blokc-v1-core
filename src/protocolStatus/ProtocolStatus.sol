@@ -61,9 +61,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     }
 
     // ========== CONSTRUCTOR ==========
-    constructor(SecurityCouncilMember[] memory initialMembers) Ownable(msg.sender) {
-        //Should there be a size limit on the initial members array?
-
+    constructor(SecurityCouncilMember[] memory initialMembers, address initialOwner) Ownable(initialOwner) {
         // Check for empty array
         if (initialMembers.length == 0) {
             revert ProtocolStatus_EmptyArray();

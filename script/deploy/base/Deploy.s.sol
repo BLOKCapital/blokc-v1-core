@@ -18,6 +18,7 @@ import { UniswapFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/Unisw
 import { AaveFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/AaveFacet.sol";
 import { CCTPFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/CCTPFacet.sol";
 import { ProtocolStatus } from "src/protocolStatus/ProtocolStatus.sol";
+import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 
 import { IERC165 } from "src/interfaces/IERC165.sol";
 
@@ -46,10 +47,8 @@ contract Deploy is BaseScript {
         // --- Deploy FacetRegistry implementation & transparent proxy ---
         registryImpl = new FacetRegistry{ salt: salt }();
 
-        // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
         registryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "REGISTRY")) }(deployer);
 
-        // Use deployer (EOA set in BaseScript) as the owner for the registry initialization
         bytes memory initRegistry = abi.encodeWithSelector(FacetRegistry.initialize.selector, deployer);
         registryProxy = new TransparentUpgradeableProxy{ salt: salt }(
             address(registryImpl), address(registryProxyAdmin), initRegistry
@@ -58,53 +57,6 @@ contract Deploy is BaseScript {
         console2.log("FacetRegistry proxy deployed at:", address(registryProxy));
         console2.log("FacetRegistry implementation at:", address(registryImpl));
         console2.log("FacetRegistry ProxyAdmin deployed at:", address(registryProxyAdmin));
-
-        // --- Deploy PoolRegistry implementation & transparent proxy ---
-        poolRegistryImpl = new PoolRegistry{ salt: salt }();
-
-        // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
-        poolRegistryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "POOL")) }(deployer);
-
-        // Use deployer (EOA set in BaseScript) as the owner for the pool registry initialization
-        bytes memory initPoolRegistry = abi.encodeWithSelector(PoolRegistry.initialize.selector, deployer);
-        poolRegistryProxy = new TransparentUpgradeableProxy{ salt: salt }(
-            address(poolRegistryImpl), address(poolRegistryProxyAdmin), initPoolRegistry
-        );
-        console2.log("PoolRegistry proxy deployed at:", address(poolRegistryProxy));
-        console2.log("PoolRegistry implementation at:", address(poolRegistryImpl));
-        console2.log("PoolRegistry ProxyAdmin deployed at:", address(poolRegistryProxyAdmin));
-
-        // --- Deploy ProtocolStatus (no proxy) ---
-        protocolStatus = new ProtocolStatus{ salt: salt }(new ProtocolStatus.SecurityCouncilMember[](0));
-        console2.log("ProtocolStatus deployed at:", address(protocolStatus));
-
-        // --- Deploy GardenFactory implementation & transparent proxy ---
-        factoryImpl = new GardenFactory{ salt: salt }();
-
-        // Deploy ProxyAdmin (separate for each proxy, you can use the same if you want)
-        factoryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "FACTORY")) }(deployer);
-
-        // Initialize GardenFactory with deployer as owner
-        bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            deployer,
-            address(registryProxy),
-            address(protocolStatus),
-            address(poolRegistryProxy)
-        );
-
-        factoryProxy = new TransparentUpgradeableProxy{ salt: salt }(
-            address(factoryImpl), address(factoryProxyAdmin), factoryInitData
-        );
-
-        console2.log("GardenFactory proxy deployed at:", address(factoryProxy));
-        console2.log("GardenFactory implementation at:", address(factoryImpl));
-        console2.log("GardenFactory ProxyAdmin deployed at:", address(factoryProxyAdmin));
-
-        // --- Transfer ProxyAdmin ownership to the deployer (or multisig) ---
-        registryProxyAdmin.transferOwnership(deployer);
-        poolRegistryProxyAdmin.transferOwnership(deployer);
-        factoryProxyAdmin.transferOwnership(deployer);
 
         // --- Register default facets ---
         DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
@@ -140,6 +92,54 @@ contract Deploy is BaseScript {
         FacetRegistry(address(registryProxy)).addFunctions(address(upgradeFacet), upgradeSelectors);
         console2.log("UpgradeFacet deployed at:", address(upgradeFacet));
 
+        // --- Deploy PoolRegistry implementation & transparent proxy ---
+        poolRegistryImpl = new PoolRegistry{ salt: salt }();
+
+        poolRegistryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "POOL")) }(deployer);
+
+        bytes memory initPoolRegistry = abi.encodeWithSelector(PoolRegistry.initialize.selector, deployer);
+
+        poolRegistryProxy = new TransparentUpgradeableProxy{ salt: salt }(
+            address(poolRegistryImpl), address(poolRegistryProxyAdmin), initPoolRegistry
+        );
+        console2.log("PoolRegistry proxy deployed at:", address(poolRegistryProxy));
+        console2.log("PoolRegistry implementation at:", address(poolRegistryImpl));
+        console2.log("PoolRegistry ProxyAdmin deployed at:", address(poolRegistryProxyAdmin));
+
+        poolRegistryProxyAdmin.transferOwnership(deployer);
+
+        // --- Deploy ProtocolStatus (no proxy) ---
+        IProtocolStatus.SecurityCouncilMember[] memory securityCouncilMembers =
+            new IProtocolStatus.SecurityCouncilMember[](1);
+        address chintan = 0x201578233c9465AA3Cef748bA51386a876B68794;
+        string memory name = "Chintan";
+        securityCouncilMembers[0] = IProtocolStatus.SecurityCouncilMember({ memberAddress: chintan, name: name });
+        protocolStatus = new ProtocolStatus{ salt: salt }(securityCouncilMembers, deployer);
+        console2.log("ProtocolStatus deployed at:", address(protocolStatus));
+
+        // --- Deploy GardenFactory implementation & transparent proxy ---
+        factoryImpl = new GardenFactory{ salt: salt }();
+
+        factoryProxyAdmin = new ProxyAdmin{ salt: keccak256(abi.encodePacked(salt, "FACTORY")) }(deployer);
+
+        bytes memory factoryInitData = abi.encodeWithSelector(
+            GardenFactory.initialize.selector,
+            deployer,
+            address(protocolStatus),
+            address(registryProxy),
+            address(poolRegistryProxy)
+        );
+
+        factoryProxy = new TransparentUpgradeableProxy{ salt: salt }(
+            address(factoryImpl), address(factoryProxyAdmin), factoryInitData
+        );
+
+        console2.log("GardenFactory proxy deployed at:", address(factoryProxy));
+        console2.log("GardenFactory implementation at:", address(factoryImpl));
+        console2.log("GardenFactory ProxyAdmin deployed at:", address(factoryProxyAdmin));
+
+        factoryProxyAdmin.transferOwnership(deployer);
+
         // --- Register utility facets ---
         UniswapFacet uniswapFacet = new UniswapFacet();
         bytes4[] memory uniswapFacetSelectors = new bytes4[](4);
@@ -167,5 +167,12 @@ contract Deploy is BaseScript {
 
         FacetRegistry(address(registryProxy)).addFunctions(address(cctpFacet), cctpFacetSelectors);
         console2.log("CCTPFacet deployed at:", address(cctpFacet));
+
+        WithdrawFacet withdrawFacet = new WithdrawFacet();
+        bytes4[] memory withdrawFacetSelectors = new bytes4[](1);
+        withdrawFacetSelectors[0] = WithdrawFacet.withdrawUSDC.selector;
+
+        FacetRegistry(address(registryProxy)).addFunctions(address(withdrawFacet), withdrawFacetSelectors);
+        console2.log("WithdrawFacet deployed at:", address(withdrawFacet));
     }
 }

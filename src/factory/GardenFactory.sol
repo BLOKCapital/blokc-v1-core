@@ -77,11 +77,11 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     // State Variables
     // ========================================================================
 
-    /// @notice The address of the facet registry contract
-    address private facetRegistry;
-
     /// @notice The address of the protocol status (kill switch) contract
     address private protocolStatus;
+
+    /// @notice The address of the facet registry contract
+    address private facetRegistry;
 
     /// @notice The address of the liquidity pool registry contract
     address private liquidityPoolRegistry;
@@ -161,8 +161,8 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
             revert GardenFactory_LiquidityPoolRegistryNotSet();
         }
 
-        facetRegistry = _facetRegistry;
         protocolStatus = _protocolStatus;
+        facetRegistry = _facetRegistry;
         liquidityPoolRegistry = _liquidityPoolRegistry;
 
         emit FactoryInitialized(_initialOwner, _protocolStatus, _facetRegistry, _liquidityPoolRegistry);
@@ -230,7 +230,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
 
         // Deploy the Diamond contract using CREATE2
         Diamond garden =
-            new Diamond{ salt: salt }(diamondCut, owner, facetRegistry, liquidityPoolRegistry, protocolStatus);
+            new Diamond{ salt: salt }(diamondCut, owner, protocolStatus, facetRegistry, liquidityPoolRegistry);
 
         gardenAddress = address(garden);
 

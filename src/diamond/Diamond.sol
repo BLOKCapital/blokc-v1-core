@@ -34,6 +34,7 @@ import { IUpgrade } from "src/interfaces/IUpgrade.sol";
 import { IERC173 } from "src/interfaces/IERC173.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
+import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 
 // ============================================================================
 // Errors
@@ -46,6 +47,12 @@ error Diamond_InvalidCallToDiamond(address facet, bytes4 selector);
 
 /// @notice Thrown when facet registry address is not set or is zero
 error Diamond_FacetRegistryNotSet();
+
+/// @notice Thrown when protocol status address is not set or is zero
+error Diamond_ProtocolStatusNotSet();
+
+/// @notice Thrown when liquidity pool registry address is not set or is zero
+error Diamond_LiquidityPoolRegistryNotSet();
 
 /// @notice Thrown when contract owner address is zero
 error Diamond_ContractOwnerIsZero();
@@ -64,6 +71,12 @@ error Diamond_SelectorRemoved(address facet, bytes4 selector);
 /// @param facet The facet address that was attempted
 /// @param selector The function selector that was moved
 error Diamond_SelectorMoved(address facet, bytes4 selector);
+
+/// @notice Thrown when upgrades are disabled
+error Diamond_UpgradesDisabled();
+
+/// @notice Thrown when protocol is inactive
+error Diamond_ProtocolIsInactive();
 
 // ============================================================================
 // Diamond
@@ -94,16 +107,16 @@ contract Diamond {
      *      The facet registry validation during diamondCut ensures only registered facets can be added.
      * @param _diamondCut Array of facet cuts to apply during initialization
      * @param _contractOwner Address that will own the diamond contract
+     * @param _protocolStatus Address of the ProtocolStatus contract (kill switch)
      * @param _facetRegistry Address of the FacetRegistry contract (must be non-zero)
      * @param _liquidityPoolRegistry Address of the LiquidityPoolRegistry contract
-     * @param _protocolStatus Address of the ProtocolStatus contract
      */
     constructor(
         IDiamondCut.FacetCut[] memory _diamondCut,
         address _contractOwner,
+        address _protocolStatus,
         address _facetRegistry,
-        address _liquidityPoolRegistry,
-        address _protocolStatus
+        address _liquidityPoolRegistry
     )
         payable
     {
@@ -111,8 +124,14 @@ contract Diamond {
         if (_contractOwner == address(0)) {
             revert Diamond_ContractOwnerIsZero();
         }
+        if (_protocolStatus == address(0)) {
+            revert Diamond_ProtocolStatusNotSet();
+        }
         if (_facetRegistry == address(0)) {
             revert Diamond_FacetRegistryNotSet();
+        }
+        if (_liquidityPoolRegistry == address(0)) {
+            revert Diamond_LiquidityPoolRegistryNotSet();
         }
 
         // Set contract owner
@@ -162,6 +181,16 @@ contract Diamond {
         // Get diamond storage using assembly for gas efficiency
         assembly {
             ds.slot := position
+        }
+
+        IProtocolStatus protocolStatus = IProtocolStatus(ds.protocolStatus);
+        if (protocolStatus.getProtocolStatus() == IProtocolStatus.State.INACTIVE) {
+            revert Diamond_ProtocolIsInactive();
+        }
+        if (protocolStatus.getProtocolStatus() == IProtocolStatus.State.UPGRADES_DISABLED) {
+            if (msg.sig == IUpgrade.upgrade.selector) {
+                revert Diamond_UpgradesDisabled();
+            }
         }
 
         // Look up facet address for the called function selector

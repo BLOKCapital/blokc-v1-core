@@ -139,7 +139,7 @@ abstract contract GardenFactoryTestBase is Test {
             memberAddress: makeAddr("securityCouncil1"),
             name: "Security Council Member 1"
         });
-        protocolStatus = new ProtocolStatus(initialMembers);
+        protocolStatus = new ProtocolStatus(initialMembers, owner);
 
         // Deploy GardenFactory
         factoryImpl = new GardenFactory();
