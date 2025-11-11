@@ -6,7 +6,7 @@ import { BaseScript } from "script/Base.s.sol";
 import { console } from "forge-std/console.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
-import { FacetRegistryReceiver } from "src/ccip/Spoke/FacetRegistryReceiver.sol";
+import { FacetRegistryReceiverV3 } from "src/ccip/Spoke/BaseRegistryReceiver.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract BaseDeployment is BaseScript {
@@ -42,7 +42,7 @@ contract BaseDeployment is BaseScript {
         ERC1967Proxy poolRegistryProxy = new ERC1967Proxy(address(poolRegistryImpl), poolRegistryInitData);
         console.log("PoolRegistry Proxy:", address(poolRegistryProxy));
 
-        FacetRegistryReceiver facetRegistryReceiver = new FacetRegistryReceiver();
+        FacetRegistryReceiverV3 facetRegistryReceiver = new FacetRegistryReceiverV3();
         console.log("FacetRegistryReceiver:", address(facetRegistryReceiver));
 
         facetRegistryReceiver.setFacetRegistry(address(facetRegistryProxy));

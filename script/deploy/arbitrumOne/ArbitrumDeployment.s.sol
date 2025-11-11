@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
 import { BaseScript } from "script/Base.s.sol";
-import { FacetRegistryBroadcaster } from "src/ccip/Hub/FacetRegistryBroadcaster.sol";
+import { FacetRegistryBroadcaster } from "src/ccip/Hub/BaseRegistryBroadcaster.sol";
 
 contract ArbitrumDeployment is BaseScript {
     address internal registryDeployer;

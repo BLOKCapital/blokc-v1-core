@@ -1,11 +1,12 @@
 pragma solidity ^0.8.0;
 
-
-import {LBRouter} from "../../../../interfaces/arbitrumOne/LBRouter.sol";
-import {ILBFactory} from "../../../../interfaces/arbitrumOne/ILBFactory.sol";
+import {IPoolRegistry} from "src/interfaces/IPoolRegistry.sol";
+import {ILBPair} from "lib/joe-v2/src/interfaces/ILBPair.sol";
+import {ILBFactory} from "lib/joe-v2/src/interfaces/ILBFactory.sol";
 import { LibDiamond} from "src/diamond/libraries/LibDiamond.sol";
-import {ILBRouter, LiquidityParameters, Path} from "src/interfaces/arbitrumOne/ILBRouter.sol";
-import {IERC20} from "src/interfaces/IERC20.sol";
+import {ILBRouter} from "lib/joe-v2/src/interfaces/ILBRouter.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {ILBToken} from "lib/joe-v2/src/interfaces/ILBToken.sol";
 
 error LBRouterFacet_NotInitialized();
 error LBRouterFacet_AlreadyInitialized();
@@ -14,24 +15,24 @@ error LBRouterFacet_DeadlinePassed();
 error LBRouterFacet_InsufficientBalance();
 error LBRouterFacet_ApprovalFailed();
 error LBRouterFacet_PoolNotRegistered();
+error LBRouterFacet_InvalidAmount();
 error LBRouterFacet_InvalidPath();
 error LBRouterFacet_ArrayLengthMismatch();
 error LBRouterFacet_TooManyBins();
 error LBRouterFacet_Paused();
 error LBRouterFacet_NotOwner();
 
-//events
-event LBRouterInitialized(address indexed router, address indexed factory, uint16 binStep);
-event LiquidityAdded(address indexed pair, uint256 amountX, uint256 amountY, uint256[] depositIds);
-event LiquidityRemoved(address indexed pair, uint256 amountX, uint256 amountY);
-event SwapExecuted(address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut);
-event Swept(address indexed token, address indexed to, uint256 amount);
-event Paused(bool paused);
-
-
 //@notice This is a wrapper contract for user facing liquidity book v2 contract LBRouter which has all the swap and liquidity functions
-contract lfgFacetV2 is ILBRouter {
-    
+contract lfgFacet is ILBRouter {
+
+    event LBRouterInitialized(address indexed router, address indexed factory, uint16 binStep);
+    event LiquidityAdded(address indexed pair, uint256 amountX, uint256 amountY, uint256[] depositIds);
+    event LiquidityRemoved(address indexed pair, uint256 amountX, uint256 amountY);
+    event SwapExecuted(address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut);
+    event Swept(address indexed token, address indexed to, uint256 amount);
+    event Paused(bool paused);  
+
+
     bytes32 internal constant STORAGE_SLOT = keccak256("traderjoe.v2.storage");
 
     struct Storage {
@@ -43,7 +44,7 @@ contract lfgFacetV2 is ILBRouter {
     }
 
     function s() internal pure returns (Storage storage ds) {
-        assembly { ds.slot := STORAGE_SLOT }
+        assembly {ds.slot := STORAGE_SLOT}
     }
 
     //modifiers
@@ -79,8 +80,7 @@ contract lfgFacetV2 is ILBRouter {
     //@param pair The address of the pair to be checked
     function _checkPoolRegistered(address pair) internal view {
         address registry = LibDiamond.liquidityPoolRegistry();
-        if (!IPoolRegistry(registry).isPoolRegistered(pair)) {
-            revert LBRouterFacet_PoolNotRegistered();
+        if (!IPoolRegistry(registry).isPoolRegistered(pair)) revert LBRouterFacet_PoolNotRegistered();
     }
 
     // validations and safe approve 
@@ -92,7 +92,7 @@ contract lfgFacetV2 is ILBRouter {
         if (!token.approve(spender, amount)) revert LBRouterFacet_ApprovalFailed();
     }
 
-    function _validatePath(Path memory path) internal pure {
+    function _validatePath(ILBRouter.Path memory path) internal pure {
         if (path.pairBinSteps.length < 1 || path.tokenPath.length < 2) {
             revert LBRouterFacet_InvalidPath();
         }
@@ -106,7 +106,7 @@ contract lfgFacetV2 is ILBRouter {
     //@param activeId The active id of the pair
     //@param binStep The bin step of the pair
     //@return pair The actual created pair
-    function createLBPair(address tokenX,address tokenY,uint24 activeId, uint16 binStep) external onlyOwnerreturns (ILBPair pair) {
+    function createLBPair(address tokenX,address tokenY,uint24 activeId, uint16 binStep) external onlyOwner returns (ILBPair pair) {
         Storage storage ds = s();
         if (binStep == 0) binStep = ds.defaultBinStep;
         pair = ILBFactory(ds.lbFactory).createLBPair(
@@ -132,7 +132,7 @@ contract lfgFacetV2 is ILBRouter {
     //@return amountYLeft The amount of token Y left
     //@return depositIds The deposit ids of the added liquidity
     //@return liquidityMinted The amount of liquidity minted
-    function addLiquidity(LiquidityParameters calldata liquidityParameters) external whenNotPaused override returns (uint256 amountXAdded, uint256
+    function addLiquidity(ILBRouter.LiquidityParameters calldata params) external whenNotPaused override returns (uint256 amountXAdded, uint256
     amountYAdded, uint256 amountXLeft, uint256 amountYLeft, uint256[] memory depositIds, uint256[] memory liquidityMinted) {
        if (block.timestamp > params.deadline) revert LBRouterFacet_DeadlinePassed();
         if (params.amountX > 0 && IERC20(params.tokenX).balanceOf(address(this)) < params.amountX)
@@ -144,7 +144,7 @@ contract lfgFacetV2 is ILBRouter {
         if (params.amountX > 0) _safeApprove(IERC20(params.tokenX), s().lbRouter, params.amountX);
         if (params.amountY > 0) _safeApprove(IERC20(params.tokenY), s().lbRouter, params.amountY);
 
-        (amountXAdded, amountYAdded, amountXLeft, amountYLeft, depositIds, liquidityMinted) = _router().addLiquidity(liquidityParameters);
+        (amountXAdded, amountYAdded, amountXLeft, amountYLeft, depositIds, liquidityMinted) = _router().addLiquidity(params);
         emit LiquidityAdded(params.tokenX, params.tokenY, amountXAdded, amountYAdded, depositIds);
     }
 
@@ -156,11 +156,11 @@ contract lfgFacetV2 is ILBRouter {
     //@return amountYLeft The amount of token Y left
     //@return depositIds The deposit ids of the added liquidity
     //@return liquidityMinted The amount of liquidity minted    
-    function addLiquidityNative(LiquidityParameters calldata liquidityParameters) external whenNotPaused payable returns (uint256 amountXAdded, uint256 amountYAdded, uint256 amountXLeft, uint256 amountYLeft, uint256[] memory depositIds, uint256[] memory liquidityMinted) {
+    function addLiquidityNative(LiquidityParameters calldata params) external whenNotPaused payable returns (uint256 amountXAdded, uint256 amountYAdded, uint256 amountXLeft, uint256 amountYLeft, uint256[] memory depositIds, uint256[] memory liquidityMinted) {
         if (block.timestamp > params.deadline) revert LBRouterFacet_DeadlinePassed();
         if (msg.value == 0) revert LBRouterFacet_InsufficientBalance();
         if (params.amountX > 0) _safeApprove(IERC20(params.tokenX), s().lbRouter, params.amountX);
-        (amountXAdded, amountYAdded, amountXLeft, amountYLeft, depositIds, liquidityMinted) = _router().addLiquidityNative{value: msg.value}(liquidityParameters);
+        (amountXAdded, amountYAdded, amountXLeft, amountYLeft, depositIds, liquidityMinted) = _router().addLiquidityNative{value: msg.value}(params);
     emit LiquidityAdded(params.tokenX, address(0), amountXAdded, msg.value, depositIds);
     }
     
@@ -205,7 +205,7 @@ contract lfgFacetV2 is ILBRouter {
         if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
         if (ids.length != amounts.length) revert LBRouterFacet_ArrayLengthMismatch();
         if (ids.length > 50) revert LBRouterFacet_TooManyBins();
-        (amountToken, amountNATIVE) = _router().removeLiquidityNative(token, binStep, amountTokenMin, amountNATIVEEmin,ids, amounts, to, deadline);
+        (amountToken, amountNATIVE) = _router().removeLiquidityNative(token, binStep, amountTokenMin, amountNATIVEmin,ids, amounts, to, deadline);
         emit LiquidityRemoved(address(token), address(0), amountToken, amountNATIVE);
     }
 
@@ -216,7 +216,7 @@ contract lfgFacetV2 is ILBRouter {
     //@param amountOutMin The minimum amount of output tokens
     //@param path The path of the swap  
     
-    function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, Path memory path, address to, uint256 deadline) external whenNotPaused override returns(uint256 amountOut){
+    function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, ILBRouter.Path memory path, address to, uint256 deadline) external whenNotPaused override returns(uint256 amountOut){
         if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
         _validatePath(path);
         if (IERC20(path.tokenPath[0]).balanceOf(address(this)) < amountIn)
@@ -224,10 +224,10 @@ contract lfgFacetV2 is ILBRouter {
 
         _safeApprove(IERC20(path.tokenPath[0]), s().lbRouter, amountIn);
         amountOut = _router().swapExactTokensForTokens(amountIn, amountOutMin, path, to, deadline);
-        emit TokensSwapped(path.tokenPath[0], path.tokenPath[path.tokenPath.length - 1], amountIn, amountOut);
+        emit SwapExecuted(path.tokenPath[0], path.tokenPath[path.tokenPath.length - 1], amountIn, amountOut);
     } 
 
-    function swapExactTokensForNative(uint256 amountIn, uint256 amountOutMinNATIVE, Path memory path, address payable to, uint256 deadline) external whenNotPaused override returns(uint256 amountOut){
+    function swapExactTokensForNative(uint256 amountIn, uint256 amountOutMinNATIVE, ILBRouter.Path memory path, address payable to, uint256 deadline) external whenNotPaused override returns(uint256 amountOut){
         if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
         _validatePath(path);
         if (IERC20(path.tokenPath[0]).balanceOf(address(this)) < amountIn)
@@ -235,10 +235,10 @@ contract lfgFacetV2 is ILBRouter {
 
         _safeApprove(IERC20(path.tokenPath[0]), s().lbRouter, amountIn);
         amountOut = _router().swapExactTokensForNative(amountIn, amountOutMinNATIVE, path, to, deadline);
-        emit TokensSwapped(path.tokenPath[0], address(0), amountIn, amountOut);
+        emit SwapExecuted(path.tokenPath[0], address(0), amountIn, amountOut);
     }
 
-    function swapExactNativeForTokens(uint256 amountOutMin, Path memory path, address to, uint256 deadline) external whenNotPaused override payable returns(uint256 amountOut){
+    function swapExactNativeForTokens(uint256 amountOutMin, ILBRouter.Path memory path, address to, uint256 deadline) external whenNotPaused override payable returns(uint256 amountOut){
         if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
         if (msg.value == 0) revert LBRouterFacet_InsufficientBalance();
         _validatePath(path);
@@ -247,7 +247,7 @@ contract lfgFacetV2 is ILBRouter {
 
     }
 
-    function swapTokensForExactTokens(uint256 amountOut, Path memory path, address to, uint256 deadline) external whenNotPaused override returns(uint256[] memory amountIn){
+    function swapTokensForExactTokens(uint256 amountOut, uint256 amountInMax, ILBRouter.Path memory path, address to, uint256 deadline) external whenNotPaused override returns(uint256[] memory amountIn){
 
         if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
         if (amountOut == 0 || amountInMax == 0) revert LBRouterFacet_InvalidAmount();
@@ -259,11 +259,11 @@ contract lfgFacetV2 is ILBRouter {
 
         _safeApprove(tokenIn, s().lbRouter, amountInMax);
         amountIn = _router().swapTokensForExactTokens(amountOut,amountInMax, path, to, deadline);
-        emit SwapExecuted(path.tokenPath[0],path.tokenPath[path.tokenPath.length - 1],amountsIn[0],amountOut);
+        emit SwapExecuted(path.tokenPath[0],path.tokenPath[path.tokenPath.length - 1],amountIn[0],amountOut);
     
     
     }
-    function swapTokensForExactNATIVE(uint256 amountOut, uint256 amountInMax, Path memory path, address payable to, uint256 deadline) external whenNotPaused override returns(uint256 amountsIn){
+    function swapTokensForExactNATIVE(uint256 amountOut, uint256 amountInMax,ILBRouter.Path memory path, address payable to, uint256 deadline) external whenNotPaused override returns(uint256[] memory amountsIn){
         if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
         if (amountOut == 0 || amountInMax == 0) revert LBRouterFacet_InvalidAmount();
             _validatePath(path);
@@ -277,10 +277,10 @@ contract lfgFacetV2 is ILBRouter {
         amountsIn = _router().swapTokensForExactNative(amountOut, amountInMax, path, to, deadline);
         emit SwapExecuted(path.tokenPath[0], address(0), amountsIn[0], amountOut);
     }
-    function swapNATIVEForExactTokens(uint256 amountOut, Path memory path, address to, uint256 deadline) external payable whenNotPausedoverride returns (uint256[] memory amountsIn) {
-           if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
-            if (msg.value == 0 || amountOut == 0) revert LBRouterFacet_InvalidAmount();
-            _validatePath(path);
+    function swapNATIVEForExactTokens(uint256 amountOut, ILBRouter.Path memory path, address to, uint256 deadline) external payable whenNotPaused override returns (uint256[] memory amountsIn) {
+        if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
+        if (msg.value == 0 || amountOut == 0) revert LBRouterFacet_InvalidAmount();
+        _validatePath(path);
         amountsIn = _router().swapNATIVEForExactTokens{value: msg.value}(amountOut, path, to, deadline);
         emit SwapExecuted(address(0), path.tokenPath[path.tokenPath.length - 1], msg.value, amountOut);
     }
@@ -291,7 +291,7 @@ contract lfgFacetV2 is ILBRouter {
     //@param amountIn The amount of input tokens
     //@param amountOutMin The minimum amount of output tokens
     //@param path The path of the swap
-    function swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, Path memory path, address to, uint256 deadline) external whenNotPaused override returns(uint256 amountOut){
+    function swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, ILBRouter.Path memory path, address to, uint256 deadline) external whenNotPaused override returns(uint256 amountOut){
         if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
         if (amountIn == 0) revert LBRouterFacet_InvalidAmount();
         _validatePath(path);
@@ -306,7 +306,7 @@ contract lfgFacetV2 is ILBRouter {
         emit SwapExecuted(path.tokenPath[0], path.tokenPath[path.tokenPath.length - 1], amountIn, amountOut);
     }
 
-    function swapExactTokensForNATIVESupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMinNATIVE, Path memory path, address payable to, uint256 deadline) external whenNotPaused override returns(uint256 amountOut){
+    function swapExactTokensForNATIVESupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMinNATIVE, ILBRouter.Path memory path, address payable to, uint256 deadline) external whenNotPaused override returns(uint256 amountOut){
         if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
         if (amountIn == 0) revert LBRouterFacet_InvalidAmount();
         _validatePath(path);
@@ -319,7 +319,7 @@ contract lfgFacetV2 is ILBRouter {
         amountOut = _router().swapExactTokensForNATIVESupportingFeeOnTransferTokens(amountIn, amountOutMinNATIVE, path, to, deadline);
         emit SwapExecuted(path.tokenPath[0], address(0), amountIn, amountOut);
     }
-    function swapExactNATIVEForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, Path memory path, address to, uint256 deadline) external payable whenNotPaused override returns(uint256 amountOut){  
+    function swapExactNATIVEForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, ILBRouter.Path memory path, address to, uint256 deadline) external payable whenNotPaused override returns(uint256 amountOut){  
         if (block.timestamp > deadline) revert LBRouterFacet_DeadlinePassed();
         if (msg.value == 0) revert LBRouterFacet_InsufficientBalance();
         _validatePath(path);
@@ -337,6 +337,6 @@ contract lfgFacetV2 is ILBRouter {
         _router().sweepLBToken(_lbToken, to , _amounts);
     }
 
-    //fallback 
+     
     receive() external payable {}
 }

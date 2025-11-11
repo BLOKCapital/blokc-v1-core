@@ -102,7 +102,8 @@ contract FacetRegistryBroadcaster is Ownable, Pausable {
             receiver: abi.encode(_receiver),
             data: data,
             tokenAmounts: new Client.EVMTokenAmount[](0),
-            extraArgs: extraArgs,kenIn;
+            extraArgs: extraArgs,
+            tokenIn: new Client.EVMTokenAmount[](0),
             feeToken: address(0) // Native ETH
         });
 
