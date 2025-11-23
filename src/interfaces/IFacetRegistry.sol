@@ -15,6 +15,8 @@ pragma solidity >=0.8.20;
 
 ################################################################################*/
 
+import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
+
 /**
  * @title IFacetRegistry
  * @notice Interface of the FacetRegistry contract.
@@ -89,6 +91,20 @@ interface IFacetRegistry {
     function getBaseFacets() external view returns (address[4] memory baseFacets_);
 
     /**
+     * @notice Returns the facet cuts for the version range
+     * @param _startVersion The start version
+     * @param _endVersion The end version
+     * @return facetCuts The facet cuts for the version range
+     */
+    function getFacetCutsByVersionRange(
+        uint256 _startVersion,
+        uint256 _endVersion
+    )
+        external
+        view
+        returns (IDiamondCut.FacetCut[] memory facetCuts);
+
+    /**
      * @notice Returns if a facet registered or not
      * @param facet The address of the facet
      * @return isRegistered returns true if registered else false
@@ -96,12 +112,19 @@ interface IFacetRegistry {
     function isFacetRegistered(address facet) external view returns (bool isRegistered);
 
     /**
-     * @notice Returns if a selector is registered or not
-     * @param facet The address of the facet
-     * @param selector The function selector
-     * @return isRegistered returns true if selector is registered
+     * @notice Checks if a function selector is registered in the registry (any facet)
+     * @param selector The function selector to check
+     * @return isRegistered True if the selector is registered for any facet, false otherwise
      */
-    function isSelectorRegistered(address facet, bytes4 selector) external view returns (bool isRegistered);
+    function isSelectorRegistered(bytes4 selector) external view returns (bool isRegistered);
+
+    /**
+     * @notice Checks if a function selector is registered for a specific facet
+     * @param facet The address of the facet to check
+     * @param selector The function selector to check
+     * @return isRegistered True if the selector is registered for the specified facet, false otherwise
+     */
+    function isSelectorRegisteredWithFacet(address facet, bytes4 selector) external view returns (bool isRegistered);
 
     /**
      * @notice Returns the current version of the registry.

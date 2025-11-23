@@ -22,19 +22,19 @@ pragma solidity >=0.8.20;
 interface IPoolRegistry {
     /// @notice Simple metadata stored per pool address.
     struct PoolInfo {
-        // human-readable pair name (e.g. "ETH/USD")
+        address poolAddress;
+        bytes32 protocolId; // 32 bytes: compact identifier (keccak256("UNISWAP_V3"))
+        bool active;
         string pairName;
-        // DEX identifier
-        string dexId;
     }
     /**
      * @notice Registers a new liquidity pool.
      * @param poolAddress Address of the pool to add.
-     * @param pairName Name of the trading pair.
-     * @param dexId ID of the DEX where the pool exists.
+     * @param protocolId Protocol ID of the pool.
+     * @param pairName Human-readable pair name of the pool.
      */
 
-    function addPool(address poolAddress, string calldata pairName, string calldata dexId) external;
+    function addPool(address poolAddress, bytes32 protocolId, string calldata pairName) external;
 
     /**
      * @notice Removes a pool from the registry.
@@ -43,12 +43,11 @@ interface IPoolRegistry {
     function removePool(address poolAddress) external;
 
     /**
-     * @notice Returns the details of a registered pool.
+     * @notice Returns the information of a registered pool.
      * @param poolAddress The address of the pool.
-     * @return pairName The name of the trading pair.
-     * @return dexId The ID of the DEX.
+     * @return PoolInfo The details of the pool.
      */
-    function poolDetails(address poolAddress) external view returns (string memory pairName, string memory dexId);
+    function poolDetails(address poolAddress) external view returns (PoolInfo memory);
 
     /**
      * @notice Returns the addresses of all registered pools.
@@ -62,4 +61,11 @@ interface IPoolRegistry {
      * @return True if the pool is registered, false otherwise.
      */
     function isPoolRegistered(address poolAddress) external view returns (bool);
+
+    /**
+     * @notice Checks if a pool is active.
+     * @param poolAddress The address of the pool to check.
+     * @return True if the pool is active, false otherwise.
+     */
+    function isPoolActive(address poolAddress) external view returns (bool);
 }
