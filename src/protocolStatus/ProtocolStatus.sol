@@ -23,13 +23,13 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @dev Current protocol status
-    State private s_protocolStatus;
+    State private _protocolStatus;
 
     /// @dev Mapping of Security Council member addresses to their details
-    mapping(address => SecurityCouncilMember) private s_securityCouncilMembers;
+    mapping(address => SecurityCouncilMember) private _securityCouncilMembers;
 
     /// @dev Set of Security Council members
-    EnumerableSet.AddressSet private s_securityCouncilMemberAddresses;
+    EnumerableSet.AddressSet private _securityCouncilMemberAddresses;
 
     // ========== ERRORS ==========
     error ProtocolStatus_ProtocolIsAlreadyActive();
@@ -54,7 +54,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
      * @dev Modifier to restrict access to only the DAO (owner) or Security Council members
      */
     modifier onlyAuthorized() {
-        if (msg.sender != owner() && !s_securityCouncilMemberAddresses.contains(msg.sender)) {
+        if (msg.sender != owner() && !_securityCouncilMemberAddresses.contains(msg.sender)) {
             revert ProtocolStatus_Unauthorized();
         }
         _;
@@ -82,21 +82,21 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
             }
 
             // Add member to the set if not already present
-            if (!s_securityCouncilMemberAddresses.add(member)) {
+            if (!_securityCouncilMemberAddresses.add(member)) {
                 revert ProtocolStatus_MemberAlreadyExists(member, name);
             }
 
-            s_securityCouncilMembers[member] = SecurityCouncilMember({ memberAddress: member, name: name });
+            _securityCouncilMembers[member] = SecurityCouncilMember({ memberAddress: member, name: name });
 
             // Emit event for each added member
             emit SecurityCouncilMemberAdded(member, name);
         }
 
         // Initialize protocol status to INACTIVE
-        s_protocolStatus = State.INACTIVE;
+        _protocolStatus = State.INACTIVE;
 
         // Emit initial status event
-        emit ProtocolStatusChanged(State.ACTIVE, State.INACTIVE, msg.sender, s_securityCouncilMembers[msg.sender].name);
+        emit ProtocolStatusChanged(State.ACTIVE, State.INACTIVE, msg.sender, _securityCouncilMembers[msg.sender].name);
     }
 
     // ========== SECURITY COUNCIL MANAGEMENT ==========
@@ -117,11 +117,11 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         }
 
         // Add member to the set if not already present
-        if (!s_securityCouncilMemberAddresses.add(memberAddress)) {
+        if (!_securityCouncilMemberAddresses.add(memberAddress)) {
             revert ProtocolStatus_MemberAlreadyExists(memberAddress, name);
         }
 
-        s_securityCouncilMembers[memberAddress] = SecurityCouncilMember({ memberAddress: memberAddress, name: name });
+        _securityCouncilMembers[memberAddress] = SecurityCouncilMember({ memberAddress: memberAddress, name: name });
 
         // Emit event for the added member
         emit SecurityCouncilMemberAdded(memberAddress, name);
@@ -132,7 +132,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         address memberAddress = member.memberAddress;
         string memory name = member.name;
         // Remove member from the set if present
-        if (!s_securityCouncilMemberAddresses.remove(memberAddress)) {
+        if (!_securityCouncilMemberAddresses.remove(memberAddress)) {
             revert ProtocolStatus_MemberDoesNotExist(memberAddress, name);
         }
 
@@ -144,7 +144,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
 
     /// @inheritdoc IProtocolStatus
     function activateProtocol() external onlyOwner {
-        State currentStatus = s_protocolStatus;
+        State currentStatus = _protocolStatus;
 
         // Check if the protocol is already active
         if (currentStatus == State.ACTIVE) {
@@ -152,15 +152,15 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         }
 
         // Set protocol status to ACTIVE
-        s_protocolStatus = State.ACTIVE;
+        _protocolStatus = State.ACTIVE;
 
         // Emit status change event
-        emit ProtocolStatusChanged(currentStatus, State.ACTIVE, msg.sender, s_securityCouncilMembers[msg.sender].name);
+        emit ProtocolStatusChanged(currentStatus, State.ACTIVE, msg.sender, _securityCouncilMembers[msg.sender].name);
     }
 
     /// @inheritdoc IProtocolStatus
     function deactivateProtocol() external onlyAuthorized {
-        State currentStatus = s_protocolStatus;
+        State currentStatus = _protocolStatus;
 
         // Check if the protocol is already inactive
         if (currentStatus == State.INACTIVE) {
@@ -168,15 +168,15 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         }
 
         // Set protocol status to INACTIVE
-        s_protocolStatus = State.INACTIVE;
+        _protocolStatus = State.INACTIVE;
 
         // Emit status change event
-        emit ProtocolStatusChanged(currentStatus, State.INACTIVE, msg.sender, s_securityCouncilMembers[msg.sender].name);
+        emit ProtocolStatusChanged(currentStatus, State.INACTIVE, msg.sender, _securityCouncilMembers[msg.sender].name);
     }
 
     /// @inheritdoc IProtocolStatus
     function disableUpgrades() external onlyAuthorized {
-        State currentStatus = s_protocolStatus;
+        State currentStatus = _protocolStatus;
 
         // Check if the protocol is ACTIVE, only then upgrades can be disabled
         // If it's already INACTIVE or UPGRADES_DISABLED, we shouldn't allow this action
@@ -185,11 +185,11 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         }
 
         // Set protocol status to UPGRADES_DISABLED
-        s_protocolStatus = State.UPGRADES_DISABLED;
+        _protocolStatus = State.UPGRADES_DISABLED;
 
         // Emit status change event
         emit ProtocolStatusChanged(
-            currentStatus, State.UPGRADES_DISABLED, msg.sender, s_securityCouncilMembers[msg.sender].name
+            currentStatus, State.UPGRADES_DISABLED, msg.sender, _securityCouncilMembers[msg.sender].name
         );
     }
 
@@ -197,27 +197,27 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
 
     /// @inheritdoc IProtocolStatus
     function getSecurityCouncilMembers() external view returns (SecurityCouncilMember[] memory) {
-        uint256 memberCount = s_securityCouncilMemberAddresses.length();
+        uint256 memberCount = _securityCouncilMemberAddresses.length();
         SecurityCouncilMember[] memory members = new SecurityCouncilMember[](memberCount);
         for (uint256 i = 0; i < memberCount; i++) {
-            address memberAddress = s_securityCouncilMemberAddresses.at(i);
-            members[i] = s_securityCouncilMembers[memberAddress];
+            address memberAddress = _securityCouncilMemberAddresses.at(i);
+            members[i] = _securityCouncilMembers[memberAddress];
         }
         return members;
     }
 
     /// @inheritdoc IProtocolStatus
     function isSecurityCouncilMember(address member) external view returns (bool) {
-        return s_securityCouncilMemberAddresses.contains(member);
+        return _securityCouncilMemberAddresses.contains(member);
     }
 
     /// @inheritdoc IProtocolStatus
     function getProtocolStatus() external view returns (State) {
-        return s_protocolStatus;
+        return _protocolStatus;
     }
 
     /// @inheritdoc IProtocolStatus
     function getMemberName(address member) external view returns (string memory) {
-        return s_securityCouncilMembers[member].name;
+        return _securityCouncilMembers[member].name;
     }
 }

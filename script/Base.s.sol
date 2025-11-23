@@ -14,7 +14,7 @@ contract BaseScript is Script {
     }
 
     function setUp() public virtual {
-        bytes32 privateKey = vm.envBytes32("PRIVATE_KEY_ARB");
+        bytes32 privateKey = vm.envBytes32("PRIVATE_KEY_ANVIL");
         deployer = vm.rememberKey(uint256(privateKey));
         salt = vm.envBytes32("SALT");
     }

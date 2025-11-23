@@ -224,7 +224,7 @@ contract FacetRegistryBaseFacetProtectionTest is FacetRegistryTestBase {
         assertEq(ownSelectors.length, 2);
 
         bytes4[] memory upgSelectors = registry.getFacetFunctionSelectors(address(upgradeFacet));
-        assertEq(upgSelectors.length, 2);
+        assertEq(upgSelectors.length, 3);
     }
 
     /// @notice Test base facets are always present

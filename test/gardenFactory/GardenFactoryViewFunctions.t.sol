@@ -35,13 +35,7 @@ contract GardenFactoryViewFunctionsTest is GardenFactoryTestBase {
         GardenFactory newImpl = new GardenFactory();
         ProxyAdmin newAdmin = new ProxyAdmin(address(this));
 
-        bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            owner,
-            address(protocolStatus),
-            address(facetRegistry),
-            address(poolRegistry)
-        );
+        bytes memory factoryInitData = abi.encodeWithSelector(GardenFactory.initialize.selector, owner);
 
         TransparentUpgradeableProxy newProxy =
             new TransparentUpgradeableProxy(address(newImpl), address(newAdmin), factoryInitData);

@@ -3,18 +3,10 @@ pragma solidity >=0.8.20;
 
 /*###############################################################################
 
-    @title PoolRegistry
-    @author BLOK Capital DAO
-    @notice Registry contract that manages the registration and tracking of liquidity pools.
-    @dev This contract uses the Transparent Proxy pattern and is upgradeable.
-         It uses OpenZeppelin's upgradeable contracts library for security and reliability.
-         Pools can be added and removed by the owner only.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -62,10 +54,10 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
     // ========================================================================
 
     /// @notice Array of all registered pool addresses
-    address[] private pools;
+    address[] private _pools;
 
     /// @notice Mapping from pool address to pool metadata
-    mapping(address pool => PoolInfo) private poolInfo;
+    mapping(address => PoolInfo) private _poolInfo;
 
     // ========================================================================
     // Constructor
@@ -98,17 +90,17 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
      * @notice Registers a new liquidity pool
      * @dev The pool address must not be zero, must not already exist, and both pairName and dexId must be non-empty
      * @param _poolAddress The address of the pool to add
+     * @param _protocolId The identifier of the protocol where the pool exists
      * @param _pairName The name of the trading pair (e.g., "ETH/USD")
-     * @param _dexId The identifier of the DEX where the pool exists
      */
-    function addPool(address _poolAddress, string calldata _pairName, string calldata _dexId) external onlyOwner {
+    function addPool(address _poolAddress, bytes32 _protocolId, string calldata _pairName) external onlyOwner {
         // Validate pool address
         if (_poolAddress == address(0)) {
             revert PoolRegistry_PoolAddressIsZero();
         }
 
         // Check if pool already exists
-        if (bytes(poolInfo[_poolAddress].pairName).length != 0) {
+        if (bytes(_poolInfo[_poolAddress].pairName).length != 0) {
             revert PoolRegistry_PoolAlreadyExists(_poolAddress);
         }
 
@@ -118,13 +110,14 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
         }
 
         // Validate DEX ID is not empty
-        if (bytes(_dexId).length == 0) {
+        if (_protocolId == bytes32(0)) {
             revert PoolRegistry_DexIdEmpty();
         }
 
         // Add pool to array and mapping
-        pools.push(_poolAddress);
-        poolInfo[_poolAddress] = PoolInfo({ pairName: _pairName, dexId: _dexId });
+        _pools.push(_poolAddress);
+        _poolInfo[_poolAddress] =
+            PoolInfo({ poolAddress: _poolAddress, protocolId: _protocolId, active: true, pairName: _pairName });
     }
 
     /**
@@ -134,23 +127,23 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
      */
     function removePool(address _poolAddress) external onlyOwner {
         // Validate pool exists
-        if (bytes(poolInfo[_poolAddress].pairName).length == 0) {
+        if (bytes(_poolInfo[_poolAddress].pairName).length == 0) {
             revert PoolRegistry_PoolDoesNotExist(_poolAddress);
         }
 
         // Remove pool from array using swap-and-pop pattern
-        uint256 length = pools.length;
+        uint256 length = _pools.length;
         for (uint256 i = 0; i < length; i++) {
-            if (pools[i] == _poolAddress) {
+            if (_pools[i] == _poolAddress) {
                 // Swap with last element and pop
-                pools[i] = pools[length - 1];
-                pools.pop();
+                _pools[i] = _pools[length - 1];
+                _pools.pop();
                 break;
             }
         }
 
         // Delete pool metadata
-        delete poolInfo[_poolAddress];
+        delete _poolInfo[_poolAddress];
     }
 
     // ========================================================================
@@ -158,14 +151,12 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
     // ========================================================================
 
     /**
-     * @notice Returns the details of a registered pool
+     * @notice Returns the information of a registered pool
      * @param _poolAddress The address of the pool
-     * @return pairName The name of the trading pair
-     * @return dexId The identifier of the DEX
+     * @return PoolInfo The details of the pool
      */
-    function poolDetails(address _poolAddress) external view returns (string memory pairName, string memory dexId) {
-        PoolInfo memory info = poolInfo[_poolAddress];
-        return (info.pairName, info.dexId);
+    function poolDetails(address _poolAddress) external view override returns (PoolInfo memory) {
+        return _poolInfo[_poolAddress];
     }
 
     /**
@@ -173,7 +164,7 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
      * @return pools_ Array of all registered pool addresses
      */
     function poolAddresses() external view returns (address[] memory pools_) {
-        pools_ = pools;
+        pools_ = _pools;
     }
 
     /**
@@ -182,6 +173,15 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
      * @return True if the pool is registered, false otherwise
      */
     function isPoolRegistered(address _poolAddress) external view returns (bool) {
-        return bytes(poolInfo[_poolAddress].pairName).length != 0;
+        return bytes(_poolInfo[_poolAddress].pairName).length != 0;
+    }
+
+    /**
+     * @notice Checks if a pool is active
+     * @param _poolAddress The address of the pool to check
+     * @return True if the pool is active, false otherwise
+     */
+    function isPoolActive(address _poolAddress) external view returns (bool) {
+        return _poolInfo[_poolAddress].active;
     }
 }

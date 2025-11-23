@@ -4,10 +4,10 @@ pragma solidity ^0.8.20;
 import { FacetRegistryTestBase } from "./FacetRegistryTestBase.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
-import { DiamondCutFacet } from "src/diamond/facets/baseFacets/DiamondCutFacet.sol";
-import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/DiamondLoupeFacet.sol";
-import { OwnershipFacet } from "src/diamond/facets/baseFacets/OwnershipFacet.sol";
-import { UpgradeFacet } from "src/diamond/facets/baseFacets/UpgradeFacet.sol";
+import { DiamondCutFacet } from "src/diamond/facets/baseFacets/cut/DiamondCutFacet.sol";
+import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/loupe/DiamondLoupeFacet.sol";
+import { OwnershipFacet } from "src/diamond/facets/baseFacets/ownership/OwnershipFacet.sol";
+import { UpgradeFacet } from "src/diamond/facets/baseFacets/upgrade/UpgradeFacet.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
 import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
@@ -49,7 +49,7 @@ contract FacetRegistryInitTest is FacetRegistryTestBase {
         assertEq(ownSelectors.length, 2);
 
         bytes4[] memory upgSelectors = registry.getFacetFunctionSelectors(address(upgradeFacet));
-        assertEq(upgSelectors.length, 2);
+        assertEq(upgSelectors.length, 3);
     }
 
     /// @notice Test initialization with different owner

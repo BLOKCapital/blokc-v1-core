@@ -10,14 +10,35 @@ import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
 import { ProtocolStatus } from "src/protocolStatus/ProtocolStatus.sol";
 import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 import { Diamond } from "src/diamond/Diamond.sol";
-import { DiamondCutFacet } from "src/diamond/facets/baseFacets/DiamondCutFacet.sol";
-import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/DiamondLoupeFacet.sol";
-import { OwnershipFacet } from "src/diamond/facets/baseFacets/OwnershipFacet.sol";
-import { UpgradeFacet } from "src/diamond/facets/baseFacets/UpgradeFacet.sol";
+import { DiamondCutFacet } from "src/diamond/facets/baseFacets/cut/DiamondCutFacet.sol";
+import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/loupe/DiamondLoupeFacet.sol";
+import { OwnershipFacet } from "src/diamond/facets/baseFacets/ownership/OwnershipFacet.sol";
+import { UpgradeFacet } from "src/diamond/facets/baseFacets/upgrade/UpgradeFacet.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
 import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { GardenFactory } from "src/factory/GardenFactory.sol";
+
+/// @dev Simple forwarding contract to handle hardcoded addresses
+contract Forwarder {
+    address public immutable target;
+
+    constructor(address _target) {
+        target = _target;
+    }
+
+    fallback() external payable {
+        address _target = target;
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            let result := staticcall(gas(), _target, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch result
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
+        }
+    }
+}
 
 /// @title Base test contract for GardenFactory tests
 /// @notice Provides common setup and helper functions for all GardenFactory test suites
@@ -61,12 +82,7 @@ abstract contract GardenFactoryTestBase is Test {
 
     // Events
     event GardenCreated(address indexed garden, address indexed owner, uint256 indexed index);
-    event FactoryInitialized(
-        address indexed initialOwner,
-        address indexed protocolStatus,
-        address indexed facetRegistry,
-        address liquidityPoolRegistry
-    );
+    event FactoryInitialized(address indexed initialOwner);
 
     function setUp() public virtual {
         // Setup test addresses
@@ -141,22 +157,47 @@ abstract contract GardenFactoryTestBase is Test {
         });
         protocolStatus = new ProtocolStatus(initialMembers, owner);
 
+        // Mock the hardcoded FACET_REGISTRY_ADDRESS in GardenFactory and LibDiamond
+        // The address 0x1234567890123456789012345678901234567890 is hardcoded in both places
+        // Deploy a forwarder at that address that redirects calls to the real FacetRegistry
+        address facetRegistryMockAddress = 0x1234567890123456789012345678901234567890;
+
+        Forwarder facetRegistryForwarder = new Forwarder(address(facetRegistry));
+        // The forwarder's bytecode already has the target address embedded as an immutable
+        vm.etch(facetRegistryMockAddress, address(facetRegistryForwarder).code);
+
+        // Mock the hardcoded PROTOCOL_STATUS_ADDRESS in LibDiamond
+        // The address 0xabCDEF1234567890ABcDEF1234567890aBCDeF12 is hardcoded in LibDiamond
+        address protocolStatusMockAddress = 0xabCDEF1234567890ABcDEF1234567890aBCDeF12;
+
+        Forwarder protocolStatusForwarder = new Forwarder(address(protocolStatus));
+        vm.etch(protocolStatusMockAddress, address(protocolStatusForwarder).code);
+
+        // Activate the protocol status so diamonds can function
+        vm.prank(owner);
+        protocolStatus.activateProtocol();
+
         // Deploy GardenFactory
         factoryImpl = new GardenFactory();
-        factoryProxyAdmin = new ProxyAdmin(owner);
 
         bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            owner,
-            address(protocolStatus),
-            address(facetRegistry),
-            address(poolRegistry)
+            GardenFactory.initialize.selector, owner, address(facetRegistry), address(protocolStatus)
         );
 
-        factoryProxy =
-            new TransparentUpgradeableProxy(address(factoryImpl), address(factoryProxyAdmin), factoryInitData);
+        // In OZ v5, TransparentUpgradeableProxy creates its own ProxyAdmin
+        // Pass owner directly as initialOwner (not a ProxyAdmin address)
+        factoryProxy = new TransparentUpgradeableProxy(
+            address(factoryImpl),
+            owner, // initialOwner - the proxy will create a ProxyAdmin with this owner
+            factoryInitData
+        );
 
         factory = GardenFactory(payable(address(factoryProxy)));
+
+        // Get reference to the ProxyAdmin that was created by the proxy
+        bytes32 ADMIN_SLOT = bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1);
+        address admin = address(uint160(uint256(vm.load(address(factoryProxy), ADMIN_SLOT))));
+        factoryProxyAdmin = ProxyAdmin(admin);
     }
 
     /// @notice Helper function to create a garden for a user

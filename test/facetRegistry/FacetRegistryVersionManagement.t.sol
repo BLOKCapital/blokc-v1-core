@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import { FacetRegistryTestBase } from "./FacetRegistryTestBase.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
+import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
+import { IDiamondLoupe } from "src/diamond/facets/baseFacets/loupe/IDiamondLoupe.sol";
 import { MockFacet, MockFacetV2 } from "./MockFacets.sol";
 
 /// @title Tests for FacetRegistry version management
@@ -299,5 +301,62 @@ contract FacetRegistryVersionManagementTest is FacetRegistryTestBase {
 
         assertEq(versionAsOwner, versionAsUser1);
         assertEq(versionAsUser1, versionAsUser2);
+    }
+
+    /// @notice Test facet cuts history can be fetched across multiple versions
+    function test_GetFacetCutsByVersionRange_ReturnsHistory() public {
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = MockFacet.mockFunction1.selector;
+
+        addFacetWithSelectors(address(mockFacet), selectors);
+
+        bytes4[] memory replaceSelectors = new bytes4[](1);
+        replaceSelectors[0] = selectors[0];
+
+        replaceFacetWithSelectors(address(mockFacetV2), replaceSelectors);
+        removeSelectors(replaceSelectors);
+
+        uint256 latestVersion = registry.getCurrentVersion();
+        assertEq(latestVersion, 3);
+
+        IDiamondCut.FacetCut[] memory history = registry.getFacetCutsByVersionRange(1, latestVersion);
+
+        assertEq(history.length, latestVersion);
+
+        // Version 1 - Add
+        assertEq(history[0].facetAddress, address(mockFacet));
+        assertEq(uint8(history[0].action), uint8(IDiamondCut.FacetCutAction.Add));
+        assertEq(history[0].functionSelectors.length, 1);
+        assertEq(history[0].functionSelectors[0], selectors[0]);
+
+        // Version 2 - Replace
+        assertEq(history[1].facetAddress, address(mockFacetV2));
+        assertEq(uint8(history[1].action), uint8(IDiamondCut.FacetCutAction.Replace));
+        assertEq(history[1].functionSelectors.length, 1);
+        assertEq(history[1].functionSelectors[0], selectors[0]);
+
+        // Version 3 - Remove
+        assertEq(history[2].facetAddress, address(0));
+        assertEq(uint8(history[2].action), uint8(IDiamondCut.FacetCutAction.Remove));
+        assertEq(history[2].functionSelectors.length, 1);
+        assertEq(history[2].functionSelectors[0], selectors[0]);
+    }
+
+    /// @notice Test facet cuts history supports multi-selector operations
+    function test_GetFacetCutsByVersionRange_MultiSelectorOperation() public {
+        bytes4[] memory selectors = new bytes4[](2);
+        selectors[0] = MockFacet.mockFunction1.selector;
+        selectors[1] = MockFacet.mockFunction2.selector;
+
+        addFacetWithSelectors(address(mockFacet), selectors);
+
+        IDiamondCut.FacetCut[] memory history = registry.getFacetCutsByVersionRange(1, 1);
+
+        assertEq(history.length, 1);
+        assertEq(history[0].facetAddress, address(mockFacet));
+        assertEq(uint8(history[0].action), uint8(IDiamondCut.FacetCutAction.Add));
+        assertEq(history[0].functionSelectors.length, selectors.length);
+        assertEq(history[0].functionSelectors[0], selectors[0]);
+        assertEq(history[0].functionSelectors[1], selectors[1]);
     }
 }

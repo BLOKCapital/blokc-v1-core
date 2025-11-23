@@ -4,10 +4,10 @@ pragma solidity ^0.8.20;
 import { Test } from "forge-std/Test.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
-import { DiamondCutFacet } from "src/diamond/facets/baseFacets/DiamondCutFacet.sol";
-import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/DiamondLoupeFacet.sol";
-import { OwnershipFacet } from "src/diamond/facets/baseFacets/OwnershipFacet.sol";
-import { UpgradeFacet } from "src/diamond/facets/baseFacets/UpgradeFacet.sol";
+import { DiamondCutFacet } from "src/diamond/facets/baseFacets/cut/DiamondCutFacet.sol";
+import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/loupe/DiamondLoupeFacet.sol";
+import { OwnershipFacet } from "src/diamond/facets/baseFacets/ownership/OwnershipFacet.sol";
+import { UpgradeFacet } from "src/diamond/facets/baseFacets/upgrade/UpgradeFacet.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
@@ -75,9 +75,10 @@ abstract contract FacetRegistryTestBase is Test {
         ownershipSelectors[0] = ownershipFacet.owner.selector;
         ownershipSelectors[1] = ownershipFacet.transferOwnership.selector;
 
-        upgradeSelectors = new bytes4[](2);
+        upgradeSelectors = new bytes4[](3);
         upgradeSelectors[0] = upgradeFacet.upgrade.selector;
-        upgradeSelectors[1] = upgradeFacet.upgradeDetails.selector;
+        upgradeSelectors[1] = upgradeFacet.getCurrentVersion.selector;
+        upgradeSelectors[2] = upgradeFacet.upgradeDetails.selector;
 
         // Prepare base facets array and selectors
         address[4] memory baseFacets =
@@ -97,9 +98,20 @@ abstract contract FacetRegistryTestBase is Test {
             baseSelectors
         );
 
-        registryProxy = new TransparentUpgradeableProxy(address(registryImpl), address(registryProxyAdmin), initData);
+        // In OZ v5, TransparentUpgradeableProxy creates its own ProxyAdmin
+        // Pass owner directly as initialOwner (not a ProxyAdmin address)
+        registryProxy = new TransparentUpgradeableProxy(
+            address(registryImpl),
+            owner, // initialOwner - the proxy will create a ProxyAdmin with this owner
+            initData
+        );
 
         registry = FacetRegistry(payable(address(registryProxy)));
+
+        // Get reference to the ProxyAdmin that was created by the proxy
+        bytes32 ADMIN_SLOT = bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1);
+        address admin = address(uint160(uint256(vm.load(address(registryProxy), ADMIN_SLOT))));
+        registryProxyAdmin = ProxyAdmin(admin);
 
         // Deploy mock facets
         mockFacet = new MockFacet();

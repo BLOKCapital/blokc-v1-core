@@ -656,7 +656,7 @@ makeSuite('Pool Liquidation: Add fee to liquidations', (testEnv) => {
     );
 
     const usdcReserveDataBefore = await getReserveData(helpersContract, usdc.address);
-    const aaveReserveDataBefore = await getReserveData(helpersContract, aave.address);
+    const getReserveDataBefore = await getReserveData(helpersContract, aave.address);
 
     const amountToLiquidate = userReserveDataBefore.currentStableDebt.div(2);
 
@@ -691,7 +691,7 @@ makeSuite('Pool Liquidation: Add fee to liquidations', (testEnv) => {
     const userGlobalDataAfter = await pool.getUserAccountData(borrower.address);
 
     const usdcReserveDataAfter = await getReserveData(helpersContract, usdc.address);
-    const aaveReserveDataAfter = await getReserveData(helpersContract, aave.address);
+    const getReserveDataAfter = await getReserveData(helpersContract, aave.address);
 
     const aaveConfiguration = await helpersContract.getReserveConfigurationData(aave.address);
     const collateralDecimals = aaveConfiguration.decimals;
@@ -740,8 +740,8 @@ makeSuite('Pool Liquidation: Add fee to liquidations', (testEnv) => {
       'Invalid principal available liquidity'
     );
 
-    expect(aaveReserveDataAfter.availableLiquidity).to.be.closeTo(
-      aaveReserveDataBefore.availableLiquidity,
+    expect(getReserveDataAfter.availableLiquidity).to.be.closeTo(
+      getReserveDataBefore.availableLiquidity,
       2,
       'Invalid collateral available liquidity'
     );
@@ -752,8 +752,8 @@ makeSuite('Pool Liquidation: Add fee to liquidations', (testEnv) => {
       'Invalid principal total liquidity'
     );
 
-    expect(aaveReserveDataAfter.totalLiquidity).to.be.closeTo(
-      aaveReserveDataBefore.totalLiquidity,
+    expect(getReserveDataAfter.totalLiquidity).to.be.closeTo(
+      getReserveDataBefore.totalLiquidity,
       2,
       'Invalid collateral total liquidity'
     );
@@ -823,7 +823,7 @@ makeSuite('Pool Liquidation: Add fee to liquidations', (testEnv) => {
     );
 
     const usdcReserveDataBefore = await getReserveData(helpersContract, usdc.address);
-    const aaveReserveDataBefore = await getReserveData(helpersContract, aave.address);
+    const getReserveDataBefore = await getReserveData(helpersContract, aave.address);
 
     const amountToLiquidate = userReserveDataBefore.currentStableDebt.div(2);
 
@@ -858,7 +858,7 @@ makeSuite('Pool Liquidation: Add fee to liquidations', (testEnv) => {
     const userGlobalDataAfter = await pool.getUserAccountData(borrower.address);
 
     const usdcReserveDataAfter = await getReserveData(helpersContract, usdc.address);
-    const aaveReserveDataAfter = await getReserveData(helpersContract, aave.address);
+    const getReserveDataAfter = await getReserveData(helpersContract, aave.address);
 
     const aaveConfiguration = await helpersContract.getReserveConfigurationData(aave.address);
     const collateralDecimals = aaveConfiguration.decimals;
@@ -907,8 +907,8 @@ makeSuite('Pool Liquidation: Add fee to liquidations', (testEnv) => {
       'Invalid principal available liquidity'
     );
 
-    expect(aaveReserveDataAfter.availableLiquidity).to.be.closeTo(
-      aaveReserveDataBefore.availableLiquidity,
+    expect(getReserveDataAfter.availableLiquidity).to.be.closeTo(
+      getReserveDataBefore.availableLiquidity,
       2,
       'Invalid collateral available liquidity'
     );
@@ -919,8 +919,8 @@ makeSuite('Pool Liquidation: Add fee to liquidations', (testEnv) => {
       'Invalid principal total liquidity'
     );
 
-    expect(aaveReserveDataAfter.totalLiquidity).to.be.closeTo(
-      aaveReserveDataBefore.totalLiquidity,
+    expect(getReserveDataAfter.totalLiquidity).to.be.closeTo(
+      getReserveDataBefore.totalLiquidity,
       2,
       'Invalid collateral total liquidity'
     );

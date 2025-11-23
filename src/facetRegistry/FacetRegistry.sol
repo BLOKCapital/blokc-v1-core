@@ -23,7 +23,7 @@ import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/O
 
 // Local Interfaces
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
-import { IDiamondCut } from "src/interfaces/IDiamondCut.sol";
+import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
 
 // ============================================================================
 // Errors
@@ -90,19 +90,58 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     // ========================================================================
 
     /// @notice Current version of the registry (increments with each modification)
-    uint256 private currentVersion;
+    uint256 private _currentVersion;
 
     /// @notice Array of all registered facet addresses
-    address[] private facetAddresses;
+    address[] private _facetAddresses;
 
     /// @notice Array of 4 base facet addresses that cannot be modified
-    address[4] private baseFacets;
+    address[4] private _baseFacets;
 
     /// @notice Mapping from function selector to facet address and position
-    mapping(bytes4 => FacetAddressAndPosition) private selectorToFacetAndPosition;
+    mapping(bytes4 => FacetAddressAndPosition) private _selectorToFacetAndPosition;
 
     /// @notice Mapping from facet address to its function selectors
-    mapping(address => FacetFunctionSelectors) private facetFunctionSelectors;
+    mapping(address => FacetFunctionSelectors) private _facetFunctionSelectors;
+
+    mapping(uint256 version => IDiamondCut.FacetCut facetCut) private _facetCutByVersion;
+
+    // ========================================================================
+    // Events
+    // ========================================================================
+
+    /// @notice Emitted when the registry is initialized
+    /// @param owner The owner of the registry
+    /// @param baseFacets The base facets that were registered
+    /// @param functionSelectors The function selectors that were registered
+    event FacetRegistryInitialized(address indexed owner, address[4] indexed baseFacets, bytes4[][] functionSelectors);
+
+    /// @notice Emitted when a facet is added, removed, or replaced
+    /// @param facetAddress The address of the facet that had function selectors added
+    /// @param oldVersion The version of the registry when the function selectors were added
+    /// @param newVersion The version of the registry when the function selectors were added
+    /// @param functionSelectors The function selectors that were added
+    event FacetRegistryFunctionsAdded(
+        address indexed facetAddress, uint256 indexed oldVersion, uint256 indexed newVersion, bytes4[] functionSelectors
+    );
+
+    /// @notice Emitted when function selectors are removed from a facet
+    /// @param facetAddress The address of the facet that had function selectors removed
+    /// @param oldVersion The version of the registry when the function selectors were removed
+    /// @param newVersion The version of the registry when the function selectors were removed
+    /// @param functionSelectors The function selectors that were removed
+    event FacetRegistryFunctionsRemoved(
+        address indexed facetAddress, uint256 indexed oldVersion, uint256 indexed newVersion, bytes4[] functionSelectors
+    );
+
+    /// @notice Emitted when function selectors are replaced from one facet to another
+    /// @param oldVersion The version of the registry when the function selectors were replaced
+    /// @param newVersion The version of the registry when the function selectors were replaced
+    /// @param facetAddress The address of the facet that had function selectors replaced
+    /// @param functionSelectors The function selectors that were replaced
+    event FacetRegistryFunctionsReplaced(
+        uint256 indexed oldVersion, uint256 indexed newVersion, address indexed facetAddress, bytes4[] functionSelectors
+    );
 
     // ========================================================================
     // Constructor
@@ -121,27 +160,29 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     /**
      * @notice Initializes the registry contract
      * @dev This function should be called during proxy deployment via the proxy's initialization mechanism
-     * @param _initialOwner The address that will be the owner of this registry
-     * @param _baseFacets Array of 4 base facet addresses
-     * @param _functionSelectors 2D array of function selectors corresponding to each base facet
+     * @param initialOwner The address that will be the owner of this registry
+     * @param baseFacets Array of 4 base facet addresses
+     * @param functionSelectors 2D array of function selectors corresponding to each base facet
      */
     function initialize(
-        address _initialOwner,
-        address[4] memory _baseFacets,
-        bytes4[][] memory _functionSelectors
+        address initialOwner,
+        address[4] memory baseFacets,
+        bytes4[][] memory functionSelectors
     )
         public
         initializer
     {
-        __Ownable_init(_initialOwner);
+        __Ownable_init(initialOwner);
 
-        for (uint8 i = 0; i < _baseFacets.length; i++) {
-            if (_baseFacets[i] == address(0)) {
+        for (uint8 i = 0; i < baseFacets.length; i++) {
+            if (baseFacets[i] == address(0)) {
                 revert FacetRegistry_FacetAddressIsZero();
             }
-            baseFacets[i] = _baseFacets[i];
-            _addBaseFacet(_baseFacets[i], _functionSelectors[i]);
+            _baseFacets[i] = baseFacets[i];
+            _addBaseFacet(baseFacets[i], functionSelectors[i]);
         }
+
+        emit FacetRegistryInitialized(initialOwner, baseFacets, functionSelectors);
     }
 
     // ========================================================================
@@ -163,28 +204,33 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         }
 
         // Prevent modification of base facets
-        for (uint256 i = 0; i < baseFacets.length; i++) {
-            if (_facetAddress == baseFacets[i]) {
+        for (uint256 i = 0; i < _baseFacets.length; i++) {
+            if (_facetAddress == _baseFacets[i]) {
                 revert FacetRegistry_CannotModifyBaseFacet(_facetAddress);
             }
         }
 
-        uint96 selectorPosition = uint96(facetFunctionSelectors[_facetAddress].functionSelectors.length);
+        uint96 selectorPosition = uint96(_facetFunctionSelectors[_facetAddress].functionSelectors.length);
         if (selectorPosition == 0) {
             _addFacet(_facetAddress);
         }
 
         for (uint256 selectorIndex = 0; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
-            address oldFacetAddress = selectorToFacetAndPosition[selector].facetAddress;
+            address oldFacetAddress = _selectorToFacetAndPosition[selector].facetAddress;
             if (oldFacetAddress != address(0)) {
                 revert FacetRegistry_CannotAddFunctionThatAlreadyExists(selector);
             }
             _addFunction(selector, selectorPosition, _facetAddress);
             selectorPosition++;
         }
-
-        currentVersion++;
+        _currentVersion++;
+        _facetCutByVersion[_currentVersion] = IDiamondCut.FacetCut({
+            facetAddress: _facetAddress,
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: _functionSelectors
+        });
+        emit FacetRegistryFunctionsAdded(_facetAddress, _currentVersion - 1, _currentVersion, _functionSelectors);
     }
 
     /**
@@ -202,28 +248,28 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         }
 
         // Prevent modification of base facets
-        for (uint256 i = 0; i < baseFacets.length; i++) {
-            if (_facetAddress == baseFacets[i]) {
+        for (uint256 i = 0; i < _baseFacets.length; i++) {
+            if (_facetAddress == _baseFacets[i]) {
                 revert FacetRegistry_CannotModifyBaseFacet(_facetAddress);
             }
         }
 
-        uint96 selectorPosition = uint96(facetFunctionSelectors[_facetAddress].functionSelectors.length);
+        uint96 selectorPosition = uint96(_facetFunctionSelectors[_facetAddress].functionSelectors.length);
         if (selectorPosition == 0) {
             _addFacet(_facetAddress);
         }
 
         for (uint256 selectorIndex = 0; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
-            address oldFacetAddress = selectorToFacetAndPosition[selector].facetAddress;
+            address oldFacetAddress = _selectorToFacetAndPosition[selector].facetAddress;
 
             if (oldFacetAddress == _facetAddress) {
                 revert FacetRegistry_CannotReplaceFunctionWithSameFunction(oldFacetAddress, selector);
             }
 
             // Prevent modification of base facets
-            for (uint256 j = 0; j < baseFacets.length; j++) {
-                if (oldFacetAddress == baseFacets[j]) {
+            for (uint256 j = 0; j < _baseFacets.length; j++) {
+                if (oldFacetAddress == _baseFacets[j]) {
                     revert FacetRegistry_CannotModifyBaseFacet(oldFacetAddress);
                 }
             }
@@ -233,7 +279,13 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
             selectorPosition++;
         }
 
-        currentVersion++;
+        _currentVersion++;
+        _facetCutByVersion[_currentVersion] = IDiamondCut.FacetCut({
+            facetAddress: _facetAddress,
+            action: IDiamondCut.FacetCutAction.Replace,
+            functionSelectors: _functionSelectors
+        });
+        emit FacetRegistryFunctionsReplaced(_currentVersion - 1, _currentVersion, _facetAddress, _functionSelectors);
     }
 
     /**
@@ -253,11 +305,11 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
 
         for (uint256 selectorIndex = 0; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
-            address oldFacetAddress = selectorToFacetAndPosition[selector].facetAddress;
+            address oldFacetAddress = _selectorToFacetAndPosition[selector].facetAddress;
 
             // Prevent modification of base facets
-            for (uint256 i = 0; i < baseFacets.length; i++) {
-                if (oldFacetAddress == baseFacets[i]) {
+            for (uint256 i = 0; i < _baseFacets.length; i++) {
+                if (oldFacetAddress == _baseFacets[i]) {
                     revert FacetRegistry_CannotModifyBaseFacet(oldFacetAddress);
                 }
             }
@@ -265,7 +317,13 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
             _removeFunction(oldFacetAddress, selector);
         }
 
-        currentVersion++;
+        _currentVersion++;
+        _facetCutByVersion[_currentVersion] = IDiamondCut.FacetCut({
+            facetAddress: _facetAddress,
+            action: IDiamondCut.FacetCutAction.Remove,
+            functionSelectors: _functionSelectors
+        });
+        emit FacetRegistryFunctionsRemoved(_facetAddress, _currentVersion - 1, _currentVersion, _functionSelectors);
     }
 
     // ========================================================================
@@ -277,12 +335,12 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
      * @return facets_ Array of facet structs containing addresses and selectors
      */
     function getFacets() external view returns (Facet[] memory facets_) {
-        uint256 numFacets = facetAddresses.length;
+        uint256 numFacets = _facetAddresses.length;
         facets_ = new Facet[](numFacets);
         for (uint256 i = 0; i < numFacets; i++) {
-            address facetAddress_ = facetAddresses[i];
+            address facetAddress_ = _facetAddresses[i];
             facets_[i].facetAddress = facetAddress_;
-            facets_[i].functionSelectors = facetFunctionSelectors[facetAddress_].functionSelectors;
+            facets_[i].functionSelectors = _facetFunctionSelectors[facetAddress_].functionSelectors;
         }
     }
 
@@ -292,7 +350,7 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
      * @return selectors Array of function selectors for the facet
      */
     function getFacetFunctionSelectors(address _facet) external view returns (bytes4[] memory selectors) {
-        selectors = facetFunctionSelectors[_facet].functionSelectors;
+        selectors = _facetFunctionSelectors[_facet].functionSelectors;
     }
 
     /**
@@ -300,7 +358,7 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
      * @return facetAddresses_ Array of facet addresses
      */
     function getFacetAddresses() external view returns (address[] memory facetAddresses_) {
-        facetAddresses_ = facetAddresses;
+        facetAddresses_ = _facetAddresses;
     }
 
     /**
@@ -309,7 +367,7 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
      * @return facetAddress_ The address of the facet implementing this selector
      */
     function getFacetAddress(bytes4 _functionSelector) external view returns (address facetAddress_) {
-        facetAddress_ = selectorToFacetAndPosition[_functionSelector].facetAddress;
+        facetAddress_ = _selectorToFacetAndPosition[_functionSelector].facetAddress;
     }
 
     /**
@@ -317,7 +375,27 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
      * @return baseFacets_ Array of 4 base facet addresses
      */
     function getBaseFacets() external view returns (address[4] memory baseFacets_) {
-        baseFacets_ = baseFacets;
+        baseFacets_ = _baseFacets;
+    }
+
+    /**
+     * @notice Returns the facet cuts for the version range
+     * @param _startVersion The start version
+     * @param _endVersion The end version
+     * @return facetCuts The facet cuts for the version range
+     */
+    function getFacetCutsByVersionRange(
+        uint256 _startVersion,
+        uint256 _endVersion
+    )
+        external
+        view
+        returns (IDiamondCut.FacetCut[] memory facetCuts)
+    {
+        facetCuts = new IDiamondCut.FacetCut[](_endVersion - _startVersion + 1);
+        for (uint256 i = _startVersion; i <= _endVersion; i++) {
+            facetCuts[i - _startVersion] = _facetCutByVersion[i];
+        }
     }
 
     /**
@@ -326,9 +404,9 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
      * @return True if the facet is registered, false otherwise
      */
     function isFacetRegistered(address _facet) external view returns (bool) {
-        uint256 numFacets = facetAddresses.length;
+        uint256 numFacets = _facetAddresses.length;
         for (uint256 i = 0; i < numFacets; i++) {
-            if (_facet == facetAddresses[i]) {
+            if (_facet == _facetAddresses[i]) {
                 return true;
             }
         }
@@ -341,7 +419,7 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
      * @return True if the selector is registered, false otherwise
      */
     function isSelectorRegistered(bytes4 _functionSelector) external view returns (bool) {
-        return selectorToFacetAndPosition[_functionSelector].facetAddress != address(0);
+        return _selectorToFacetAndPosition[_functionSelector].facetAddress != address(0);
     }
 
     /**
@@ -354,7 +432,7 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         if (_facet == address(0)) {
             revert FacetRegistry_FacetAddressIsZero();
         }
-        address facetAddress_ = selectorToFacetAndPosition[_functionSelector].facetAddress;
+        address facetAddress_ = _selectorToFacetAndPosition[_functionSelector].facetAddress;
         return facetAddress_ == _facet;
     }
 
@@ -363,7 +441,7 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
      * @return The current version number
      */
     function getCurrentVersion() external view returns (uint256) {
-        return currentVersion;
+        return _currentVersion;
     }
 
     // ========================================================================
@@ -381,8 +459,8 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
             revert FacetRegistry_FacetIsNotContract(_facetAddress);
         }
 
-        facetFunctionSelectors[_facetAddress].facetAddressPosition = facetAddresses.length;
-        facetAddresses.push(_facetAddress);
+        _facetFunctionSelectors[_facetAddress].facetAddressPosition = _facetAddresses.length;
+        _facetAddresses.push(_facetAddress);
 
         for (uint256 selectorIndex = 0; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
@@ -399,8 +477,8 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
             revert FacetRegistry_FacetIsNotContract(_facetAddress);
         }
 
-        facetFunctionSelectors[_facetAddress].facetAddressPosition = facetAddresses.length;
-        facetAddresses.push(_facetAddress);
+        _facetFunctionSelectors[_facetAddress].facetAddressPosition = _facetAddresses.length;
+        _facetAddresses.push(_facetAddress);
     }
 
     /**
@@ -410,9 +488,9 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
      * @param _facetAddress The address of the facet contract
      */
     function _addFunction(bytes4 _selector, uint96 _selectorPosition, address _facetAddress) internal {
-        selectorToFacetAndPosition[_selector].functionSelectorPosition = _selectorPosition;
-        facetFunctionSelectors[_facetAddress].functionSelectors.push(_selector);
-        selectorToFacetAndPosition[_selector].facetAddress = _facetAddress;
+        _selectorToFacetAndPosition[_selector].functionSelectorPosition = _selectorPosition;
+        _facetFunctionSelectors[_facetAddress].functionSelectors.push(_selector);
+        _selectorToFacetAndPosition[_selector].facetAddress = _facetAddress;
     }
 
     /**
@@ -428,31 +506,31 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
             revert FacetRegistry_CannotRemoveImmutableFunction(_facetAddress, _selector);
         }
 
-        uint256 selectorPosition = selectorToFacetAndPosition[_selector].functionSelectorPosition;
-        uint256 lastSelectorPosition = facetFunctionSelectors[_facetAddress].functionSelectors.length - 1;
+        uint256 selectorPosition = _selectorToFacetAndPosition[_selector].functionSelectorPosition;
+        uint256 lastSelectorPosition = _facetFunctionSelectors[_facetAddress].functionSelectors.length - 1;
 
         if (selectorPosition != lastSelectorPosition) {
-            bytes4 lastSelector = facetFunctionSelectors[_facetAddress].functionSelectors[lastSelectorPosition];
-            facetFunctionSelectors[_facetAddress].functionSelectors[selectorPosition] = lastSelector;
-            selectorToFacetAndPosition[lastSelector].functionSelectorPosition = uint96(selectorPosition);
+            bytes4 lastSelector = _facetFunctionSelectors[_facetAddress].functionSelectors[lastSelectorPosition];
+            _facetFunctionSelectors[_facetAddress].functionSelectors[selectorPosition] = lastSelector;
+            _selectorToFacetAndPosition[lastSelector].functionSelectorPosition = uint96(selectorPosition);
         }
 
-        facetFunctionSelectors[_facetAddress].functionSelectors.pop();
-        delete selectorToFacetAndPosition[_selector];
+        _facetFunctionSelectors[_facetAddress].functionSelectors.pop();
+        delete _selectorToFacetAndPosition[_selector];
 
         // Remove facet if it has no more selectors
-        if (facetFunctionSelectors[_facetAddress].functionSelectors.length == 0) {
-            uint256 lastFacetAddressPosition = facetAddresses.length - 1;
-            uint256 facetAddressPosition = facetFunctionSelectors[_facetAddress].facetAddressPosition;
+        if (_facetFunctionSelectors[_facetAddress].functionSelectors.length == 0) {
+            uint256 lastFacetAddressPosition = _facetAddresses.length - 1;
+            uint256 facetAddressPosition = _facetFunctionSelectors[_facetAddress].facetAddressPosition;
 
             if (facetAddressPosition != lastFacetAddressPosition) {
-                address lastFacetAddress = facetAddresses[lastFacetAddressPosition];
-                facetAddresses[facetAddressPosition] = lastFacetAddress;
-                facetFunctionSelectors[lastFacetAddress].facetAddressPosition = facetAddressPosition;
+                address lastFacetAddress = _facetAddresses[lastFacetAddressPosition];
+                _facetAddresses[facetAddressPosition] = lastFacetAddress;
+                _facetFunctionSelectors[lastFacetAddress].facetAddressPosition = facetAddressPosition;
             }
 
-            facetAddresses.pop();
-            delete facetFunctionSelectors[_facetAddress].facetAddressPosition;
+            _facetAddresses.pop();
+            delete _facetFunctionSelectors[_facetAddress].facetAddressPosition;
         }
     }
 }

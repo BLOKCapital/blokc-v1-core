@@ -3,8 +3,8 @@ pragma solidity ^0.8.20;
 
 import { GardenFactoryTestBase } from "./GardenFactoryTestBase.sol";
 import { Diamond } from "src/diamond/Diamond.sol";
-import { IDiamondCut } from "src/interfaces/IDiamondCut.sol";
-import { IDiamondLoupe } from "src/interfaces/IDiamondLoupe.sol";
+import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
+import { IDiamondLoupe } from "src/diamond/facets/baseFacets/loupe/IDiamondLoupe.sol";
 import { IERC173 } from "src/interfaces/IERC173.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";

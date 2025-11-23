@@ -29,7 +29,8 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 // Local Interfaces
 import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
-import { IDiamondCut } from "src/interfaces/IDiamondCut.sol";
+import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
+import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 
 // Local Contracts
 import { Diamond } from "src/diamond/Diamond.sol";
@@ -37,9 +38,6 @@ import { Diamond } from "src/diamond/Diamond.sol";
 // ============================================================================
 // Errors
 // ============================================================================
-
-/// @notice Thrown when facet registry address is not set or is zero
-error GardenFactory_FacetRegistryNotSet();
 
 /// @notice Thrown when attempting to use an index that is already in use
 /// @param user The address of the user attempting to use the index
@@ -53,11 +51,14 @@ error GardenFactory_DefaultFacetNotRegistered();
 /// @param index The invalid index value
 error GardenFactory_IndexOutOfRange(uint256 index);
 
-/// @notice Thrown when protocol status address is not set or is zero
+/// @notice Thrown when the facet registry is not set
+error GardenFactory_FacetRegistryNotSet();
+
+/// @notice Thrown when the protocol status is not set
 error GardenFactory_ProtocolStatusNotSet();
 
-/// @notice Thrown when liquidity pool registry address is not set or is zero
-error GardenFactory_LiquidityPoolRegistryNotSet();
+/// @notice Thrown when the protocol is inactive
+error GardenFactory_ProtocolIsInactive();
 
 // ============================================================================
 // GardenFactory
@@ -77,23 +78,20 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     // State Variables
     // ========================================================================
 
-    /// @notice The address of the protocol status (kill switch) contract
-    address private protocolStatus;
-
     /// @notice The address of the facet registry contract
-    address private facetRegistry;
+    address private _facetRegistry;
 
-    /// @notice The address of the liquidity pool registry contract
-    address private liquidityPoolRegistry;
+    /// @notice The address of the protocol status contract
+    address private _protocolStatus;
 
     /// @notice The set of all gardens created by this factory
-    EnumerableSet.AddressSet private gardens;
+    EnumerableSet.AddressSet private _gardens;
 
     /// @notice Mapping of user address to array of their garden addresses
-    mapping(address user => address[]) private userGardens;
+    mapping(address user => address[]) private _userGardens;
 
     /// @notice Mapping of user address to index (1-10) to garden address
-    mapping(address user => mapping(uint256 index => address)) private userIndexToGarden;
+    mapping(address user => mapping(uint256 index => address)) private _userIndexToGarden;
 
     // ========================================================================
     // Events
@@ -107,15 +105,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
 
     /// @notice Emitted when the factory is initialized
     /// @param initialOwner The initial owner of the factory
-    /// @param protocolStatus The address of the protocol status contract
-    /// @param facetRegistry The address of the facet registry contract
-    /// @param liquidityPoolRegistry The address of the liquidity pool registry contract
-    event FactoryInitialized(
-        address indexed initialOwner,
-        address indexed protocolStatus,
-        address indexed facetRegistry,
-        address liquidityPoolRegistry
-    );
+    event FactoryInitialized(address indexed initialOwner);
 
     // ========================================================================
     // Constructor
@@ -134,38 +124,23 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     /**
      * @notice Initializes the factory contract
      * @dev This function should be called during proxy deployment via the proxy's initialization mechanism
-     * @param _initialOwner The address that will be the owner of this factory
-     * @param _protocolStatus The address of the protocol status contract
-     * @param _facetRegistry The address of the facet registry contract
-     * @param _liquidityPoolRegistry The address of the liquidity pool registry contract
+     * @param initialOwner The address that will be the owner of this factory
+     * @param facetRegistry The address of the facet registry contract
+     * @param protocolStatus The address of the protocol status contract
      */
-    function initialize(
-        address _initialOwner,
-        address _protocolStatus,
-        address _facetRegistry,
-        address _liquidityPoolRegistry
-    )
-        public
-        initializer
-    {
-        __Ownable_init(_initialOwner);
-        __ReentrancyGuard_init();
-
+    function initialize(address initialOwner, address facetRegistry, address protocolStatus) public initializer {
+        __Ownable_init(initialOwner);
+        _facetRegistry = facetRegistry;
+        _protocolStatus = protocolStatus;
         if (_facetRegistry == address(0)) {
             revert GardenFactory_FacetRegistryNotSet();
         }
         if (_protocolStatus == address(0)) {
             revert GardenFactory_ProtocolStatusNotSet();
         }
-        if (_liquidityPoolRegistry == address(0)) {
-            revert GardenFactory_LiquidityPoolRegistryNotSet();
-        }
+        __ReentrancyGuard_init();
 
-        protocolStatus = _protocolStatus;
-        facetRegistry = _facetRegistry;
-        liquidityPoolRegistry = _liquidityPoolRegistry;
-
-        emit FactoryInitialized(_initialOwner, _protocolStatus, _facetRegistry, _liquidityPoolRegistry);
+        emit FactoryInitialized(initialOwner);
     }
 
     // ========================================================================
@@ -183,15 +158,9 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     function createGarden(uint256 index) external nonReentrant returns (address gardenAddress) {
         address owner = msg.sender;
 
-        // Validate that critical addresses are set
-        if (facetRegistry == address(0)) {
-            revert GardenFactory_FacetRegistryNotSet();
-        }
-        if (protocolStatus == address(0)) {
-            revert GardenFactory_ProtocolStatusNotSet();
-        }
-        if (liquidityPoolRegistry == address(0)) {
-            revert GardenFactory_LiquidityPoolRegistryNotSet();
+        IProtocolStatus protocolStatus = IProtocolStatus(_protocolStatus);
+        if (protocolStatus.getProtocolStatus() == IProtocolStatus.State.INACTIVE) {
+            revert GardenFactory_ProtocolIsInactive();
         }
 
         // Validate index is within allowed range
@@ -200,12 +169,12 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
         }
 
         // Ensure the user hasn't already used this index
-        if (userIndexToGarden[owner][index] != address(0)) {
+        if (_userIndexToGarden[owner][index] != address(0)) {
             revert GardenFactory_IndexAlreadyUsed(owner, index);
         }
 
         // Get base facets from registry
-        IFacetRegistry registry = IFacetRegistry(facetRegistry);
+        IFacetRegistry registry = IFacetRegistry(_facetRegistry);
         address[4] memory baseFacets = registry.getBaseFacets();
 
         // Validate all base facets are registered
@@ -229,15 +198,14 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
         bytes32 salt = keccak256(abi.encode(owner, index, address(this)));
 
         // Deploy the Diamond contract using CREATE2
-        Diamond garden =
-            new Diamond{ salt: salt }(diamondCut, owner, protocolStatus, facetRegistry, liquidityPoolRegistry);
+        Diamond garden = new Diamond{ salt: salt }(diamondCut, owner, _facetRegistry, _protocolStatus);
 
         gardenAddress = address(garden);
 
         // Register the garden
-        gardens.add(gardenAddress);
-        userGardens[owner].push(gardenAddress);
-        userIndexToGarden[owner][index] = gardenAddress;
+        _gardens.add(gardenAddress);
+        _userGardens[owner].push(gardenAddress);
+        _userIndexToGarden[owner][index] = gardenAddress;
 
         emit GardenCreated(gardenAddress, owner, index);
     }
@@ -247,7 +215,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
      * @return gardens_ Array of all registered garden addresses
      */
     function getAllGardens() external view returns (address[] memory gardens_) {
-        gardens_ = gardens.values();
+        gardens_ = _gardens.values();
     }
 
     /**
@@ -256,7 +224,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
      * @return gardens_ Array of garden addresses created by the specified user
      */
     function getUserGardens(address user) external view returns (address[] memory gardens_) {
-        gardens_ = userGardens[user];
+        gardens_ = _userGardens[user];
     }
 
     /**
@@ -266,7 +234,7 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
      * @return The address of the garden associated with the given user and index, or address(0) if not found
      */
     function getGarden(address user, uint256 index) external view returns (address) {
-        return userIndexToGarden[user][index];
+        return _userIndexToGarden[user][index];
     }
 
     /**
@@ -275,6 +243,6 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
      * @return True if the garden is registered, false otherwise
      */
     function isGardenRegistered(address garden) external view returns (bool) {
-        return gardens.contains(garden);
+        return _gardens.contains(garden);
     }
 }

@@ -7,9 +7,9 @@ import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 // Import errors from GardenFactory
-error GardenFactory_FacetRegistryNotSet();
-error GardenFactory_ProtocolStatusNotSet();
-error GardenFactory_LiquidityPoolRegistryNotSet();
+error GardenFactory_IndexOutOfRange(uint256 index);
+error GardenFactory_IndexAlreadyUsed(address user, uint256 index);
+error GardenFactory_DefaultFacetNotRegistered();
 
 /// @title Tests for GardenFactory initialization
 contract GardenFactoryInitTest is GardenFactoryTestBase {
@@ -37,13 +37,7 @@ contract GardenFactoryInitTest is GardenFactoryTestBase {
         GardenFactory newImpl = new GardenFactory();
         ProxyAdmin newAdmin = new ProxyAdmin(address(this));
 
-        bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            newOwner,
-            address(protocolStatus),
-            address(facetRegistry),
-            address(poolRegistry)
-        );
+        bytes memory factoryInitData = abi.encodeWithSelector(GardenFactory.initialize.selector, newOwner);
 
         TransparentUpgradeableProxy newProxy =
             new TransparentUpgradeableProxy(address(newImpl), address(newAdmin), factoryInitData);
@@ -52,54 +46,14 @@ contract GardenFactoryInitTest is GardenFactoryTestBase {
         assertEq(newFactory.owner(), newOwner);
     }
 
-    /// @notice Test that initialization reverts if facet registry is zero
-    function test_RevertIf_FacetRegistryIsZero() public {
+    /// @notice Test initialization with zero address owner reverts
+    function test_RevertIf_InitializeWithZeroOwner() public {
         GardenFactory newImpl = new GardenFactory();
         ProxyAdmin newAdmin = new ProxyAdmin(address(this));
 
-        bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            owner,
-            address(protocolStatus),
-            address(0), // Zero facet registry
-            address(poolRegistry)
-        );
+        bytes memory factoryInitData = abi.encodeWithSelector(GardenFactory.initialize.selector, address(0));
 
-        vm.expectRevert(GardenFactory_FacetRegistryNotSet.selector);
-        new TransparentUpgradeableProxy(address(newImpl), address(newAdmin), factoryInitData);
-    }
-
-    /// @notice Test that initialization reverts if protocol status is zero
-    function test_RevertIf_ProtocolStatusIsZero() public {
-        GardenFactory newImpl = new GardenFactory();
-        ProxyAdmin newAdmin = new ProxyAdmin(address(this));
-
-        bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            owner,
-            address(0), // Zero protocol status
-            address(facetRegistry),
-            address(poolRegistry)
-        );
-
-        vm.expectRevert(GardenFactory_ProtocolStatusNotSet.selector);
-        new TransparentUpgradeableProxy(address(newImpl), address(newAdmin), factoryInitData);
-    }
-
-    /// @notice Test that initialization reverts if liquidity pool registry is zero
-    function test_RevertIf_LiquidityPoolRegistryIsZero() public {
-        GardenFactory newImpl = new GardenFactory();
-        ProxyAdmin newAdmin = new ProxyAdmin(address(this));
-
-        bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            owner,
-            address(protocolStatus),
-            address(facetRegistry),
-            address(0) // Zero pool registry
-        );
-
-        vm.expectRevert(GardenFactory_LiquidityPoolRegistryNotSet.selector);
+        vm.expectRevert();
         new TransparentUpgradeableProxy(address(newImpl), address(newAdmin), factoryInitData);
     }
 
@@ -108,7 +62,7 @@ contract GardenFactoryInitTest is GardenFactoryTestBase {
         GardenFactory impl = new GardenFactory();
 
         vm.expectRevert();
-        impl.initialize(owner, address(protocolStatus), address(facetRegistry), address(poolRegistry));
+        impl.initialize(owner, address(facetRegistry), address(protocolStatus));
     }
 
     /// @notice Test that initialization can only be called once
@@ -117,11 +71,7 @@ contract GardenFactoryInitTest is GardenFactoryTestBase {
         ProxyAdmin newAdmin = new ProxyAdmin(address(this));
 
         bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            owner,
-            address(protocolStatus),
-            address(facetRegistry),
-            address(poolRegistry)
+            GardenFactory.initialize.selector, owner, address(facetRegistry), address(protocolStatus)
         );
 
         TransparentUpgradeableProxy newProxy =
@@ -131,7 +81,7 @@ contract GardenFactoryInitTest is GardenFactoryTestBase {
 
         // Try to initialize again
         vm.expectRevert();
-        newFactory.initialize(owner, address(protocolStatus), address(facetRegistry), address(poolRegistry));
+        newFactory.initialize(owner, address(facetRegistry), address(protocolStatus));
     }
 
     /// @notice Test that FactoryInitialized event is emitted
@@ -140,15 +90,11 @@ contract GardenFactoryInitTest is GardenFactoryTestBase {
         ProxyAdmin newAdmin = new ProxyAdmin(address(this));
 
         bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            owner,
-            address(protocolStatus),
-            address(facetRegistry),
-            address(poolRegistry)
+            GardenFactory.initialize.selector, owner, address(facetRegistry), address(protocolStatus)
         );
 
-        vm.expectEmit(true, true, true, true);
-        emit FactoryInitialized(owner, address(protocolStatus), address(facetRegistry), address(poolRegistry));
+        vm.expectEmit(true, false, false, false);
+        emit FactoryInitialized(owner);
 
         new TransparentUpgradeableProxy(address(newImpl), address(newAdmin), factoryInitData);
     }

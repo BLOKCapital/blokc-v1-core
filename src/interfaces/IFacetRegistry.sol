@@ -15,6 +15,8 @@ pragma solidity >=0.8.20;
 
 ################################################################################*/
 
+import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
+
 /**
  * @title IFacetRegistry
  * @notice Interface of the FacetRegistry contract.
@@ -87,6 +89,20 @@ interface IFacetRegistry {
      * @return baseFacets_ Array of base facet addresses
      */
     function getBaseFacets() external view returns (address[4] memory baseFacets_);
+
+    /**
+     * @notice Returns the facet cuts for the version range
+     * @param _startVersion The start version
+     * @param _endVersion The end version
+     * @return facetCuts The facet cuts for the version range
+     */
+    function getFacetCutsByVersionRange(
+        uint256 _startVersion,
+        uint256 _endVersion
+    )
+        external
+        view
+        returns (IDiamondCut.FacetCut[] memory facetCuts);
 
     /**
      * @notice Returns if a facet registered or not

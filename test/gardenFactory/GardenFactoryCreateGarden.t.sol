@@ -2,10 +2,10 @@
 pragma solidity ^0.8.20;
 
 import { GardenFactoryTestBase } from "./GardenFactoryTestBase.sol";
-import { IDiamondCut } from "src/interfaces/IDiamondCut.sol";
-import { IDiamondLoupe } from "src/interfaces/IDiamondLoupe.sol";
+import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
+import { IDiamondLoupe } from "src/diamond/facets/baseFacets/loupe/IDiamondLoupe.sol";
 import { IERC173 } from "src/interfaces/IERC173.sol";
-import { IUpgrade } from "src/interfaces/IUpgrade.sol";
+import { IUpgrade } from "src/diamond/facets/baseFacets/upgrade/IUpgrade.sol";
 
 // Import errors from GardenFactory
 error GardenFactory_IndexOutOfRange(uint256 index);
