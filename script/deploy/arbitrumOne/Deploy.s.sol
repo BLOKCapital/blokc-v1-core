@@ -75,7 +75,15 @@ contract Deploy is BaseScript {
         console2.log("PoolRegistry ProxyAdmin deployed at:", address(poolRegistryProxyAdmin));
 
         // --- Deploy ProtocolStatus (no proxy) ---
-        protocolStatus = new ProtocolStatus{ salt: salt }(new ProtocolStatus.SecurityCouncilMember[](0));
+        bytes32[] memory emptyNamehashes = new bytes32[](0);
+        string[] memory emptyNames = new string[](0);
+        uint256[] memory emptyExpiries = new uint256[](0);
+
+        address ENS_REGISTRY_ARBITRUM = 0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e;
+
+        protocolStatus =
+            new ProtocolStatus{ salt: salt }(ENS_REGISTRY_ARBITRUM, emptyNamehashes, emptyNames, emptyExpiries);
+
         console2.log("ProtocolStatus deployed at:", address(protocolStatus));
 
         // --- Deploy GardenFactory implementation & transparent proxy ---
