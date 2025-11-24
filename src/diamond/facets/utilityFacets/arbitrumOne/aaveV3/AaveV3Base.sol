@@ -3,9 +3,13 @@ pragma solidity ^0.8.20;
 
 /*###############################################################################
 
-    @title AaveFacet
+    @title AaveV3Base
     @author BLOK Capital DAO
-    @notice Facet exposing Aave integration functions (lend / withdraw / reserve data lookup)
+    @notice Base contract for AaveV3Facet exposing Aave integration functions
+            (lend / withdraw / reserve data lookup)
+    @dev This base contract provides common functionality for AaveV3Facet, including
+         lending and withdrawing tokens from Aave V3 pools. It uses SafeERC20 for
+         secure token transfers and approvals.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -45,21 +49,6 @@ error AaveV3Facet_InvalidATokenAddress();
 /// @notice Thrown when withdrawal amount exceeds aToken balance
 error AaveV3Facet_InsufficientATokenBalance();
 
-// ============================================================================
-// AaveV3Base
-// ============================================================================
-
-/**
- * @title AaveV3Base
- * @notice Facet providing Aave V3 protocol integration for lending and withdrawing assets
- * @dev This facet allows the diamond owner to:
- *      - Lend tokens to Aave pools and receive aTokens
- *      - Withdraw tokens from Aave pools by burning aTokens
- *      - Query reserve data for Aave pools
- *
- *      All operations are protected by owner-only access control. Uses SafeERC20 for
- *      secure token transfers and approvals.
- */
 abstract contract AaveV3Base is IAaveV3 {
     using SafeERC20 for IERC20;
 
@@ -85,40 +74,22 @@ abstract contract AaveV3Base is IAaveV3 {
     // Internal Functions
     // ========================================================================
 
-    /**
-     * @notice Gets reserve data from an Aave pool for a specific token
-     * @dev Returns the complete ReserveData struct from Aave, including aToken address,
-     *      interest rate strategy, and other reserve configuration.
-     * @param tokenIn The underlying asset token address whose reserve data is requested
-     * @return reserveData The Aave ReserveData struct for the token
-     */
+    /// @notice Gets reserve data from an Aave pool for a specific token
+    /// @param tokenIn The underlying asset token address whose reserve data is requested
+    /// @return reserveData The Aave ReserveData struct for the token
     function _getReserveData(address tokenIn) internal view returns (DataTypes.ReserveData memory reserveData) {
         reserveData = IPool(AAVE_V3_POOL_ADDRESS).getReserveData(tokenIn);
     }
 
-    /**
-     * @notice Lends tokens to an Aave pool
-     * @dev Transfers tokens from the diamond to the Aave pool and receives aTokens.
-     *      Uses SafeERC20 for secure token handling. Implements the safe approval pattern
-     *      (reset to 0, then set desired amount) to handle non-standard ERC20 tokens.
-     * @param tokenIn The ERC20 token address to supply
-     * @param amountIn Amount of token to supply
-     */
+    /// @notice Lends tokens to an Aave pool
+    /// @param tokenIn The ERC20 token address to supply
+    /// @param amountIn Amount of token to supply
     function _lend(address tokenIn, uint256 amountIn) internal {
         // Create typed references
         IPool pool = IPool(AAVE_V3_POOL_ADDRESS);
         IERC20 token = IERC20(tokenIn);
 
-        // Ensure the contract has sufficient token balance
-        if (token.balanceOf(address(this)) < amountIn) {
-            revert AaveV3Facet_InsufficientBalance();
-        }
-
-        uint256 currentAllowance = token.allowance(address(this), address(pool));
-        if (currentAllowance > 0) {
-            // if token returns false on approve, revert
-            if (!token.approve(address(pool), 0)) revert AaveV3Facet_ApprovalFailed();
-        }
+        token.forceApprove(address(pool), amountIn);
 
         // Supply tokens to Aave pool (recipient is this contract, referral code is 0)
         pool.supply(tokenIn, amountIn, address(this), 0);
@@ -127,13 +98,9 @@ abstract contract AaveV3Base is IAaveV3 {
         emit AaveV3FacetTokensLent(tokenIn, amountIn, address(this));
     }
 
-    /**
-     * @notice Withdraws tokens from an Aave pool
-     * @dev Burns aTokens and receives underlying tokens. Queries the pool for the
-     *      aToken address, then checks balance before withdrawal.
-     * @param tokenIn The underlying asset address (asset corresponding to the aToken)
-     * @param amountToWithdraw Amount of underlying to withdraw (in token decimals)
-     */
+    /// @notice Withdraws tokens from an Aave pool
+    /// @param tokenIn The underlying asset address (asset corresponding to the aToken)
+    /// @param amountToWithdraw Amount of underlying to withdraw (in token decimals)
     function _withdraw(address tokenIn, uint256 amountToWithdraw) internal {
         IPool pool = IPool(AAVE_V3_POOL_ADDRESS);
 

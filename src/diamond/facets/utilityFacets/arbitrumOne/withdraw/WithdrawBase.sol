@@ -3,9 +3,12 @@ pragma solidity ^0.8.20;
 
 /*###############################################################################
 
-    @title WithdrawFacet
+    @title WithdrawBase
     @author BLOK Capital DAO
-    @notice Facet providing USDC withdrawal functionality
+    @notice Base contract providing USDC withdrawal functionality
+    @dev This base contract provides the common functionality for the WithdrawFacet.
+         It includes the USDC withdrawal functionality and the SafeERC20 library for
+         secure token transfers.
 
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
@@ -62,12 +65,10 @@ abstract contract WithdrawBase is IWithdraw {
     /// @param amount The amount of USDC withdrawn
     event WithdrawFacetUSDCWithdrawn(address indexed to, uint256 amount);
 
-    /**
-     * @notice Withdraws USDC from the contract to the owner address
-     * @dev Validates amount is non-zero, owner is valid, and contract has
-     *      sufficient balance. Uses SafeERC20 for secure transfer.
-     * @param amount The amount of USDC to withdraw (in USDC decimals, usually 6)
-     */
+    /// @notice Withdraws USDC from the contract to the owner address
+    /// @dev Validates amount is non-zero, owner is valid, and contract has
+    ///      sufficient balance. Uses SafeERC20 for secure transfer.
+    /// @param amount The amount of USDC to withdraw (in USDC decimals, usually 6)
     function _withdrawUSDC(uint256 amount) internal {
         if (amount == 0) {
             revert WithdrawFacet_WithdrawZeroAmount();

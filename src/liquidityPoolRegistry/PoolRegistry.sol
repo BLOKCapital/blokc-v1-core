@@ -3,10 +3,15 @@ pragma solidity >=0.8.20;
 
 /*###############################################################################
 
+    @title PoolRegistry
+    @author BLOK Capital DAO
+    @notice Registry contract that manages the registration and tracking of liquidity pools
+
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
+
 
 ################################################################################*/
 
@@ -38,16 +43,6 @@ error PoolRegistry_PairNameEmpty();
 /// @notice Thrown when DEX ID is empty
 error PoolRegistry_DexIdEmpty();
 
-// ============================================================================
-// PoolRegistry
-// ============================================================================
-
-/**
- * @title PoolRegistry
- * @notice Registry contract that manages the registration and tracking of liquidity pools
- * @dev This contract manages the registration and tracking of liquidity pools for the protocol.
- *      Only the owner can add or remove pools. Pools are stored with metadata including pair name and DEX ID.
- */
 contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
     // ========================================================================
     // State Variables
@@ -73,11 +68,9 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
     // Initialization
     // ========================================================================
 
-    /**
-     * @notice Initializes the registry contract
-     * @dev This function should be called during proxy deployment via the proxy's initialization mechanism
-     * @param _initialOwner The address that will be the owner of this registry
-     */
+    /// @notice Initializes the registry contract
+    /// @dev This function should be called during proxy deployment via the proxy's initialization mechanism
+    /// @param _initialOwner The address that will be the owner of this registry
     function initialize(address _initialOwner) public initializer {
         __Ownable_init(_initialOwner);
     }
@@ -86,13 +79,11 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
     // External Functions (State-Changing)
     // ========================================================================
 
-    /**
-     * @notice Registers a new liquidity pool
-     * @dev The pool address must not be zero, must not already exist, and both pairName and dexId must be non-empty
-     * @param _poolAddress The address of the pool to add
-     * @param _protocolId The identifier of the protocol where the pool exists
-     * @param _pairName The name of the trading pair (e.g., "ETH/USD")
-     */
+    /// @notice Registers a new liquidity pool
+    /// @dev The pool address must not be zero, must not already exist, and both pairName and dexId must be non-empty
+    /// @param _poolAddress The address of the pool to add
+    /// @param _protocolId The identifier of the protocol where the pool exists
+    /// @param _pairName The name of the trading pair (e.g., "ETH/USD")
     function addPool(address _poolAddress, bytes32 _protocolId, string calldata _pairName) external onlyOwner {
         // Validate pool address
         if (_poolAddress == address(0)) {
@@ -120,11 +111,9 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
             PoolInfo({ poolAddress: _poolAddress, protocolId: _protocolId, active: true, pairName: _pairName });
     }
 
-    /**
-     * @notice Removes a pool from the registry
-     * @dev The pool must exist in the registry. Uses gas-optimized array removal pattern.
-     * @param _poolAddress The address of the pool to remove
-     */
+    /// @notice Removes a pool from the registry
+    /// @dev The pool must exist in the registry. Uses gas-optimized array removal pattern.
+    /// @param _poolAddress The address of the pool to remove
     function removePool(address _poolAddress) external onlyOwner {
         // Validate pool exists
         if (bytes(_poolInfo[_poolAddress].pairName).length == 0) {
@@ -150,37 +139,29 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
     // External Functions (View)
     // ========================================================================
 
-    /**
-     * @notice Returns the information of a registered pool
-     * @param _poolAddress The address of the pool
-     * @return PoolInfo The details of the pool
-     */
+    /// @notice Returns the information of a registered pool
+    /// @param _poolAddress The address of the pool
+    /// @return PoolInfo The details of the pool
     function poolDetails(address _poolAddress) external view override returns (PoolInfo memory) {
         return _poolInfo[_poolAddress];
     }
 
-    /**
-     * @notice Returns the addresses of all registered pools
-     * @return pools_ Array of all registered pool addresses
-     */
+    /// @notice Returns the addresses of all registered pools
+    /// @return pools_ Array of all registered pool addresses
     function poolAddresses() external view returns (address[] memory pools_) {
         pools_ = _pools;
     }
 
-    /**
-     * @notice Checks if a pool is registered
-     * @param _poolAddress The address of the pool to check
-     * @return True if the pool is registered, false otherwise
-     */
+    /// @notice Checks if a pool is registered
+    /// @param _poolAddress The address of the pool to check
+    /// @return True if the pool is registered, false otherwise
     function isPoolRegistered(address _poolAddress) external view returns (bool) {
         return bytes(_poolInfo[_poolAddress].pairName).length != 0;
     }
 
-    /**
-     * @notice Checks if a pool is active
-     * @param _poolAddress The address of the pool to check
-     * @return True if the pool is active, false otherwise
-     */
+    /// @notice Checks if a pool is active
+    /// @param _poolAddress The address of the pool to check
+    /// @return True if the pool is active, false otherwise
     function isPoolActive(address _poolAddress) external view returns (bool) {
         return _poolInfo[_poolAddress].active;
     }

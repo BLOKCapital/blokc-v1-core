@@ -74,16 +74,6 @@ error FacetRegistry_IncorrectBaseFacetsLength(uint256 length);
 /// @param facetAddress The base facet address that cannot be modified
 error FacetRegistry_CannotModifyBaseFacet(address facetAddress);
 
-// ============================================================================
-// FacetRegistry
-// ============================================================================
-
-/**
- * @title FacetRegistry
- * @notice Registry contract that manages the registration and tracking of facets for Diamond proxy implementations
- * @dev FacetRegistry manages the registration and tracking of facets for a diamond proxy pattern implementation.
- *      Base facets cannot be modified once registered. The registry maintains version tracking for all modifications.
- */
 contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     // ========================================================================
     // State Variables
@@ -104,6 +94,7 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     /// @notice Mapping from facet address to its function selectors
     mapping(address => FacetFunctionSelectors) private _facetFunctionSelectors;
 
+    /// @notice Mapping from version to facet cut
     mapping(uint256 version => IDiamondCut.FacetCut facetCut) private _facetCutByVersion;
 
     // ========================================================================
@@ -157,13 +148,11 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     // Initialization
     // ========================================================================
 
-    /**
-     * @notice Initializes the registry contract
-     * @dev This function should be called during proxy deployment via the proxy's initialization mechanism
-     * @param initialOwner The address that will be the owner of this registry
-     * @param baseFacets Array of 4 base facet addresses
-     * @param functionSelectors 2D array of function selectors corresponding to each base facet
-     */
+    /// @notice Initializes the registry contract
+    /// @dev This function should be called during proxy deployment via the proxy's initialization mechanism
+    /// @param initialOwner The address that will be the owner of this registry
+    /// @param baseFacets Array of 4 base facet addresses
+    /// @param functionSelectors 2D array of function selectors corresponding to each base facet
     function initialize(
         address initialOwner,
         address[4] memory baseFacets,
@@ -189,12 +178,10 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     // External Functions (State-Changing)
     // ========================================================================
 
-    /**
-     * @notice Adds function selectors to a facet
-     * @dev If the facet is new, it will be added to the registry. Cannot add functions to base facets.
-     * @param _facetAddress The address of the facet contract
-     * @param _functionSelectors Array of function selectors to add
-     */
+    /// @notice Adds function selectors to a facet
+    /// @dev If the facet is new, it will be added to the registry. Cannot add functions to base facets.
+    /// @param _facetAddress The address of the facet contract
+    /// @param _functionSelectors Array of function selectors to add
     function addFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external onlyOwner {
         if (_functionSelectors.length == 0) {
             revert FacetRegistry_SelectorArrayEmpty();
@@ -233,12 +220,10 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         emit FacetRegistryFunctionsAdded(_facetAddress, _currentVersion - 1, _currentVersion, _functionSelectors);
     }
 
-    /**
-     * @notice Replaces function selectors from old facet to new facet
-     * @dev Cannot replace functions in base facets. If the new facet is not registered, it will be added.
-     * @param _facetAddress The address of the destination facet contract
-     * @param _functionSelectors Array of function selectors to replace
-     */
+    /// @notice Replaces function selectors from old facet to new facet
+    /// @dev Cannot replace functions in base facets. If the new facet is not registered, it will be added.
+    /// @param _facetAddress The address of the destination facet contract
+    /// @param _functionSelectors Array of function selectors to replace
     function replaceFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external onlyOwner {
         if (_functionSelectors.length == 0) {
             revert FacetRegistry_SelectorArrayEmpty();
@@ -288,13 +273,11 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         emit FacetRegistryFunctionsReplaced(_currentVersion - 1, _currentVersion, _facetAddress, _functionSelectors);
     }
 
-    /**
-     * @notice Removes function selectors from the registry
-     * @dev The _facetAddress parameter must be address(0) for remove operations. Cannot remove functions from base
-     * facets.
-     * @param _facetAddress Must be address(0) for remove operations
-     * @param _functionSelectors Array of function selectors to remove
-     */
+    /// @notice Removes function selectors from the registry
+    /// @dev The _facetAddress parameter must be address(0) for remove operations. Cannot remove functions from base
+    ///      facets.
+    /// @param _facetAddress Must be address(0) for remove operations
+    /// @param _functionSelectors Array of function selectors to remove
     function removeFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external onlyOwner {
         if (_functionSelectors.length == 0) {
             revert FacetRegistry_SelectorArrayEmpty();
@@ -330,10 +313,8 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     // External Functions (View)
     // ========================================================================
 
-    /**
-     * @notice Returns all registered facets with their function selectors
-     * @return facets_ Array of facet structs containing addresses and selectors
-     */
+    /// @notice Returns all registered facets with their function selectors
+    /// @return facets_ Array of facet structs containing addresses and selectors
     function getFacets() external view returns (Facet[] memory facets_) {
         uint256 numFacets = _facetAddresses.length;
         facets_ = new Facet[](numFacets);
@@ -344,46 +325,36 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         }
     }
 
-    /**
-     * @notice Returns all function selectors for a specific facet
-     * @param _facet The address of the facet contract
-     * @return selectors Array of function selectors for the facet
-     */
+    /// @notice Returns all function selectors for a specific facet
+    /// @param _facet The address of the facet contract
+    /// @return selectors Array of function selectors for the facet
     function getFacetFunctionSelectors(address _facet) external view returns (bytes4[] memory selectors) {
         selectors = _facetFunctionSelectors[_facet].functionSelectors;
     }
 
-    /**
-     * @notice Returns all registered facet addresses
-     * @return facetAddresses_ Array of facet addresses
-     */
+    /// @notice Returns all registered facet addresses
+    /// @return facetAddresses_ Array of facet addresses
     function getFacetAddresses() external view returns (address[] memory facetAddresses_) {
         facetAddresses_ = _facetAddresses;
     }
 
-    /**
-     * @notice Returns the facet address for a specific function selector
-     * @param _functionSelector The function selector to look up
-     * @return facetAddress_ The address of the facet implementing this selector
-     */
+    /// @notice Returns the facet address for a specific function selector
+    /// @param _functionSelector The function selector to look up
+    /// @return facetAddress_ The address of the facet implementing this selector
     function getFacetAddress(bytes4 _functionSelector) external view returns (address facetAddress_) {
         facetAddress_ = _selectorToFacetAndPosition[_functionSelector].facetAddress;
     }
 
-    /**
-     * @notice Returns all base facet addresses
-     * @return baseFacets_ Array of 4 base facet addresses
-     */
+    /// @notice Returns all base facet addresses
+    /// @return baseFacets_ Array of 4 base facet addresses
     function getBaseFacets() external view returns (address[4] memory baseFacets_) {
         baseFacets_ = _baseFacets;
     }
 
-    /**
-     * @notice Returns the facet cuts for the version range
-     * @param _startVersion The start version
-     * @param _endVersion The end version
-     * @return facetCuts The facet cuts for the version range
-     */
+    /// @notice Returns the facet cuts for the version range
+    /// @param _startVersion The start version
+    /// @param _endVersion The end version
+    /// @return facetCuts The facet cuts for the version range
     function getFacetCutsByVersionRange(
         uint256 _startVersion,
         uint256 _endVersion
@@ -398,11 +369,9 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         }
     }
 
-    /**
-     * @notice Checks if a facet address is registered
-     * @param _facet The address of the facet to check
-     * @return True if the facet is registered, false otherwise
-     */
+    /// @notice Checks if a facet address is registered
+    /// @param _facet The address of the facet to check
+    /// @return True if the facet is registered, false otherwise
     function isFacetRegistered(address _facet) external view returns (bool) {
         uint256 numFacets = _facetAddresses.length;
         for (uint256 i = 0; i < numFacets; i++) {
@@ -413,21 +382,17 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         return false;
     }
 
-    /**
-     * @notice Checks if a function selector is registered
-     * @param _functionSelector The function selector to check
-     * @return True if the selector is registered, false otherwise
-     */
+    /// @notice Checks if a function selector is registered
+    /// @param _functionSelector The function selector to check
+    /// @return True if the selector is registered, false otherwise
     function isSelectorRegistered(bytes4 _functionSelector) external view returns (bool) {
         return _selectorToFacetAndPosition[_functionSelector].facetAddress != address(0);
     }
 
-    /**
-     * @notice Checks if a function selector is registered for a specific facet
-     * @param _facet The address of the facet to check
-     * @param _functionSelector The function selector to check
-     * @return True if the selector is registered for the facet, false otherwise
-     */
+    /// @notice Checks if a function selector is registered for a specific facet
+    /// @param _facet The address of the facet to check
+    /// @param _functionSelector The function selector to check
+    /// @return True if the selector is registered for the facet, false otherwise
     function isSelectorRegisteredWithFacet(address _facet, bytes4 _functionSelector) external view returns (bool) {
         if (_facet == address(0)) {
             revert FacetRegistry_FacetAddressIsZero();
@@ -436,10 +401,8 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         return facetAddress_ == _facet;
     }
 
-    /**
-     * @notice Returns the current version of the registry
-     * @return The current version number
-     */
+    /// @notice Returns the current version of the registry
+    /// @return The current version number
     function getCurrentVersion() external view returns (uint256) {
         return _currentVersion;
     }
@@ -448,12 +411,10 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     // Internal Functions
     // ========================================================================
 
-    /**
-     * @notice Adds a base facet with its function selectors
-     * @dev Called during initialization to register base facets
-     * @param _facetAddress The address of the base facet contract
-     * @param _functionSelectors Array of function selectors for the base facet
-     */
+    /// @notice Adds a base facet with its function selectors
+    /// @dev Called during initialization to register base facets
+    /// @param _facetAddress The address of the base facet contract
+    /// @param _functionSelectors Array of function selectors for the base facet
     function _addBaseFacet(address _facetAddress, bytes4[] memory _functionSelectors) internal {
         if (_facetAddress.code.length == 0) {
             revert FacetRegistry_FacetIsNotContract(_facetAddress);
@@ -468,10 +429,8 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         }
     }
 
-    /**
-     * @notice Adds a new facet address to the registry
-     * @param _facetAddress The address of the facet contract to add
-     */
+    /// @notice Adds a new facet address to the registry
+    /// @param _facetAddress The address of the facet contract to add
     function _addFacet(address _facetAddress) internal {
         if (_facetAddress.code.length == 0) {
             revert FacetRegistry_FacetIsNotContract(_facetAddress);
@@ -481,23 +440,19 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
         _facetAddresses.push(_facetAddress);
     }
 
-    /**
-     * @notice Adds a function selector to a facet
-     * @param _selector The function selector to add
-     * @param _selectorPosition The position in the facet's selector array
-     * @param _facetAddress The address of the facet contract
-     */
+    /// @notice Adds a function selector to a facet
+    /// @param _selector The function selector to add
+    /// @param _selectorPosition The position in the facet's selector array
+    /// @param _facetAddress The address of the facet contract
     function _addFunction(bytes4 _selector, uint96 _selectorPosition, address _facetAddress) internal {
         _selectorToFacetAndPosition[_selector].functionSelectorPosition = _selectorPosition;
         _facetFunctionSelectors[_facetAddress].functionSelectors.push(_selector);
         _selectorToFacetAndPosition[_selector].facetAddress = _facetAddress;
     }
 
-    /**
-     * @notice Removes a function selector from a facet
-     * @param _facetAddress The address of the facet contract
-     * @param _selector The function selector to remove
-     */
+    /// @notice Removes a function selector from a facet
+    /// @param _facetAddress The address of the facet contract
+    /// @param _selector The function selector to remove
     function _removeFunction(address _facetAddress, bytes4 _selector) internal {
         if (_facetAddress == address(0)) {
             revert FacetRegistry_CannotRemoveFunctionThatDoesNotExist(_facetAddress, _selector);

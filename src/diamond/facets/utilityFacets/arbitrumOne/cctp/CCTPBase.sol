@@ -50,23 +50,6 @@ error CCTPFacet_InsufficientBalance();
 /// @notice Thrown when token transfer from caller fails
 error CCTPFacet_TransferFailed();
 
-// ============================================================================
-// CCTPBase
-// ============================================================================
-
-/**
- * @title CCTPBase
- * @notice Facet providing Circle Cross-Chain Transfer Protocol (CCTP) integration
- * @dev This facet allows the diamond owner to:
- *      - Send USDC to other chains via Circle's CCTP (burn and mint)
- *      - Redeem USDC from other chains (mint on this chain after attestation)
- *
- *      All operations are protected by owner-only access control. Uses SafeERC20
- *      for secure token transfers and approvals.
- *
- *      Constants are hardcoded for Arbitrum One deployment. For other chains,
- *      these would need to be updated or made configurable.
- */
 abstract contract CCTPBase is ICCTP {
     using SafeERC20 for IERC20;
 
@@ -98,18 +81,10 @@ abstract contract CCTPBase is ICCTP {
     /// @param mintedAmount The amount of USDC minted to this contract
     event CCTPFacetUSDCRedeemed(uint256 mintedAmount);
 
-    /**
-     * @notice Sends (burns) native USDC and instructs Circle to mint on destination chain
-     * @dev Transfers USDC from caller, approves TokenMessenger, then calls depositForBurn.
-     *      The caller must have approved this facet to spend their USDC.
-     *
-     *      IMPORTANT: The USDC is transferred from msg.sender (the caller), not from
-     *      the diamond's balance. This allows users to send their own USDC directly.
-     *
-     * @param amount USDC amount to send (usually 6 decimals)
-     * @param destinationDomain Circle domain ID of the destination chain
-     * @param mintRecipient Bytes32-encoded recipient address on destination chain
-     */
+    /// @notice Sends (burns) native USDC and instructs Circle to mint on destination chain
+    /// @param amount USDC amount to send (usually 6 decimals)
+    /// @param destinationDomain Circle domain ID of the destination chain
+    /// @param mintRecipient Bytes32-encoded recipient address on destination chain
     function _sendUSDC(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) internal {
         if (amount == 0) {
             revert CCTPFacet_ZeroAmount();
@@ -149,15 +124,9 @@ abstract contract CCTPBase is ICCTP {
         emit CCTPFacetUSDCSent(msg.sender, amount, destinationDomain, mintRecipient);
     }
 
-    /**
-     * @notice Redeems (mints) USDC from another chain using Circle attestation
-     * @dev Submits message and attestation to MessageTransmitterV2, which routes
-     *      to TokenMinterV2 to mint USDC to this contract. Verifies USDC was
-     *      actually minted before emitting event.
-     *
-     * @param message Raw message bytes from Circle attestation flow
-     * @param attestation Attestation bytes from Circle network
-     */
+    /// @notice Redeems (mints) USDC from another chain using Circle attestation
+    /// @param message Raw message bytes from Circle attestation flow
+    /// @param attestation Attestation bytes from Circle network
     function _redeemUSDC(bytes calldata message, bytes calldata attestation) internal {
         if (message.length == 0) {
             revert CCTPFacet_InvalidMessage();
