@@ -6,7 +6,8 @@ pragma solidity ^0.8.20;
     @title WithdrawFacet
     @author BLOK Capital DAO
     @notice Facet providing USDC withdrawal functionality
-    @dev This facet allows the diamond owner to withdraw USDC tokens from the
+    @dev This facet extends the WithdrawBase contract to provide the USDC withdrawal
+         functionality. It allows the diamond owner to withdraw USDC tokens from the
          diamond contract to the owner address.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
@@ -42,27 +43,13 @@ error WithdrawFacet_InvalidOwner();
 /// @param available The amount available in the contract
 error WithdrawFacet_InsufficientUSDCBalance(uint256 requested, uint256 available);
 
-// ============================================================================
-// WithdrawFacet
-// ============================================================================
-
-/**
- * @title WithdrawFacet
- * @notice Facet providing USDC withdrawal functionality
- */
 contract WithdrawFacet is WithdrawBase, Facet {
     using SafeERC20 for IERC20;
 
-    // ========================================================================
-    // External Functions
-    // ========================================================================
-
-    /**
-     * @notice Withdraws USDC from the contract to the owner address
-     * @dev Validates amount is non-zero, owner is valid, and contract has
-     *      sufficient balance. Uses SafeERC20 for secure transfer.
-     * @param amount The amount of USDC to withdraw (in USDC decimals, usually 6)
-     */
+    /// @notice Withdraws USDC from the contract to the owner address
+    /// @param amount The amount of USDC to withdraw (in USDC decimals, usually 6)
+    /// @dev Validates amount is non-zero, owner is valid, and contract has
+    ///      sufficient balance. Uses SafeERC20 for secure transfer.
     function withdrawUSDC(uint256 amount) external override onlyDiamondOwner {
         _withdrawUSDC(amount);
     }

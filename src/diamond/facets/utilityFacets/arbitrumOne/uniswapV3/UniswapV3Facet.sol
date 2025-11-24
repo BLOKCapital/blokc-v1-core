@@ -35,22 +35,6 @@ import { TickMath } from "src/diamond/libraries/TickMath.sol";
 import { UniswapV3Base } from "src/diamond/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Base.sol";
 import { Facet } from "src/diamond/facets/Facet.sol";
 
-// ============================================================================
-// UniswapFacet
-// ============================================================================
-
-/**
- * @title UniswapFacet
- * @notice Facet providing Uniswap V3 integration for swaps and price oracle queries
- * @dev This facet allows the diamond owner to:
- *      - Execute single-hop and multi-hop token swaps on Uniswap V3
- *      - Query TWAP (Time-Weighted Average Price) prices from pools
- *      - Calculate combined TWAP prices across multiple pools
- *
- *      All swap operations are protected by owner-only access control. Pools must
- *      be registered in the PoolRegistry before use. Uses SafeERC20 for secure
- *      token handling.
- */
 contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
     using SafeERC20 for IERC20;
 
@@ -58,12 +42,10 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
     // External Functions (State-Changing)
     // ========================================================================
 
-    /**
-     * @notice Executes a single-hop exact-input swap on Uniswap V3
-     * @dev Validates pool registration, handles token approvals, and executes swap.
-     *      Uses SafeERC20 for secure token operations.
-     * @param params Swap parameters including tokens, amounts, fees, and deadline
-     */
+    /// @notice Executes a single-hop exact-input swap on Uniswap V3
+    /// @param params Exact input single-hop swap parameters
+    /// @dev Validates pool registration, handles token approvals, and executes swap.
+    ///      Uses SafeERC20 for secure token operations.
     function swapExactInputSingleHop(IUniswapV3.ExactInputSingleHopSwapParams memory params)
         external
         override
@@ -72,12 +54,10 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
         _swapExactInputSingleHop(params);
     }
 
-    /**
-     * @notice Executes a multi-hop exact-input swap on Uniswap V3
-     * @dev Validates all pools in the path are registered, handles approvals,
-     *      encodes the path, and executes the swap.
-     * @param params Multi-hop swap parameters including path, amounts, and deadline
-     */
+    /// @notice Executes a multi-hop exact-input swap on Uniswap V3
+    /// @param params Multi-hop swap parameters including path, amounts, and deadline
+    /// @dev Validates all pools in the path are registered, handles approvals,
+    ///      encodes the path, and executes the swap.
     function swapExactInputMultiHop(IUniswapV3.ExactInputMultiHopSwapParams memory params)
         external
         override
@@ -86,12 +66,10 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
         _swapExactInputMultiHop(params);
     }
 
-    /**
-     * @notice Executes a single-hop exact-output swap on Uniswap V3
-     * @dev Validates pool registration, handles token approvals, and executes swap.
-     *      Uses SafeERC20 for secure token operations.
-     * @param params Swap parameters including tokens, amounts, fees, and deadline
-     */
+    /// @notice Executes a single-hop exact-output swap on Uniswap V3
+    /// @param params Swap parameters including tokens, amounts, fees, and deadline
+    /// @dev Validates pool registration, handles token approvals, and executes swap.
+    ///      Uses SafeERC20 for secure token operations.
     function swapExactOutputSingleHop(IUniswapV3.ExactOutputSingleHopSwapParams memory params)
         external
         override
@@ -100,12 +78,10 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
         _swapExactOutputSingleHop(params);
     }
 
-    /**
-     * @notice Executes a multi-hop exact-output swap on Uniswap V3
-     * @dev Validates all pools in the path are registered, handles approvals,
-     *      encodes the path, and executes the swap.
-     * @param params Multi-hop swap parameters including path, amounts, and deadline
-     */
+    /// @notice Executes a multi-hop exact-output swap on Uniswap V3
+    /// @param params Multi-hop swap parameters including path, amounts, and deadline
+    /// @dev Validates all pools in the path are registered, handles approvals,
+    ///      encodes the path, and executes the swap.
     function swapExactOutputMultiHop(IUniswapV3.ExactOutputMultiHopSwapParams memory params)
         external
         override
@@ -118,15 +94,13 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
     // External Functions (View)
     // ========================================================================
 
-    /**
-     * @notice Gets the TWAP sqrt price for a single Uniswap V3 pool
-     * @dev Returns either the current spot price (if twapInterval is 0) or the
-     *      TWAP price over the specified interval. Price is returned in Q64.96 format.
-     * @param uniswapV3Pool Address of the Uniswap V3 pool to query
-     * @param twapInterval TWAP observation interval in seconds (applies to all pools)
-     * @return sqrtPriceX96 The sqrt price in Q64.96 format
-     * @return deadline Suggested deadline for swaps using this price (now + 300s)
-     */
+    /// @notice Gets the TWAP sqrt price for a single Uniswap V3 pool
+    /// @param uniswapV3Pool Address of the Uniswap V3 pool to query
+    /// @param twapInterval TWAP observation interval in seconds (applies to all pools)
+    /// @return sqrtPriceX96 The sqrt price in Q64.96 format
+    /// @return deadline Suggested deadline for swaps using this price (now + 300s)
+    /// @dev Returns either the current spot price (if twapInterval is 0) or the
+    ///      TWAP price over the specified interval. Price is returned in Q64.96 format.
     function getSqrtTwapX96(
         address uniswapV3Pool,
         uint32 twapInterval
@@ -139,15 +113,13 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
         return _getSqrtTwapX96(uniswapV3Pool, twapInterval);
     }
 
-    /**
-     * @notice Gets a combined TWAP price across multiple Uniswap V3 pools
-     * @dev Multiplies prices from multiple pools together, with optional inversion.
-     *      Useful for calculating prices across complex paths (e.g., ETH -> USDC -> DAI).
-     * @param pools Array of PoolInfo describing which pools to combine
-     * @param twapInterval TWAP observation interval in seconds (applies to all pools)
-     * @return combinedPriceX96 The combined price in Q96 format
-     * @return deadline Suggested deadline for swaps using this price (now + 300s)
-     */
+    /// @notice Gets a combined TWAP price across multiple Uniswap V3 pools
+    /// @dev Multiplies prices from multiple pools together, with optional inversion.
+    ///      Useful for calculating prices across complex paths (e.g., ETH -> USDC -> DAI).
+    /// @param pools Array of PoolInfo describing which pools to combine
+    /// @param twapInterval TWAP observation interval in seconds (applies to all pools)
+    /// @return combinedPriceX96 The combined price in Q96 format
+    /// @return deadline Suggested deadline for swaps using this price (now + 300s)
     function getCombinedTwapX96(
         PoolInfo[] memory pools,
         uint32 twapInterval

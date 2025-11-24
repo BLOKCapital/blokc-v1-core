@@ -60,17 +60,6 @@ error GardenFactory_ProtocolStatusNotSet();
 /// @notice Thrown when the protocol is inactive
 error GardenFactory_ProtocolIsInactive();
 
-// ============================================================================
-// GardenFactory
-// ============================================================================
-
-/**
- * @title GardenFactory
- * @notice Factory contract for deploying Diamond (garden) contracts
- * @dev This contract manages the creation of Diamond proxy contracts with initial facets.
- *      Each user can deploy up to 10 gardens using indices 1-10. Gardens are deployed
- *      using CREATE2 for deterministic addresses.
- */
 contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, ReentrancyGuardUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -121,13 +110,11 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     // Initialization
     // ========================================================================
 
-    /**
-     * @notice Initializes the factory contract
-     * @dev This function should be called during proxy deployment via the proxy's initialization mechanism
-     * @param initialOwner The address that will be the owner of this factory
-     * @param facetRegistry The address of the facet registry contract
-     * @param protocolStatus The address of the protocol status contract
-     */
+    /// @notice Initializes the factory contract
+    /// @dev This function should be called during proxy deployment via the proxy's initialization mechanism
+    /// @param initialOwner The address that will be the owner of this factory
+    /// @param facetRegistry The address of the facet registry contract
+    /// @param protocolStatus The address of the protocol status contract
     function initialize(address initialOwner, address facetRegistry, address protocolStatus) public initializer {
         __Ownable_init(initialOwner);
         _facetRegistry = facetRegistry;
@@ -147,14 +134,12 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     // External Functions
     // ========================================================================
 
-    /**
-     * @notice Creates a new garden (Diamond) contract for the caller
-     * @dev The garden is deployed using CREATE2 with a deterministic address based on the owner, index, and factory.
-     *      Each user can deploy up to 10 gardens (indices 1-10). The garden is initialized with base facets
-     *      retrieved from the facet registry.
-     * @param index The per-user garden index (must be between 1 and 10, inclusive)
-     * @return gardenAddress The address of the newly deployed garden contract
-     */
+    /// @notice Creates a new garden (Diamond) contract for the caller
+    /// @dev The garden is deployed using CREATE2 with a deterministic address based on the owner, index, and factory.
+    ///      Each user can deploy up to 10 gardens (indices 1-10). The garden is initialized with base facets
+    ///      retrieved from the facet registry.
+    /// @param index The per-user garden index (must be between 1 and 10, inclusive)
+    /// @return gardenAddress The address of the newly deployed garden contract
     function createGarden(uint256 index) external nonReentrant returns (address gardenAddress) {
         address owner = msg.sender;
 
@@ -210,38 +195,30 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
         emit GardenCreated(gardenAddress, owner, index);
     }
 
-    /**
-     * @notice Returns all gardens created by this factory
-     * @return gardens_ Array of all registered garden addresses
-     */
+    /// @notice Returns all gardens created by this factory
+    /// @return gardens_ Array of all registered garden addresses
     function getAllGardens() external view returns (address[] memory gardens_) {
         gardens_ = _gardens.values();
     }
 
-    /**
-     * @notice Returns all gardens created by a specific user
-     * @param user The address of the user
-     * @return gardens_ Array of garden addresses created by the specified user
-     */
+    /// @notice Returns all gardens created by a specific user
+    /// @param user The address of the user
+    /// @return gardens_ Array of garden addresses created by the specified user
     function getUserGardens(address user) external view returns (address[] memory gardens_) {
         gardens_ = _userGardens[user];
     }
 
-    /**
-     * @notice Returns the garden address associated with a specific user and index
-     * @param user The address of the user (owner)
-     * @param index The per-user garden index (1-10)
-     * @return The address of the garden associated with the given user and index, or address(0) if not found
-     */
+    /// @notice Returns the garden address associated with a specific user and index
+    /// @param user The address of the user (owner)
+    /// @param index The per-user garden index (1-10)
+    /// @return The address of the garden associated with the given user and index, or address(0) if not found
     function getGarden(address user, uint256 index) external view returns (address) {
         return _userIndexToGarden[user][index];
     }
 
-    /**
-     * @notice Checks if a garden address is registered in this factory
-     * @param garden The address of the garden to check
-     * @return True if the garden is registered, false otherwise
-     */
+    /// @notice Checks if a garden address is registered in this factory
+    /// @param garden The address of the garden to check
+    /// @return True if the garden is registered, false otherwise
     function isGardenRegistered(address garden) external view returns (bool) {
         return _gardens.contains(garden);
     }

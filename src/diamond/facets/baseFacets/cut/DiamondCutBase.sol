@@ -6,11 +6,18 @@ pragma solidity ^0.8.20;
     @title DiamondCutBase
     @author BLOK Capital DAO
     @notice Base contract for DiamondCutFacet
+    @dev This base contract allows applying diamond cuts to the diamond
+
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
+    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
+    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
+
 
 ################################################################################*/
 
 import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
-import { DiamondCutStorage } from "./DiamondCutStorage.sol";
+import { DiamondCutStorage } from "src/diamond/facets/baseFacets/cut/DiamondCutStorage.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 
 /// @notice Thrown when an incorrect facet cut action is provided

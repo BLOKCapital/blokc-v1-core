@@ -19,11 +19,6 @@ pragma solidity ^0.8.20;
 
 ################################################################################*/
 
-/**
- * @author Nick Mudge <nick@perfectabstractions.com> (https://twitter.com/mudgen)
- * EIP-2535 Diamonds: https://eips.ethereum.org/EIPS/eip-2535
- */
-
 // Local Libraries
 import { OwnershipStorage } from "src/diamond/facets/baseFacets/ownership/OwnershipStorage.sol";
 import { DiamondCutStorage } from "src/diamond/facets/baseFacets/cut/DiamondCutStorage.sol";
@@ -70,30 +65,16 @@ error Diamond_UpgradesDisabled();
 /// @notice Thrown when protocol is inactive
 error Diamond_ProtocolIsInactive();
 
-// ============================================================================
-// Diamond
-// ============================================================================
-
-/**
- * @title Diamond
- * @notice Diamond proxy contract implementing EIP-2535 with additional registry validation
- * @dev This contract follows the EIP-2535 Diamond standard with custom additions:
- *      1. Registry validation on every function call to ensure only registered facets/selectors execute
- *      2. Validation of critical addresses during construction
- *      3. Enhanced error handling for better debugging
- */
 contract Diamond is DiamondCutBase {
     // ========================================================================
     // Constructor
     // ========================================================================
 
-    /**
-     * @notice Constructs the Diamond contract with initial facets and configuration
-     * @dev Validates all critical addresses are non-zero and initializes the diamond with base facets.
-     *      The facet registry validation during diamondCut ensures only registered facets can be added.
-     * @param _diamondCut Array of facet cuts to apply during initialization
-     * @param _contractOwner Address that will own the diamond contract
-     */
+    /// @notice Constructs the Diamond contract with initial facets and configuration
+    /// @dev Validates all critical addresses are non-zero and initializes the diamond with base facets.
+    ///      The facet registry validation during diamondCut ensures only registered facets can be added.
+    /// @param _diamondCut Array of facet cuts to apply during initialization
+    /// @param _contractOwner Address that will own the diamond contract
     constructor(
         IDiamondCut.FacetCut[] memory _diamondCut,
         address _contractOwner,
@@ -135,22 +116,16 @@ contract Diamond is DiamondCutBase {
     // Fallback and Receive Functions
     // ========================================================================
 
-    /**
-     * @notice Fallback function that routes function calls to appropriate facets
-     * @dev This function implements the core Diamond proxy pattern:
-     *      1. Loads diamond storage from a fixed slot position
-     *      2. Looks up the facet address for the called function selector
-     *      3. Validates the selector exists in the diamond (facet != address(0))
-     *      4. Validates the selector is registered in the FacetRegistry for security
-     *      5. Executes the function call via delegatecall to the facet
-     *
-     *      The registry validation provides defense-in-depth by ensuring only registered
-     *      facets can execute, even if the diamond's internal state becomes inconsistent.
-     *
-     *      Gas optimization note: The registry check adds external call overhead but provides
-     *      important security guarantees. The check is performed after confirming the selector
-     *      exists in the diamond to fail fast on non-existent selectors.
-     */
+    /// @notice Fallback function that routes function calls to appropriate facets
+    /// @dev Implements the core Diamond proxy pattern:
+    ///      1. Loads diamond storage from a fixed slot position
+    ///      2. Looks up the facet address for the called function selector
+    ///      3. Validates the selector exists in the diamond (facet != address(0))
+    ///      4. Validates the selector is registered in the FacetRegistry for security
+    ///      5. Executes the function call via delegatecall to the facet
+    ///
+    ///      The registry validation provides defense-in-depth by ensuring only registered
+    ///      facets can execute, even if the diamond's internal state becomes inconsistent.
     fallback() external payable {
         DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
 
@@ -167,6 +142,7 @@ contract Diamond is DiamondCutBase {
         // Look up facet address for the called function selector
         address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
 
+        // Look up the facet address for the called function selector
         IFacetRegistry facetRegistry = IFacetRegistry(DiamondCutStorage.layout().facetRegistry);
 
         // Validate selector exists in diamond (fast fail for non-existent selectors)
@@ -204,9 +180,7 @@ contract Diamond is DiamondCutBase {
         }
     }
 
-    /**
-     * @notice Receive function to accept plain ETH transfers
-     * @dev Allows the Diamond contract to receive ETH directly
-     */
+    /// @notice Receive function to accept plain ETH transfers
+    /// @dev Allows the Diamond contract to receive ETH directly
     receive() external payable { }
 }

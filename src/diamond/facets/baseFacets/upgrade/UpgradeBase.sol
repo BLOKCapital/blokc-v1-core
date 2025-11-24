@@ -3,9 +3,10 @@ pragma solidity ^0.8.20;
 
 /*###############################################################################
 
-    @title UpgradeFacet
+    @title UpgradeBase
     @author BLOK Capital DAO
-    @notice Facet that manages Diamond upgrades by syncing with the FacetRegistry.
+    @notice Base contract for UpgradeFacet
+    @dev This base contract allows upgrading the diamond to match the latest state of the FacetRegistry
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -18,15 +19,12 @@ pragma solidity ^0.8.20;
 // Local Interfaces
 import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
-import { IUpgrade } from "./IUpgrade.sol";
+import { IUpgrade } from "src/diamond/facets/baseFacets/upgrade/IUpgrade.sol";
 
 // Local Libraries
-import { UpgradeStorage } from "./UpgradeStorage.sol";
-import { DiamondCutStorage } from "../cut/DiamondCutStorage.sol";
-import { DiamondCutBase } from "../cut/DiamondCutBase.sol";
-// ============================================================================
-// Errors
-// ============================================================================
+import { UpgradeStorage } from "src/diamond/facets/baseFacets/upgrade/UpgradeStorage.sol";
+import { DiamondCutStorage } from "src/diamond/facets/baseFacets/cut/DiamondCutStorage.sol";
+import { DiamondCutBase } from "src/diamond/facets/baseFacets/cut/DiamondCutBase.sol";
 
 /// @notice Thrown when attempting to upgrade but already at the latest version
 /// @param registryVersion The registry version that is already applied
@@ -41,14 +39,21 @@ error UpgradeFacet_NoFacetCutsRequired();
 /// @notice Thrown when a facet is not found
 error UpgradeFacet_FacetNotFound();
 
-/**
- * @title UpgradeBase
- * @notice Facet that manages Diamond upgrades by syncing with the FacetRegistry
- * @dev This base contract allows upgrading the diamond to match the latest state of the FacetRegistry
- */
-abstract contract UpgradeBase is DiamondCutBase {
-    event GardenUpgraded(IDiamondCut.FacetCut[] facetCuts, uint256 indexed oldVersion, uint256 indexed newVersion);
+abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
+    /// @notice Emitted when the diamond is upgraded
+    /// @param facetCuts The facet cuts applied in the upgrade
+    /// @param diamondVersion The previous diamond version
+    /// @param diamondVersion The new diamond version
+    /// @param registryVersion The current registry version
+    event GardenUpgraded(
+        IDiamondCut.FacetCut[] facetCuts, uint256 indexed diamondVersion, uint256 indexed registryVersion
+    );
 
+    /// @notice Retrieves the upgrade details
+    /// @return facetCuts The facet cuts required for the upgrade
+    /// @return diamondVersion The current diamond version
+    /// @return registryVersion The current registry version
+    /// @return hashData The hash data for the upgrade
     function _upgradeDetails()
         internal
         view
@@ -69,6 +74,8 @@ abstract contract UpgradeBase is DiamondCutBase {
         hashData = keccak256(abi.encode(facetCuts, diamondVersion, registryVersion));
     }
 
+    /// @notice Upgrades the diamond to the latest version
+    /// @param _hashData The hash data for the upgrade
     function _upgrade(bytes32 _hashData) internal {
         IFacetRegistry facetRegistry = IFacetRegistry(DiamondCutStorage.layout().facetRegistry);
         uint256 diamondVersion = UpgradeStorage.layout().diamondVersion;
@@ -86,6 +93,8 @@ abstract contract UpgradeBase is DiamondCutBase {
         emit GardenUpgraded(facetCuts, diamondVersion, registryVersion);
     }
 
+    /// @notice Retrieves the current diamond version
+    /// @return The current diamond version
     function _getCurrentVersion() internal view returns (uint256) {
         return UpgradeStorage.layout().diamondVersion;
     }

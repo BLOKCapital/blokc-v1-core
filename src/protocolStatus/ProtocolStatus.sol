@@ -3,7 +3,7 @@ pragma solidity >=0.8.20;
 
 /*###############################################################################
 
-    @title KillSwitch
+    @title ProtocolStatus
     @author BLOK Capital DAO
     @notice Exposes functionality to manage the protocol status.
     
@@ -31,28 +31,47 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     /// @dev Set of Security Council members
     EnumerableSet.AddressSet private _securityCouncilMemberAddresses;
 
-    // ========== ERRORS ==========
+    // ============================================================================
+    // Errors
+    // ============================================================================
+
+    /// @notice Thrown when the protocol is already active
     error ProtocolStatus_ProtocolIsAlreadyActive();
+    /// @notice Thrown when the protocol is already inactive
     error ProtocolStatus_ProtocolIsAlreadyInactive();
+    /// @notice Thrown when the address is zero
     error ProtocolStatus_ZeroAddress();
+    /// @notice Thrown when the array is empty
     error ProtocolStatus_EmptyArray();
+    /// @notice Thrown when the member already exists
     error ProtocolStatus_MemberAlreadyExists(address member, string name);
+    /// @notice Thrown when the member does not exist
     error ProtocolStatus_MemberDoesNotExist(address member, string name);
+    /// @notice Thrown when the sender is not authorized
     error ProtocolStatus_Unauthorized();
+    /// @notice Thrown when the protocol must be active to disable upgrades
     error ProtocolStatus_MustBeActiveToDisableUpgrades();
+    /// @notice Thrown when the owner cannot be a member
     error ProtocolStatus_OwnerCannotBeMember(address member, address owner);
 
-    // ========== EVENTS ==========
+    // ============================================================================
+    // Events
+    // ============================================================================
+
+    /// @notice Emitted when the protocol status changes
     event ProtocolStatusChanged(
         State indexed oldStatus, State indexed newStatus, address indexed changedBy, string name
     );
+    /// @notice Emitted when a security council member is added
     event SecurityCouncilMemberAdded(address indexed member, string name);
+    /// @notice Emitted when a security council member is removed
     event SecurityCouncilMemberRemoved(address indexed member, string name);
 
-    // ========== MODIFIERS ==========
-    /**
-     * @dev Modifier to restrict access to only the DAO (owner) or Security Council members
-     */
+    // ============================================================================
+    // Modifiers
+    // ============================================================================
+
+    /// @dev Modifier to restrict access to only the DAO (owner) or Security Council members
     modifier onlyAuthorized() {
         if (msg.sender != owner() && !_securityCouncilMemberAddresses.contains(msg.sender)) {
             revert ProtocolStatus_Unauthorized();
@@ -60,7 +79,13 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         _;
     }
 
-    // ========== CONSTRUCTOR ==========
+    // ============================================================================
+    // Constructor
+    // ============================================================================
+
+    /// @notice Initializes the protocol status contract
+    /// @param initialMembers The initial security council members
+    /// @param initialOwner The initial owner
     constructor(SecurityCouncilMember[] memory initialMembers, address initialOwner) Ownable(initialOwner) {
         // Check for empty array
         if (initialMembers.length == 0) {
@@ -99,7 +124,9 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         emit ProtocolStatusChanged(State.ACTIVE, State.INACTIVE, msg.sender, _securityCouncilMembers[msg.sender].name);
     }
 
-    // ========== SECURITY COUNCIL MANAGEMENT ==========
+    // ============================================================================
+    // Security Council Management
+    // ============================================================================
 
     /// @inheritdoc IProtocolStatus
     function addSecurityCouncilMember(SecurityCouncilMember memory member) external onlyOwner {
@@ -140,7 +167,9 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         emit SecurityCouncilMemberRemoved(memberAddress, name);
     }
 
-    // ========== PROTOCOL STATUS MANAGEMENT ==========
+    // ============================================================================
+    // Protocol Status Management
+    // ============================================================================
 
     /// @inheritdoc IProtocolStatus
     function activateProtocol() external onlyOwner {
@@ -193,7 +222,9 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         );
     }
 
-    // ========== VIEW FUNCTIONS ==========
+    // ============================================================================
+    // View Functions
+    // ============================================================================
 
     /// @inheritdoc IProtocolStatus
     function getSecurityCouncilMembers() external view returns (SecurityCouncilMember[] memory) {

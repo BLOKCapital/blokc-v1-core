@@ -21,12 +21,14 @@
     "inheritdoc",
     "Initializable",
     "ISBT",
+    "rebalances",
     "Reentrancy",
     "reinitializer",
     "returndata",
     "soulbound",
     "staticcall",
     "Twap",
+    "Unregisters",
     "UUPS"
   ]
 }

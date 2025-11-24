@@ -71,12 +71,10 @@ error UniswapV3Facet_InvalidPoolAddress();
 // UniswapV3Base
 // ============================================================================
 
-/**
- * @title UniswapV3Base
- * @notice Base contract providing Uniswap V3 integration for swaps and price oracle queries
- * @dev This base contract provides integration with Uniswap V3 for token swaps and price
- *      oracle queries.
- */
+/// @title UniswapV3Base
+/// @notice Base contract providing Uniswap V3 integration for swaps and price oracle queries
+/// @dev This base contract provides integration with Uniswap V3 for token swaps and price
+///      oracle queries.
 abstract contract UniswapV3Base {
     using SafeERC20 for IERC20;
 
@@ -249,15 +247,13 @@ abstract contract UniswapV3Base {
             amountIn
         );
     }
-    /**
-     * @notice Gets the TWAP sqrt price for a single Uniswap V3 pool
-     * @dev Returns either the current spot price (if twapInterval is 0) or the
-     *      TWAP price over the specified interval. Price is returned in Q64.96 format.
-     * @param uniswapV3Pool Address of the Uniswap V3 pool to query
-     * @param twapInterval TWAP observation interval in seconds (applies to all pools)
-     * @return sqrtPriceX96 The sqrt price in Q64.96 format
-     * @return deadline Suggested deadline for swaps using this price (now + 300s)
-     */
+    /// @notice Gets the TWAP sqrt price for a single Uniswap V3 pool
+    /// @dev Returns either the current spot price (if twapInterval is 0) or the
+    ///      TWAP price over the specified interval. Price is returned in Q64.96 format.
+    /// @param uniswapV3Pool Address of the Uniswap V3 pool to query
+    /// @param twapInterval TWAP observation interval in seconds (applies to all pools)
+    /// @return sqrtPriceX96 The sqrt price in Q64.96 format
+    /// @return deadline Suggested deadline for swaps using this price (now + 300s)
 
     function _getSqrtTwapX96(
         address uniswapV3Pool,
@@ -291,15 +287,13 @@ abstract contract UniswapV3Base {
         }
     }
 
-    /**
-     * @notice Gets a combined TWAP price across multiple Uniswap V3 pools
-     * @dev Multiplies prices from multiple pools together, with optional inversion.
-     *      Useful for calculating prices across complex paths (e.g., ETH -> USDC -> DAI).
-     * @param pools Array of PoolInfo describing which pools to combine
-     * @param twapInterval TWAP observation interval in seconds (applies to all pools)
-     * @return combinedPriceX96 The combined price in Q96 format
-     * @return deadline Suggested deadline for swaps using this price (now + 300s)
-     */
+    /// @notice Gets a combined TWAP price across multiple Uniswap V3 pools
+    /// @dev Multiplies prices from multiple pools together, with optional inversion.
+    ///      Useful for calculating prices across complex paths (e.g., ETH -> USDC -> DAI).
+    /// @param pools Array of PoolInfo describing which pools to combine
+    /// @param twapInterval TWAP observation interval in seconds (applies to all pools)
+    /// @return combinedPriceX96 The combined price in Q96 format
+    /// @return deadline Suggested deadline for swaps using this price (now + 300s)
     function _getCombinedTwapX96(
         IUniswapV3.PoolInfo[] memory pools,
         uint32 twapInterval
@@ -316,18 +310,20 @@ abstract contract UniswapV3Base {
         deadline = block.timestamp + 300;
     }
 
-    /**
-     * @notice Validates that all pools in a multi-hop path exist and are registered
-     * @param params Multi-hop swap parameters
-     */
+    /// @notice Validates that all pools in a multi-hop path exist and are registered
+    /// @param params Multi-hop swap parameters
     function _validateMultiHopPools(IUniswapV3.ExactInputMultiHopSwapParams memory params) internal view {
         _validateMultiHopPoolsInternal(params.pathWithFees);
     }
 
+    /// @notice Validates that all pools in a multi-hop path exist and are registered
+    /// @param params Multi-hop swap parameters
     function _validateMultiHopPools(IUniswapV3.ExactOutputMultiHopSwapParams memory params) internal view {
         _validateMultiHopPoolsInternal(params.pathWithFees);
     }
 
+    /// @notice Validates that all pools in a multi-hop path exist and are registered
+    /// @param pathWithFees Array of TokenWithFee describing the path
     function _validateMultiHopPoolsInternal(IUniswapV3.TokenWithFee[] memory pathWithFees) internal view {
         for (uint256 i = 1; i < pathWithFees.length; ++i) {
             address tokenPrev = pathWithFees[i - 1].token;
@@ -351,12 +347,10 @@ abstract contract UniswapV3Base {
         }
     }
 
-    /**
-     * @notice Encodes a multi-hop path for Uniswap V3 router
-     * @dev Encodes path as: token0, fee0, token1, fee1, token2, ...
-     * @param params Multi-hop swap parameters
-     * @return path Encoded path bytes
-     */
+    /// @notice Encodes a multi-hop path for Uniswap V3 router
+    /// @dev Encodes path as: token0, fee0, token1, fee1, token2, ...
+    /// @param params Multi-hop swap parameters
+    /// @return path Encoded path bytes
     function _encodePath(IUniswapV3.ExactInputMultiHopSwapParams memory params)
         internal
         pure
@@ -365,6 +359,10 @@ abstract contract UniswapV3Base {
         return _encodePathInternal(params.pathWithFees);
     }
 
+    /// @notice Encodes a multi-hop path for Uniswap V3 router
+    /// @dev Encodes path as: token0, fee0, token1, fee1, token2, ...
+    /// @param params Multi-hop swap parameters
+    /// @return path Encoded path bytes
     function _encodePath(IUniswapV3.ExactOutputMultiHopSwapParams memory params)
         internal
         pure
@@ -373,6 +371,10 @@ abstract contract UniswapV3Base {
         return _encodePathInternal(params.pathWithFees);
     }
 
+    /// @notice Encodes a multi-hop path for Uniswap V3 router
+    /// @dev Encodes path as: token0, fee0, token1, fee1, token2, ...
+    /// @param pathWithFees Array of TokenWithFee describing the path
+    /// @return path Encoded path bytes
     function _encodePathInternal(IUniswapV3.TokenWithFee[] memory pathWithFees)
         internal
         pure
@@ -384,13 +386,11 @@ abstract contract UniswapV3Base {
         }
     }
 
-    /**
-     * @notice Calculates combined TWAP price across multiple pools
-     * @dev Multiplies prices together, handling inversions. Uses Q96 fixed-point arithmetic.
-     * @param pools Array of PoolInfo describing which pools to combine
-     * @param twapInterval TWAP observation interval in seconds (applies to all pools)
-     * @return combinedPriceX96 Combined price in Q96 format
-     */
+    /// @notice Calculates combined TWAP price across multiple pools
+    /// @dev Multiplies prices together, handling inversions. Uses Q96 fixed-point arithmetic.
+    /// @param pools Array of PoolInfo describing which pools to combine
+    /// @param twapInterval TWAP observation interval in seconds (applies to all pools)
+    /// @return combinedPriceX96 Combined price in Q96 format
     function _calculateCombinedPrice(
         IUniswapV3.PoolInfo[] memory pools,
         uint32 twapInterval
@@ -435,15 +435,13 @@ abstract contract UniswapV3Base {
         }
     }
 
-    /**
-     * @notice Internal integer power function with rounding and overflow guards
-     * @dev This helper is used for fixed-point normalization in Q96 calculations.
-     *      Implemented in assembly for gas efficiency.
-     * @param x Base value
-     * @param n Exponent
-     * @param b Base scaling (used for fixed-point rounding)
-     * @return z Result of x**n in scaled representation
-     */
+    /// @notice Internal integer power function with rounding and overflow guards
+    /// @dev This helper is used for fixed-point normalization in Q96 calculations.
+    ///      Implemented in assembly for gas efficiency.
+    /// @param x Base value
+    /// @param n Exponent
+    /// @param b Base scaling (used for fixed-point rounding)
+    /// @return z Result of x**n in scaled representation
     function _pow(uint256 x, uint256 n, uint256 b) internal pure returns (uint256 z) {
         assembly {
             switch x
