@@ -37,10 +37,6 @@ library DiamondCutStorage {
         mapping(address => FacetFunctionSelectors) facetFunctionSelectors;
         // facet addresses
         address[] facetAddresses;
-        //facet registry address
-        address facetRegistry;
-        // protocol status address
-        address protocolStatus;
     }
 
     /**

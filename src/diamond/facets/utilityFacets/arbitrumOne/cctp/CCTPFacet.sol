@@ -23,8 +23,9 @@ import {
     ITokenMessengerV2
 } from "src/diamond/facets/utilityFacets/arbitrumOne/cctp/ICCTP.sol";
 import { CCTPBase } from "src/diamond/facets/utilityFacets/arbitrumOne/cctp/CCTPBase.sol";
+import { Facet } from "src/diamond/facets/Facet.sol";
 
-contract CCTPFacet is CCTPBase {
+contract CCTPFacet is CCTPBase, Facet {
     // ========================================================================
     // External Functions
     // ========================================================================
@@ -33,14 +34,29 @@ contract CCTPFacet is CCTPBase {
     /// @param amount USDC amount to send (usually 6 decimals)
     /// @param destinationDomain Circle domain ID of the destination chain
     /// @param mintRecipient Bytes32-encoded recipient address on destination chain
-    function sendUSDC(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external {
+    function sendUSDC(
+        uint256 amount,
+        uint32 destinationDomain,
+        bytes32 mintRecipient
+    )
+        external
+        onlyDiamondOwner
+        ifIndexNotConnected
+    {
         _sendUSDC(amount, destinationDomain, mintRecipient);
     }
 
     /// @notice Redeems (mints) USDC from another chain using Circle attestation
     /// @param message Raw message bytes from Circle attestation flow
     /// @param attestation Attestation bytes from Circle network
-    function redeemUSDC(bytes calldata message, bytes calldata attestation) external {
+    function redeemUSDC(
+        bytes calldata message,
+        bytes calldata attestation
+    )
+        external
+        onlyDiamondOwner
+        ifIndexNotConnected
+    {
         _redeemUSDC(message, attestation);
     }
 }

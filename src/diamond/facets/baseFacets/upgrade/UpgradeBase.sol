@@ -25,6 +25,7 @@ import { IUpgrade } from "src/diamond/facets/baseFacets/upgrade/IUpgrade.sol";
 import { UpgradeStorage } from "src/diamond/facets/baseFacets/upgrade/UpgradeStorage.sol";
 import { DiamondCutStorage } from "src/diamond/facets/baseFacets/cut/DiamondCutStorage.sol";
 import { DiamondCutBase } from "src/diamond/facets/baseFacets/cut/DiamondCutBase.sol";
+import { LibDiamond } from "src/diamond/libraries/LibDiamond.sol";
 
 /// @notice Thrown when attempting to upgrade but already at the latest version
 /// @param registryVersion The registry version that is already applied
@@ -64,7 +65,7 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
             bytes32 hashData
         )
     {
-        IFacetRegistry facetRegistry = IFacetRegistry(DiamondCutStorage.layout().facetRegistry);
+        IFacetRegistry facetRegistry = IFacetRegistry(LibDiamond.layout().facetRegistry);
         diamondVersion = UpgradeStorage.layout().diamondVersion;
         registryVersion = facetRegistry.getCurrentVersion();
         if (diamondVersion >= registryVersion) {
@@ -77,7 +78,7 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
     /// @notice Upgrades the diamond to the latest version
     /// @param _hashData The hash data for the upgrade
     function _upgrade(bytes32 _hashData) internal {
-        IFacetRegistry facetRegistry = IFacetRegistry(DiamondCutStorage.layout().facetRegistry);
+        IFacetRegistry facetRegistry = IFacetRegistry(LibDiamond.layout().facetRegistry);
         uint256 diamondVersion = UpgradeStorage.layout().diamondVersion;
         uint256 registryVersion = facetRegistry.getCurrentVersion();
         if (diamondVersion >= registryVersion) {

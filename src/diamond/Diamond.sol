@@ -24,6 +24,7 @@ import { OwnershipStorage } from "src/diamond/facets/baseFacets/ownership/Owners
 import { DiamondCutStorage } from "src/diamond/facets/baseFacets/cut/DiamondCutStorage.sol";
 import { DiamondCutBase } from "src/diamond/facets/baseFacets/cut/DiamondCutBase.sol";
 import { DiamondLoupeStorage } from "src/diamond/facets/baseFacets/loupe/DiamondLoupeStorage.sol";
+import { LibDiamond } from "src/diamond/libraries/LibDiamond.sol";
 
 // Local Interfaces
 import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
@@ -97,10 +98,10 @@ contract Diamond is DiamondCutBase {
         // Set contract owner
         OwnershipStorage.layout().owner = _contractOwner;
 
-        DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
+        LibDiamond.Layout storage ld = LibDiamond.layout();
         // Initialize diamond storage with registry addresses
-        ds.facetRegistry = _facetRegistry;
-        ds.protocolStatus = _protocolStatus;
+        ld.facetRegistry = _facetRegistry;
+        ld.protocolStatus = _protocolStatus;
         // Apply initial diamond cuts (validates against registry)
         _applyDiamondCut(_diamondCut, address(0), "");
 
@@ -127,9 +128,9 @@ contract Diamond is DiamondCutBase {
     ///      The registry validation provides defense-in-depth by ensuring only registered
     ///      facets can execute, even if the diamond's internal state becomes inconsistent.
     fallback() external payable {
-        DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
+        LibDiamond.Layout storage ld = LibDiamond.layout();
 
-        IProtocolStatus protocolStatus = IProtocolStatus(DiamondCutStorage.layout().protocolStatus);
+        IProtocolStatus protocolStatus = IProtocolStatus(ld.protocolStatus);
         if (protocolStatus.getProtocolStatus() == IProtocolStatus.State.INACTIVE) {
             revert Diamond_ProtocolIsInactive();
         }
@@ -139,11 +140,14 @@ contract Diamond is DiamondCutBase {
             }
         }
 
-        // Look up facet address for the called function selector
+        // Load diamond cut storage
+        DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
+
+        // Load facet address for the called function selector
         address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
 
-        // Look up the facet address for the called function selector
-        IFacetRegistry facetRegistry = IFacetRegistry(DiamondCutStorage.layout().facetRegistry);
+        // Load facet registry
+        IFacetRegistry facetRegistry = IFacetRegistry(ld.facetRegistry);
 
         // Validate selector exists in diamond (fast fail for non-existent selectors)
         if (facet == address(0)) {

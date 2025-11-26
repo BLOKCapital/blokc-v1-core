@@ -23,7 +23,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { IndexMath } from "src/BlokcIndices/libraries/IndexMath.sol";
+import { IndexMath } from "src/indices/libraries/IndexMath.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 // ============================================================================

@@ -22,9 +22,9 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
-import { Index } from "src/BlokcIndices/Index.sol";
-import { IndexCalculationRegistry } from "src/BlokcIndices/IndexCalculationRegistry.sol";
-import { IndexComponentRegistry } from "src/BlokcIndices/IndexComponentRegistry.sol";
+import { Index } from "src/indices/Index.sol";
+import { IndexCalculationRegistry } from "src/indices/IndexCalculationRegistry.sol";
+import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 
 // ============================================================================
 // Errors

@@ -22,17 +22,18 @@ pragma solidity ^0.8.20;
 
 // Local Interfaces
 import { Facet } from "src/diamond/facets/Facet.sol";
-import { IndexFactory } from "src/BlokcIndices/IndexFactory.sol";
-import { Index } from "src/BlokcIndices/Index.sol";
+import { IndexFactory } from "src/indices/IndexFactory.sol";
+import { Index } from "src/indices/Index.sol";
 import { UniswapV3Base } from "src/diamond/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Base.sol";
 import { IndexStorage } from "src/diamond/facets/indexFacets/IndexStorage.sol";
-import { IndexComponentRegistry } from "src/BlokcIndices/IndexComponentRegistry.sol";
+import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 import { IUniswapV3 } from "src/diamond/facets/utilityFacets/arbitrumOne/uniswapV3/IUniswapV3.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { IndexMath } from "src/BlokcIndices/libraries/IndexMath.sol";
+import { IndexMath } from "src/indices/libraries/IndexMath.sol";
+import { LibDiamond } from "src/diamond/libraries/LibDiamond.sol";
 
 // ============================================================================
 // Errors
@@ -98,7 +99,7 @@ contract IndexFacet is UniswapV3Base, Facet {
     /// @param indexAddress Address of the index contract to track
     /// @dev Only callable by diamond owner. Validates index is registered in IndexFactory
     ///      and calls the index to register this garden as connected.
-    function connectToIndex(address indexAddress) external nonReentrant onlyDiamondOwner {
+    function connectToIndex(address indexAddress) external nonReentrant onlyDiamondOwner ifIndexNotConnected {
         if (!IndexFactory(IndexStorage.INDEX_FACTORY_ADDRESS).isIndexRegistered(indexAddress)) {
             revert IndexFacet_IndexNotRegistered(indexAddress);
         }
@@ -106,7 +107,7 @@ contract IndexFacet is UniswapV3Base, Facet {
 
         // Store the connected index address
         IndexStorage.layout().indexAddress = indexAddress;
-
+        LibDiamond.layout().isConnectedToIndex = true;
         emit IndexConnected(indexAddress);
     }
 
@@ -118,7 +119,7 @@ contract IndexFacet is UniswapV3Base, Facet {
         Index(oldIndexAddress).disconnectGardenFromIndex();
 
         IndexStorage.layout().indexAddress = address(0);
-
+        LibDiamond.layout().isConnectedToIndex = false;
         emit IndexDisconnected(oldIndexAddress);
     }
 
