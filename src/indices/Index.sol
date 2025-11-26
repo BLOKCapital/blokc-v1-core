@@ -6,7 +6,7 @@ pragma solidity >=0.8.20;
     @title Index
     @author BLOK Capital DAO
     @notice Core index contract that manages component weights and connected gardens
-    @dev Implements a rebalanceable index with configurable calculation methods.
+    @dev Implements a rebalance able index with configurable calculation methods.
          Gardens (investment vehicles) connect to indices to track their composition.
          Weights are automatically recalculated during rebalancing using the specified
          calculation strategy (e.g., market cap weighted).
@@ -22,7 +22,7 @@ pragma solidity >=0.8.20;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import { IndexComponentRegistry } from "src/BlokcIndices/IndexComponentRegistry.sol";
+import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 
 // ============================================================================
 // Errors

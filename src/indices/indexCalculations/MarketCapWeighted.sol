@@ -18,12 +18,12 @@ pragma solidity >=0.8.20;
 
 ################################################################################*/
 
-import { IndexComponentRegistry } from "src/BlokcIndices/IndexComponentRegistry.sol";
+import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
 import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol";
-import { IndexMath } from "src/BlokcIndices/libraries/IndexMath.sol";
-import { CirculatingSupply } from "src/BlokcIndices/CirculatingSupply.sol";
+import { IndexMath } from "src/indices/libraries/IndexMath.sol";
+import { CirculatingSupply } from "src/indices/CirculatingSupply.sol";
 
 // ============================================================================
 // Errors

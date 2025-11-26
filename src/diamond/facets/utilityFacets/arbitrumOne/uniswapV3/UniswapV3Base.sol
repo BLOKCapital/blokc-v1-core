@@ -179,7 +179,6 @@ abstract contract UniswapV3Base {
 
     function _swapExactOutputSingleHop(IUniswapV3.ExactOutputSingleHopSwapParams memory params) internal {
         ISwapRouter router = ISwapRouter(UNISWAP_V3_ROUTER_ADDRESS);
-        IERC20 tokenOut = IERC20(params.tokenOut);
 
         // Get pool address from factory
         address pool =

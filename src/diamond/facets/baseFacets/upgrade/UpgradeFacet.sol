@@ -46,7 +46,7 @@ contract UpgradeFacet is IUpgrade, UpgradeBase, Facet {
 
     /// @notice Upgrades the diamond to the latest version
     /// @param _hashData The hash of the upgrade details from upgradeDetails() for verification
-    function upgrade(bytes32 _hashData) external onlyDiamondOwner {
+    function upgrade(bytes32 _hashData) external onlyDiamondOwner ifIndexNotConnected {
         _upgrade(_hashData);
     }
 

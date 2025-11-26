@@ -21,16 +21,30 @@ pragma solidity ^0.8.20;
 
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { OwnershipStorage } from "src/diamond/facets/baseFacets/ownership/OwnershipStorage.sol";
+import { LibDiamond } from "src/diamond/libraries/LibDiamond.sol";
 
 /// @notice Thrown when caller is not the diamond owner
-error Diamond_NotOwner();
+error Diamond_UnauthorizedCaller();
+
+/// @notice Thrown when a function is called while the garden is connected to an index
+error Facet_CannotCallIfConnectedToIndex();
 
 abstract contract Facet is ReentrancyGuardUpgradeable {
     /// @notice Restricts function access to the diamond contract owner
     /// @dev Checks msg.sender against owner stored in OwnershipStorage
     modifier onlyDiamondOwner() {
         if (msg.sender != OwnershipStorage.layout().owner) {
-            revert Diamond_NotOwner();
+            revert Diamond_UnauthorizedCaller();
+        }
+        _;
+    }
+
+    /// @notice Restricts function access if the garden is connected to an index
+    /// @dev Checks if the connected index is set in the diamond storage
+    modifier ifIndexNotConnected() {
+        LibDiamond.Layout storage ld = LibDiamond.layout();
+        if (ld.isConnectedToIndex) {
+            revert Facet_CannotCallIfConnectedToIndex();
         }
         _;
     }

@@ -19,6 +19,7 @@ pragma solidity ^0.8.20;
 import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
 import { DiamondCutStorage } from "src/diamond/facets/baseFacets/cut/DiamondCutStorage.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
+import { LibDiamond } from "src/diamond/libraries/LibDiamond.sol";
 
 /// @notice Thrown when an incorrect facet cut action is provided
 /// @param action The incorrect facet cut action
@@ -47,8 +48,7 @@ error DiamondCut_CannotRemoveFunctionThatDoesNotExist(address facetAddress, byte
 
 /// @notice Thrown when attempting to remove an immutable function
 /// @param facetAddress The facet address
-/// @param selector The immutable function selector
-error DiamondCut_CannotRemoveImmutableFunction(address facetAddress, bytes4 selector);
+error DiamondCut_CannotRemoveImmutableFunction(address facetAddress);
 
 /// @notice Thrown when the initialization contract is not a contract
 /// @param init The invalid initialization contract address
@@ -147,7 +147,8 @@ contract DiamondCutBase {
             revert DiamondCut_FacetAddressIsZero();
         }
 
-        address facetRegistry = ds.facetRegistry;
+        LibDiamond.Layout storage ld = LibDiamond.layout();
+        address facetRegistry = ld.facetRegistry;
         // Ensure facet is registered in the FacetRegistry
         if (!IFacetRegistry(facetRegistry).isFacetRegistered(_facetAddress)) {
             revert DiamondCut_FacetNotRegistered(_facetAddress);
@@ -203,7 +204,8 @@ contract DiamondCutBase {
             revert DiamondCut_SelectorArrayEmpty();
         }
         DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
-        address facetRegistry = ds.facetRegistry;
+        LibDiamond.Layout storage ld = LibDiamond.layout();
+        address facetRegistry = ld.facetRegistry;
         if (_facetAddress == address(0)) {
             revert DiamondCut_FacetAddressIsZero();
         }
@@ -241,7 +243,7 @@ contract DiamondCutBase {
                 revert DiamondCut_CannotReplaceFunctionWithSameFunction(oldFacetAddress, selector);
             }
 
-            removeFunction(ds, oldFacetAddress, selector, facetRegistry);
+            removeFunction(ds, oldFacetAddress, selector);
             addFunction(ds, selector, selectorPosition, _facetAddress);
             selectorPosition++;
         }
@@ -263,7 +265,8 @@ contract DiamondCutBase {
             revert DiamondCut_SelectorArrayEmpty();
         }
         DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
-        address facetRegistry = ds.facetRegistry;
+        LibDiamond.Layout storage ld = LibDiamond.layout();
+        address facetRegistry = ld.facetRegistry;
         // For remove operations, facet address must be zero
         if (_facetAddress != address(0)) {
             revert DiamondCut_RemoveFacetAddressMustBeZero(_facetAddress);
@@ -273,7 +276,7 @@ contract DiamondCutBase {
         for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
             address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
-            removeFunction(ds, oldFacetAddress, selector, facetRegistry);
+            removeFunction(ds, oldFacetAddress, selector);
         }
     }
 
@@ -323,23 +326,14 @@ contract DiamondCutBase {
      * @param _facetAddress The address of the facet contract
      * @param _selector The function selector to remove
      */
-    function removeFunction(
-        DiamondCutStorage.Layout storage ds,
-        address _facetAddress,
-        bytes4 _selector,
-        address _facetRegistry
-    )
-        internal
-    {
+    function removeFunction(DiamondCutStorage.Layout storage ds, address _facetAddress, bytes4 _selector) internal {
+        LibDiamond.Layout storage ld = LibDiamond.layout();
         if (_facetAddress == address(0)) {
             revert DiamondCut_CannotRemoveFunctionThatDoesNotExist(_facetAddress, _selector);
         }
-        // An immutable function is a function defined directly in a diamond
-        if (_facetAddress == address(this)) {
-            revert DiamondCut_CannotRemoveImmutableFunction(_facetAddress, _selector);
-        }
+
         // Ensure selector is NOT registered in the FacetRegistry (can only remove unregistered selectors)
-        if (IFacetRegistry(_facetRegistry).isSelectorRegisteredWithFacet(_facetAddress, _selector)) {
+        if (IFacetRegistry(ld.facetRegistry).isSelectorRegisteredWithFacet(_facetAddress, _selector)) {
             revert DiamondCut_SelectorRegisteredCannotRemove(_facetAddress, _selector);
         }
 

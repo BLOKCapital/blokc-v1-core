@@ -50,6 +50,7 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
         external
         override
         onlyDiamondOwner
+        ifIndexNotConnected
     {
         _swapExactInputSingleHop(params);
     }
@@ -62,6 +63,7 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
         external
         override
         onlyDiamondOwner
+        ifIndexNotConnected
     {
         _swapExactInputMultiHop(params);
     }
@@ -74,6 +76,7 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
         external
         override
         onlyDiamondOwner
+        ifIndexNotConnected
     {
         _swapExactOutputSingleHop(params);
     }
@@ -86,6 +89,7 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
         external
         override
         onlyDiamondOwner
+        ifIndexNotConnected
     {
         _swapExactOutputMultiHop(params);
     }

@@ -3,7 +3,7 @@ pragma solidity >=0.8.20;
 
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 
-import { BaseScript } from "../../Base.s.sol";
+import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 
 import { WithdrawFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/withdraw/WithdrawFacet.sol";
@@ -12,7 +12,7 @@ import { AaveV3Facet } from "src/diamond/facets/utilityFacets/arbitrumOne/aaveV3
 import { CCTPFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/cctp/CCTPFacet.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant registryProxy = 0x2f2Cdd5D37093fd73DfF8F9752b96e87afb47D98;
+    address constant registryProxy = 0x0101DDa693A25Be135caEE7BCbc82dECbf9D31C5;
 
     function run() public broadcaster {
         setUp();

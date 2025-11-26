@@ -3,7 +3,7 @@ pragma solidity >=0.8.20;
 
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 
-import { BaseScript } from "../../Base.s.sol";
+import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 
 import { UniswapV3Facet } from "src/diamond/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";

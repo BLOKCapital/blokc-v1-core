@@ -2,7 +2,7 @@
 pragma solidity >=0.8.20;
 
 import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
-import { BaseScript } from "../../Base.s.sol";
+import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { DiamondCutFacet } from "src/diamond/facets/baseFacets/cut/DiamondCutFacet.sol";
@@ -15,7 +15,7 @@ import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 import { ProtocolStatus } from "src/protocolStatus/ProtocolStatus.sol";
 import { GardenFactory } from "src/factory/GardenFactory.sol";
 
-contract DeployRegistries is BaseScript {
+contract Deploy is BaseScript {
     FacetRegistry internal registryImpl;
     TransparentUpgradeableProxy internal registryProxy;
 
@@ -97,6 +97,8 @@ contract DeployRegistries is BaseScript {
         securityCouncilMembers[0] = IProtocolStatus.SecurityCouncilMember({ memberAddress: sec, name: "Chintan" });
         protocolStatus = new ProtocolStatus{ salt: salt }(securityCouncilMembers, deployer);
         console2.log("ProtocolStatus deployed at:", address(protocolStatus));
+        ProtocolStatus(protocolStatus).activateProtocol();
+        console2.log("ProtocolStatus activated");
 
         factoryImpl = new GardenFactory{ salt: salt }();
 
