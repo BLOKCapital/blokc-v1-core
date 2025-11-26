@@ -441,7 +441,7 @@ makeSuite('Pool Liquidation: Liquidator receiving the underlying asset', (testEn
     );
 
     const usdcReserveDataBefore = await getReserveData(helpersContract, usdc.address);
-    const aaveReserveDataBefore = await getReserveData(helpersContract, aave.address);
+    const getReserveDataBefore = await getReserveData(helpersContract, aave.address);
 
     const amountToLiquidate = userReserveDataBefore.currentStableDebt.div(2);
 
@@ -460,7 +460,7 @@ makeSuite('Pool Liquidation: Liquidator receiving the underlying asset', (testEn
     const userGlobalDataAfter = await pool.getUserAccountData(borrower.address);
 
     const usdcReserveDataAfter = await getReserveData(helpersContract, usdc.address);
-    const aaveReserveDataAfter = await getReserveData(helpersContract, aave.address);
+    const getReserveDataAfter = await getReserveData(helpersContract, aave.address);
 
     const aaveConfiguration = await helpersContract.getReserveConfigurationData(aave.address);
     const collateralDecimals = aaveConfiguration.decimals;
@@ -491,8 +491,8 @@ makeSuite('Pool Liquidation: Liquidator receiving the underlying asset', (testEn
       'Invalid principal total liquidity'
     );
 
-    expect(aaveReserveDataAfter.totalLiquidity).to.be.closeTo(
-      aaveReserveDataBefore.totalLiquidity.sub(expectedCollateralLiquidated),
+    expect(getReserveDataAfter.totalLiquidity).to.be.closeTo(
+      getReserveDataBefore.totalLiquidity.sub(expectedCollateralLiquidated),
       2,
       'Invalid collateral total liquidity'
     );
@@ -503,8 +503,8 @@ makeSuite('Pool Liquidation: Liquidator receiving the underlying asset', (testEn
       'Invalid principal available liquidity'
     );
 
-    expect(aaveReserveDataAfter.availableLiquidity).to.be.closeTo(
-      aaveReserveDataBefore.availableLiquidity.sub(expectedCollateralLiquidated),
+    expect(getReserveDataAfter.availableLiquidity).to.be.closeTo(
+      getReserveDataBefore.availableLiquidity.sub(expectedCollateralLiquidated),
       2,
       'Invalid collateral available liquidity'
     );

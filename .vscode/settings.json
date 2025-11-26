@@ -13,18 +13,22 @@
   "cSpell.words": [
     "blokc",
     "CCTP",
+    "Chainlink",
     "delegatecall",
     "ICCTP",
+    "IERC",
     "IIERC",
     "inheritdoc",
     "Initializable",
     "ISBT",
+    "rebalances",
     "Reentrancy",
     "reinitializer",
     "returndata",
     "soulbound",
     "staticcall",
     "Twap",
+    "Unregisters",
     "UUPS"
   ]
 }
