@@ -31,6 +31,7 @@ import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
 import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
+import { ISBTRegistry } from "src/interfaces/ISBTRegistry.sol";
 
 // Local Contracts
 import { Diamond } from "src/diamond/Diamond.sol";
@@ -60,6 +61,9 @@ error GardenFactory_ProtocolStatusNotSet();
 /// @notice Thrown when the protocol is inactive
 error GardenFactory_ProtocolIsInactive();
 
+/// @notice Thrown when the sbt registry is not set
+error GardenFactory_SBTRegistryNotSet();
+
 contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, ReentrancyGuardUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -72,6 +76,9 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
 
     /// @notice The address of the protocol status contract
     address private _protocolStatus;
+
+    /// @notice The address of the SBT registry
+    ISBTRegistry private _sbtRegistry;
 
     /// @notice The set of all gardens created by this factory
     EnumerableSet.AddressSet private _gardens;
@@ -110,21 +117,30 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     // Initialization
     // ========================================================================
 
-    /// @notice Initializes the factory contract
-    /// @dev This function should be called during proxy deployment via the proxy's initialization mechanism
-    /// @param initialOwner The address that will be the owner of this factory
-    /// @param facetRegistry The address of the facet registry contract
-    /// @param protocolStatus The address of the protocol status contract
-    function initialize(address initialOwner, address facetRegistry, address protocolStatus) public initializer {
+    function initialize(
+        address initialOwner,
+        address facetRegistry,
+        address protocolStatus,
+        address sbtRegistry
+    )
+        public
+        initializer
+    {
         __Ownable_init(initialOwner);
         _facetRegistry = facetRegistry;
         _protocolStatus = protocolStatus;
+        _sbtRegistry = ISBTRegistry(sbtRegistry);
+
         if (_facetRegistry == address(0)) {
             revert GardenFactory_FacetRegistryNotSet();
         }
         if (_protocolStatus == address(0)) {
             revert GardenFactory_ProtocolStatusNotSet();
         }
+        if (sbtRegistry == address(0)) {
+            revert GardenFactory_SBTRegistryNotSet();
+        }
+
         __ReentrancyGuard_init();
 
         emit FactoryInitialized(initialOwner);
@@ -139,8 +155,17 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     ///      Each user can deploy up to 10 gardens (indices 1-10). The garden is initialized with base facets
     ///      retrieved from the facet registry.
     /// @param index The per-user garden index (must be between 1 and 10, inclusive)
+    /// @param collection The SBT collection address to mint from
     /// @return gardenAddress The address of the newly deployed garden contract
-    function createGarden(uint256 index) external nonReentrant returns (address gardenAddress) {
+    function createGarden(
+        uint256 index,
+        address collection,
+        uint256 tokenId
+    )
+        external
+        nonReentrant
+        returns (address gardenAddress)
+    {
         address owner = msg.sender;
 
         IProtocolStatus protocolStatus = IProtocolStatus(_protocolStatus);
@@ -192,6 +217,11 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
         _userGardens[owner].push(gardenAddress);
         _userIndexToGarden[owner][index] = gardenAddress;
 
+        // Mint SBT if collection is provided
+        if (collection != address(0) && block.chainid == 42_161) {
+            _sbtRegistry.mintByAddress(collection, owner, tokenId);
+        }
+
         emit GardenCreated(gardenAddress, owner, index);
     }
 
@@ -202,23 +232,16 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     }
 
     /// @notice Returns all gardens created by a specific user
-    /// @param user The address of the user
-    /// @return gardens_ Array of garden addresses created by the specified user
     function getUserGardens(address user) external view returns (address[] memory gardens_) {
         gardens_ = _userGardens[user];
     }
 
     /// @notice Returns the garden address associated with a specific user and index
-    /// @param user The address of the user (owner)
-    /// @param index The per-user garden index (1-10)
-    /// @return The address of the garden associated with the given user and index, or address(0) if not found
     function getGarden(address user, uint256 index) external view returns (address) {
         return _userIndexToGarden[user][index];
     }
 
     /// @notice Checks if a garden address is registered in this factory
-    /// @param garden The address of the garden to check
-    /// @return True if the garden is registered, false otherwise
     function isGardenRegistered(address garden) external view returns (bool) {
         return _gardens.contains(garden);
     }

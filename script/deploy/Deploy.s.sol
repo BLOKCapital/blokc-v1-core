@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.20;
 
 import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
@@ -30,14 +30,13 @@ contract Deploy is BaseScript {
     function run() public broadcaster {
         setUp();
 
-        // --- Deploy FacetRegistry implementation & transparent proxy ---
+        // --- Deploy FacetRegistry implementation & proxy ---
         registryImpl = new FacetRegistry{ salt: salt }();
 
         // Register default facets
         DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
         bytes4[] memory cutSelectors = new bytes4[](1);
         cutSelectors[0] = cutFacet.diamondCut.selector;
-
         console2.log("DiamondCutFacet deployed at:", address(cutFacet));
 
         DiamondLoupeFacet loupeFacet = new DiamondLoupeFacet{ salt: salt }();
@@ -47,19 +46,16 @@ contract Deploy is BaseScript {
         loupeSelectors[2] = loupeFacet.facetAddresses.selector;
         loupeSelectors[3] = loupeFacet.facetAddress.selector;
         loupeSelectors[4] = IERC165.supportsInterface.selector;
-
         console2.log("DiamondLoupeFacet deployed at:", address(loupeFacet));
 
         OwnershipFacet ownershipFacet = new OwnershipFacet{ salt: salt }();
         bytes4[] memory ownableSelectors = new bytes4[](2);
         ownableSelectors[0] = ownershipFacet.owner.selector;
         ownableSelectors[1] = ownershipFacet.transferOwnership.selector;
-
-        console2.log("ownershipFacet deployed at:", address(ownershipFacet));
+        console2.log("OwnershipFacet deployed at:", address(ownershipFacet));
 
         UpgradeFacet upgradeFacet = new UpgradeFacet{ salt: salt }();
         bytes4[] memory upgradeSelectors = new bytes4[](3);
-
         upgradeSelectors[0] = upgradeFacet.upgrade.selector;
         upgradeSelectors[1] = upgradeFacet.getCurrentVersion.selector;
         upgradeSelectors[2] = upgradeFacet.upgradeDetails.selector;
@@ -76,34 +72,48 @@ contract Deploy is BaseScript {
 
         bytes memory initRegistry =
             abi.encodeWithSelector(FacetRegistry.initialize.selector, deployer, baseFacets, baseFacetFunctionSelectors);
+
         registryProxy = new TransparentUpgradeableProxy{ salt: salt }(address(registryImpl), deployer, initRegistry);
 
         console2.log("FacetRegistry proxy deployed at:", address(registryProxy));
         console2.log("FacetRegistry implementation at:", address(registryImpl));
 
-        // --- Deploy PoolRegistry implementation & transparent proxy ---
+        // --- Deploy PoolRegistry implementation & proxy ---
         poolRegistryImpl = new PoolRegistry{ salt: salt }();
 
         bytes memory initPoolRegistry = abi.encodeWithSelector(PoolRegistry.initialize.selector, deployer);
+
         poolRegistryProxy =
             new TransparentUpgradeableProxy{ salt: salt }(address(poolRegistryImpl), deployer, initPoolRegistry);
+
         console2.log("PoolRegistry proxy deployed at:", address(poolRegistryProxy));
         console2.log("PoolRegistry implementation at:", address(poolRegistryImpl));
 
-        // --- Deploy ProtocolStatus (no proxy) ---
-        IProtocolStatus.SecurityCouncilMember[] memory securityCouncilMembers =
-            new IProtocolStatus.SecurityCouncilMember[](1);
-        address sec = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-        securityCouncilMembers[0] = IProtocolStatus.SecurityCouncilMember({ memberAddress: sec, name: "Chintan" });
-        protocolStatus = new ProtocolStatus{ salt: salt }(securityCouncilMembers, deployer);
+        // --- Deploy ProtocolStatus ---
+        address ensRegistry = address(0);
+        bytes32[] memory initialNamehashes = new bytes32[](1);
+        string[] memory initialNames = new string[](1);
+        uint256[] memory initialExpiries = new uint256[](1);
+
+        initialNames[0] = "chintan.eth";
+        initialNamehashes[0] = keccak256(abi.encodePacked("chintan.eth"));
+        initialExpiries[0] = block.timestamp + 365 days;
+
+        protocolStatus = new ProtocolStatus{ salt: salt }(ensRegistry, initialNamehashes, initialNames, initialExpiries);
+
         console2.log("ProtocolStatus deployed at:", address(protocolStatus));
-        ProtocolStatus(protocolStatus).activateProtocol();
+        protocolStatus.activateProtocol();
         console2.log("ProtocolStatus activated");
 
+        // --- Deploy GardenFactory implementation & proxy ---
         factoryImpl = new GardenFactory{ salt: salt }();
 
         bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector, deployer, address(registryProxy), address(protocolStatus)
+            GardenFactory.initialize.selector,
+            deployer,
+            address(registryProxy),
+            address(protocolStatus),
+            address(0) // TODO: SBT registry address once deployed
         );
 
         factoryProxy = new TransparentUpgradeableProxy{ salt: salt }(address(factoryImpl), deployer, factoryInitData);

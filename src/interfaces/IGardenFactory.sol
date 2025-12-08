@@ -18,8 +18,10 @@ pragma solidity >=0.8.20;
 interface IGardenFactory {
     /// @notice Deploys a new garden proxy for the given owner and applies the initial diamond cut.
     /// @param  index The per-user garden index (1..10) selected by the user.
+    /// @param  collection The address of the collection to mint from.
+    /// @param  tokenId The token id to mint.
     /// @return garden The address of the newly deployed garden proxy.
-    function createGarden(uint256 index) external returns (address garden);
+    function createGarden(uint256 index, address collection, uint256 tokenId) external returns (address garden);
 
     /// @notice Returns all registered gardens.
     /// @return gardens Array of all registered garden addresses.

@@ -11,7 +11,7 @@ contract CreateGarden is BaseScript {
         setUp();
 
         address factoryAddress = 0xB16AA42eB452513e8Bc15952ab6c30b296dedFc7;
-        address gardenAddress = GardenFactory(factoryAddress).createGarden(3);
+        address gardenAddress = GardenFactory(factoryAddress).createGarden(3, address(0), 0);
         console.log("Garden deployed at:", gardenAddress);
     }
 }
