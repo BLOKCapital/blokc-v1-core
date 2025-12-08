@@ -166,11 +166,15 @@ abstract contract DiamondTestBase is Test {
     }
 
     function _deployProtocolStatus() internal {
-        IProtocolStatus.SecurityCouncilMember[] memory initialMembers = new IProtocolStatus.SecurityCouncilMember[](1);
+        IProtocolStatus.ENSMember[] memory initialMembers = new IProtocolStatus.ENSMember[](1);
 
-        initialMembers[0] = IProtocolStatus.SecurityCouncilMember({
-            memberAddress: makeAddr("securityCouncil1"),
-            name: "Security Council Member 1"
+        initialMembers[0] = IProtocolStatus.ENSMember({
+            namehash: keccak256(abi.encodePacked("chintan.eth")),
+            ensName: "chintan.eth",
+            resolvedAddress: makeAddr("securityCouncil1"),
+            previousAddress: address(0),
+            expiryTimestamp: block.timestamp + 365 days,
+            status: IProtocolStatus.SCMStatus.ACTIVE
         });
 
         protocolStatus = new ProtocolStatus(initialMembers, owner);

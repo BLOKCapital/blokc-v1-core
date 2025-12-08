@@ -13,24 +13,20 @@ contract DeployCollections is Script {
     // ------------------------------
     // UPDATE BEFORE DEPLOYMENT
     // ------------------------------
-    string constant BADDIE_CID = "bafy...baddie";
-    string constant BUILDER_CID = "bafy...builder";
-    string constant GARDEN_CID = "bafy...garden";
+    string constant BADDIE_CID = "bafybeibamcvn4b6zioon65phe56u7bpnygvmi67qv2id6be5p4ybjgynju";
+    string constant BUILDER_CID = "bafybeibamcvn4b6zioon65phe56u7bpnygvmi67qv2id6be5p4ybjgynju";
+    string constant GARDEN_CID = "bafybeidzu4jyntdof2mno5b3hf2cgtnj67jowdbacx7q3lfgw3y7w5teue";
 
     // parent-pass for gated collections (if any)
     address constant BADDIE_PASS = address(0);
     address constant BUILDER_PASS = address(0);
     address constant GARDEN_PASS = address(0);
 
-    // IMPORTANT — registry wants a valid "gardenFactory" owner
-    // Usually: msg.sender or a multisig
-    address constant GARDEN_FACTORY = 0x1234567890123456789012345678901234567890;
-
     function run() external {
         vm.startBroadcast();
 
         // 1. Deploy Registry (with proper gardenFactory owner)
-        SBTRegistry registry = new SBTRegistry(GARDEN_FACTORY);
+        SBTRegistry registry = new SBTRegistry();
         console2.log("Registry deployed:", address(registry));
 
         // 2. Deploy each collection with correct params

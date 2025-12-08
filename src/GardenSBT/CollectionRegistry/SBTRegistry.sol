@@ -26,10 +26,8 @@ contract SBTRegistry {
         _;
     }
 
-    /// @notice Pass the GARDEN FACTORY address here.
-    constructor(address gardenFactory) {
-        if (gardenFactory == address(0)) revert InvalidAddress();
-        owner = gardenFactory;
+    constructor() {
+        owner = msg.sender;
     }
 
     // -------------------------------------------------------
