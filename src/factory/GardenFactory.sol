@@ -21,7 +21,7 @@ pragma solidity >=0.8.20;
 // OpenZeppelin Upgradeable Contracts
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // OpenZeppelin Standard Contracts
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -64,7 +64,7 @@ error GardenFactory_ProtocolIsInactive();
 /// @notice Thrown when the sbt registry is not set
 error GardenFactory_SBTRegistryNotSet();
 
-contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, ReentrancyGuardUpgradeable {
+contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, ReentrancyGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     // ========================================================================
@@ -140,8 +140,6 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
         if (sbtRegistry == address(0)) {
             revert GardenFactory_SBTRegistryNotSet();
         }
-
-        __ReentrancyGuard_init();
 
         emit FactoryInitialized(initialOwner);
     }

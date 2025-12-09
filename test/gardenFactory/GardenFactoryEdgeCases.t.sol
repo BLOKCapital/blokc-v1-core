@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import { GardenFactoryTestBase } from "./GardenFactoryTestBase.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { GardenFactory } from "src/factory/GardenFactory.sol";
 import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
