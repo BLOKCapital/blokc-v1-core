@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT License
-pragma solidity >=0.8.20;
+pragma solidity >=0.8.31;
 
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 
@@ -12,7 +12,7 @@ import { AaveV3Facet } from "src/diamond/facets/utilityFacets/arbitrumOne/aaveV3
 import { CCTPFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/cctp/CCTPFacet.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant registryProxy = 0x0101DDa693A25Be135caEE7BCbc82dECbf9D31C5;
+    address constant facetRegistry = 0x0101DDa693A25Be135caEE7BCbc82dECbf9D31C5;
 
     function run() public broadcaster {
         setUp();
@@ -21,7 +21,7 @@ contract RegisterUtilityFacets is BaseScript {
         bytes4[] memory withdrawFacetSelectors = new bytes4[](1);
         withdrawFacetSelectors[0] = withdrawFacet.withdrawUSDC.selector;
 
-        FacetRegistry(registryProxy).addFunctions(address(withdrawFacet), withdrawFacetSelectors);
+        FacetRegistry(facetRegistry).addFunctions(address(withdrawFacet), withdrawFacetSelectors);
         console2.log("WithdrawFacet deployed at:", address(withdrawFacet));
 
         UniswapV3Facet uniswapFacet = new UniswapV3Facet();
@@ -33,7 +33,7 @@ contract RegisterUtilityFacets is BaseScript {
         uniswapFacetSelectors[4] = UniswapV3Facet.getSqrtTwapX96.selector;
         uniswapFacetSelectors[5] = UniswapV3Facet.getCombinedTwapX96.selector;
 
-        FacetRegistry(registryProxy).addFunctions(address(uniswapFacet), uniswapFacetSelectors);
+        FacetRegistry(facetRegistry).addFunctions(address(uniswapFacet), uniswapFacetSelectors);
         console2.log("UniswapV3Facet deployed at:", address(uniswapFacet));
 
         AaveV3Facet aaveFacet = new AaveV3Facet();
@@ -42,7 +42,7 @@ contract RegisterUtilityFacets is BaseScript {
         aaveFacetSelectors[1] = AaveV3Facet.lend.selector;
         aaveFacetSelectors[2] = AaveV3Facet.withdraw.selector;
 
-        FacetRegistry(registryProxy).addFunctions(address(aaveFacet), aaveFacetSelectors);
+        FacetRegistry(facetRegistry).addFunctions(address(aaveFacet), aaveFacetSelectors);
         console2.log("AaveV3Facet deployed at:", address(aaveFacet));
     }
 }

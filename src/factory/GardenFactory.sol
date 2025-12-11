@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity >=0.8.31;
 
 /*###############################################################################
 
@@ -10,7 +10,7 @@ pragma solidity >=0.8.20;
          It uses OpenZeppelin's upgradeable contracts library for security and reliability.
          Each user can deploy up to 10 gardens, identified by indices 1-10.
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -19,12 +19,10 @@ pragma solidity >=0.8.20;
 ################################################################################*/
 
 // OpenZeppelin Upgradeable Contracts
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-
 // OpenZeppelin Standard Contracts
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // Local Interfaces
 import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
@@ -64,7 +62,7 @@ error GardenFactory_ProtocolIsInactive();
 /// @notice Thrown when the sbt registry is not set
 error GardenFactory_SBTRegistryNotSet();
 
-contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, ReentrancyGuardUpgradeable {
+contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     // ========================================================================
@@ -107,26 +105,20 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
     // Constructor
     // ========================================================================
 
-    /// @notice Disables initialization of the implementation contract
-    /// @dev This prevents the implementation from being initialized directly
-    constructor() {
-        _disableInitializers();
-    }
-
-    // ========================================================================
-    // Initialization
-    // ========================================================================
-
-    function initialize(
+    /// @notice Constructor
+    /// @dev Initializes the factory with the given addresses
+    /// @param initialOwner The initial owner of the factory
+    /// @param facetRegistry The address of the facet registry contract
+    /// @param protocolStatus The address of the protocol status contract
+    /// @param sbtRegistry The address of the SBT registry contract
+    constructor(
         address initialOwner,
         address facetRegistry,
         address protocolStatus,
         address sbtRegistry
     )
-        public
-        initializer
+        Ownable(initialOwner)
     {
-        __Ownable_init(initialOwner);
         _facetRegistry = facetRegistry;
         _protocolStatus = protocolStatus;
         _sbtRegistry = ISBTRegistry(sbtRegistry);
@@ -140,10 +132,6 @@ contract GardenFactory is Initializable, OwnableUpgradeable, IGardenFactory, Ree
         if (sbtRegistry == address(0)) {
             revert GardenFactory_SBTRegistryNotSet();
         }
-
-        __ReentrancyGuard_init();
-
-        emit FactoryInitialized(initialOwner);
     }
 
     // ========================================================================

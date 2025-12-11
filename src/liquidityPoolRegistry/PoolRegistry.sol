@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity >=0.8.31;
 
 /*###############################################################################
 
@@ -15,12 +15,10 @@ pragma solidity >=0.8.20;
 
 ################################################################################*/
 
-// OpenZeppelin Upgradeable Contracts
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
 // Local Interfaces
 import { IPoolRegistry } from "src/interfaces/IPoolRegistry.sol";
+
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 // ============================================================================
 // Errors
@@ -43,7 +41,7 @@ error PoolRegistry_PairNameEmpty();
 /// @notice Thrown when DEX ID is empty
 error PoolRegistry_DexIdEmpty();
 
-contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
+contract PoolRegistry is IPoolRegistry, Ownable {
     // ========================================================================
     // State Variables
     // ========================================================================
@@ -58,22 +56,10 @@ contract PoolRegistry is Initializable, OwnableUpgradeable, IPoolRegistry {
     // Constructor
     // ========================================================================
 
-    /// @notice Disables initialization of the implementation contract
-    /// @dev This prevents the implementation from being initialized directly
-    constructor() {
-        _disableInitializers();
-    }
-
-    // ========================================================================
-    // Initialization
-    // ========================================================================
-
-    /// @notice Initializes the registry contract
-    /// @dev This function should be called during proxy deployment via the proxy's initialization mechanism
-    /// @param _initialOwner The address that will be the owner of this registry
-    function initialize(address _initialOwner) public initializer {
-        __Ownable_init(_initialOwner);
-    }
+    /// @notice Constructor
+    /// @dev Initializes the registry with the given owner
+    /// @param initialOwner The address that will be the owner of this registry
+    constructor(address initialOwner) Ownable(initialOwner) { }
 
     // ========================================================================
     // External Functions (State-Changing)

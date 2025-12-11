@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity >=0.8.31;
 
 import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
-import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { DiamondCutFacet } from "src/diamond/facets/baseFacets/cut/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/loupe/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "src/diamond/facets/baseFacets/ownership/OwnershipFacet.sol";
@@ -14,24 +13,19 @@ import { IERC165 } from "src/interfaces/IERC165.sol";
 import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 import { ProtocolStatus } from "src/protocolStatus/ProtocolStatus.sol";
 import { GardenFactory } from "src/factory/GardenFactory.sol";
+import { SBTRegistry } from "src/GardenSBT/CollectionRegistry/SBTRegistry.sol";
 
 contract Deploy is BaseScript {
-    FacetRegistry internal registryImpl;
-    TransparentUpgradeableProxy internal registryProxy;
+    FacetRegistry internal facetRegistry;
 
-    PoolRegistry internal poolRegistryImpl;
-    TransparentUpgradeableProxy internal poolRegistryProxy;
+    PoolRegistry internal poolRegistry;
 
-    GardenFactory internal factoryImpl;
-    TransparentUpgradeableProxy internal factoryProxy;
+    GardenFactory internal gardenFactory;
 
     ProtocolStatus internal protocolStatus;
 
     function run() public broadcaster {
         setUp();
-
-        // --- Deploy FacetRegistry implementation & proxy ---
-        registryImpl = new FacetRegistry{ salt: salt }();
 
         // Register default facets
         DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
@@ -70,55 +64,41 @@ contract Deploy is BaseScript {
         baseFacetFunctionSelectors[2] = ownableSelectors;
         baseFacetFunctionSelectors[3] = upgradeSelectors;
 
-        bytes memory initRegistry =
-            abi.encodeWithSelector(FacetRegistry.initialize.selector, deployer, baseFacets, baseFacetFunctionSelectors);
-
-        registryProxy = new TransparentUpgradeableProxy{ salt: salt }(address(registryImpl), deployer, initRegistry);
-
-        console2.log("FacetRegistry proxy deployed at:", address(registryProxy));
-        console2.log("FacetRegistry implementation at:", address(registryImpl));
-
-        // --- Deploy PoolRegistry implementation & proxy ---
-        poolRegistryImpl = new PoolRegistry{ salt: salt }();
-
-        bytes memory initPoolRegistry = abi.encodeWithSelector(PoolRegistry.initialize.selector, deployer);
-
-        poolRegistryProxy =
-            new TransparentUpgradeableProxy{ salt: salt }(address(poolRegistryImpl), deployer, initPoolRegistry);
-
-        console2.log("PoolRegistry proxy deployed at:", address(poolRegistryProxy));
-        console2.log("PoolRegistry implementation at:", address(poolRegistryImpl));
+        facetRegistry = new FacetRegistry{ salt: salt }(deployer, baseFacets, baseFacetFunctionSelectors);
 
         // --- Deploy ProtocolStatus ---
-        address ensRegistry = address(0);
-        bytes32[] memory initialNamehashes = new bytes32[](1);
-        string[] memory initialNames = new string[](1);
-        uint256[] memory initialExpiries = new uint256[](1);
+        // For local testing: Use a placeholder ENS registry address (ENS won't resolve on Anvil)
+        // For production: Use the actual ENS registry address (0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e)
+        address ensRegistry = 0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e;
 
-        initialNames[0] = "chintan.eth";
-        initialNamehashes[0] = keccak256(abi.encodePacked("chintan.eth"));
-        initialExpiries[0] = block.timestamp + 365 days;
+        // For local testing: Use empty arrays to skip ENS resolution during construction
+        // For production: Populate with actual ENS names
+        bytes32[] memory initialNamehashes = new bytes32[](0);
+        string[] memory initialNames = new string[](0);
+        uint256[] memory initialExpiries = new uint256[](0);
 
-        protocolStatus = new ProtocolStatus{ salt: salt }(ensRegistry, initialNamehashes, initialNames, initialExpiries);
+        // Uncomment below for production deployment with ENS names:
+        // bytes32[] memory initialNamehashes = new bytes32[](1);
+        // string[] memory initialNames = new string[](1);
+        // uint256[] memory initialExpiries = new uint256[](1);
+        // initialNames[0] = "chintan.eth";
+        // initialNamehashes[0] = keccak256(abi.encodePacked("chintan.eth"));
+        // initialExpiries[0] = block.timestamp + 365 days;
+
+        protocolStatus =
+            new ProtocolStatus{ salt: salt }(deployer, ensRegistry, initialNamehashes, initialNames, initialExpiries);
 
         console2.log("ProtocolStatus deployed at:", address(protocolStatus));
         protocolStatus.activateProtocol();
         console2.log("ProtocolStatus activated");
 
-        // --- Deploy GardenFactory implementation & proxy ---
-        factoryImpl = new GardenFactory{ salt: salt }();
+        SBTRegistry sbtRegistry = new SBTRegistry(deployer);
+        console2.log("SBTRegistry deployed at:", address(sbtRegistry));
 
-        bytes memory factoryInitData = abi.encodeWithSelector(
-            GardenFactory.initialize.selector,
-            deployer,
-            address(registryProxy),
-            address(protocolStatus),
-            address(0) // TODO: SBT registry address once deployed
+        gardenFactory = new GardenFactory{ salt: salt }(
+            deployer, address(facetRegistry), address(protocolStatus), address(sbtRegistry)
         );
 
-        factoryProxy = new TransparentUpgradeableProxy{ salt: salt }(address(factoryImpl), deployer, factoryInitData);
-
-        console2.log("GardenFactory proxy deployed at:", address(factoryProxy));
-        console2.log("GardenFactory implementation at:", address(factoryImpl));
+        console2.log("GardenFactory deployed at:", address(gardenFactory));
     }
 }

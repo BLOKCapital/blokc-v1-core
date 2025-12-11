@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity >=0.8.31;
 
 /*###############################################################################
 
@@ -304,15 +304,7 @@ library IndexMath {
     /// @param price Price value from oracle
     /// @param updatedAt Timestamp when data was last updated
     /// @param answeredInRound Round ID in which the answer was computed
-    function validateOracleData(
-        uint80 roundId,
-        int256 price,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    )
-        internal
-        view
-    {
+    function validateOracleData(uint80 roundId, int256 price, uint256 updatedAt, uint80 answeredInRound) internal view {
         // Check price is positive
         if (price <= 0) revert IndexMath_InvalidPrice();
 

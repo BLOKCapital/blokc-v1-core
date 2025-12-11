@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.31;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -26,8 +26,9 @@ contract SBTRegistry {
         _;
     }
 
-    constructor() {
-        owner = msg.sender;
+    constructor(address initialOwner) {
+        owner = initialOwner;
+        if (initialOwner == address(0)) revert InvalidAddress();
     }
 
     // -------------------------------------------------------

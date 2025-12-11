@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.31;
 
 /// @title Prevents delegatecall to a contract
 /// @notice Protects critical functions from being called through proxy/delegatecall

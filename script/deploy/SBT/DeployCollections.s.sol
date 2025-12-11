@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.31;
 
 import "forge-std/Script.sol";
-
+import { BaseScript } from "script/Base.s.sol";
 import { BaddieCollection } from "src/GardenSBT/Collection/BaddieCollection.sol";
 import { BuilderCollection } from "src/GardenSBT/Collection/BuilderCollection.sol";
 import { GardenCollection } from "src/GardenSBT/Collection/GardenCollection.sol";
 
 import { SBTRegistry } from "src/GardenSBT/CollectionRegistry/SBTRegistry.sol";
 
-contract DeployCollections is Script {
+contract DeployCollections is BaseScript {
     // ------------------------------
     // UPDATE BEFORE DEPLOYMENT
     // ------------------------------
@@ -26,7 +26,7 @@ contract DeployCollections is Script {
         vm.startBroadcast();
 
         // 1. Deploy Registry (with proper gardenFactory owner)
-        SBTRegistry registry = new SBTRegistry();
+        SBTRegistry registry = new SBTRegistry(deployer);
         console2.log("Registry deployed:", address(registry));
 
         // 2. Deploy each collection with correct params

@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.31;
 
 /*###############################################################################
 
@@ -19,7 +19,8 @@ pragma solidity ^0.8.20;
 
 ################################################################################*/
 
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
 import { OwnershipStorage } from "src/diamond/facets/baseFacets/ownership/OwnershipStorage.sol";
 import { LibDiamond } from "src/diamond/libraries/LibDiamond.sol";
 
@@ -29,7 +30,7 @@ error Diamond_UnauthorizedCaller();
 /// @notice Thrown when a function is called while the garden is connected to an index
 error Facet_CannotCallIfConnectedToIndex();
 
-abstract contract Facet is ReentrancyGuardUpgradeable {
+abstract contract Facet is ReentrancyGuard {
     /// @notice Restricts function access to the diamond contract owner
     /// @dev Checks msg.sender against owner stored in OwnershipStorage
     modifier onlyDiamondOwner() {

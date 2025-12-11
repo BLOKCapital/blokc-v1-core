@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity >=0.8.31;
 
 /*###############################################################################
 
@@ -141,12 +141,13 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
      * @param initialNamehashes bootstrap (parallel arrays)
      */
     constructor(
+        address initialOwner,
         address _ensRegistry,
         bytes32[] memory initialNamehashes,
         string[] memory initialNames,
         uint256[] memory initialExpiries
     )
-        Ownable(msg.sender)
+        Ownable(initialOwner)
     {
         if (_ensRegistry == address(0)) revert ProtocolStatus_ZeroAddress();
         ensRegistry = IENSRegistry(_ensRegistry);
