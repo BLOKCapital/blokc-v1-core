@@ -18,7 +18,6 @@ pragma solidity >=0.8.31;
 
 ################################################################################*/
 
-// OpenZeppelin Upgradeable Contracts
 // OpenZeppelin Standard Contracts
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
