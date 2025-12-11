@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity >=0.8.31;
 
 /*###############################################################################
 
@@ -17,13 +17,12 @@ pragma solidity >=0.8.20;
 
 ################################################################################*/
 
-// OpenZeppelin Upgradeable Contracts
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
 // Local Interfaces
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
+
+// OpenZeppelin Standard Contracts
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 // ============================================================================
 // Errors
@@ -32,6 +31,10 @@ import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
 /// @notice Thrown when the facet address is not a contract
 /// @param facetAddress The invalid facet address
 error FacetRegistry_FacetIsNotContract(address facetAddress);
+
+/// @notice Thrown when the base facet address is zero
+/// @param baseFacetAddress The zero base facet address
+error FacetRegistry_BaseFacetAddressIsZero(address baseFacetAddress);
 
 /// @notice Thrown when the function selector array is empty
 error FacetRegistry_SelectorArrayEmpty();
@@ -74,7 +77,7 @@ error FacetRegistry_IncorrectBaseFacetsLength(uint256 length);
 /// @param facetAddress The base facet address that cannot be modified
 error FacetRegistry_CannotModifyBaseFacet(address facetAddress);
 
-contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
+contract FacetRegistry is IFacetRegistry, Ownable {
     // ========================================================================
     // State Variables
     // ========================================================================
@@ -100,12 +103,6 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     // ========================================================================
     // Events
     // ========================================================================
-
-    /// @notice Emitted when the registry is initialized
-    /// @param owner The owner of the registry
-    /// @param baseFacets The base facets that were registered
-    /// @param functionSelectors The function selectors that were registered
-    event FacetRegistryInitialized(address indexed owner, address[4] indexed baseFacets, bytes4[][] functionSelectors);
 
     /// @notice Emitted when a facet is added, removed, or replaced
     /// @param facetAddress The address of the facet that had function selectors added
@@ -138,40 +135,25 @@ contract FacetRegistry is Initializable, OwnableUpgradeable, IFacetRegistry {
     // Constructor
     // ========================================================================
 
-    /// @notice Disables initialization of the implementation contract
-    /// @dev This prevents the implementation from being initialized directly
-    constructor() {
-        _disableInitializers();
-    }
-
-    // ========================================================================
-    // Initialization
-    // ========================================================================
-
-    /// @notice Initializes the registry contract
-    /// @dev This function should be called during proxy deployment via the proxy's initialization mechanism
+    /// @notice Constructor
+    /// @dev Initializes the registry with the given base facets and function selectors
     /// @param initialOwner The address that will be the owner of this registry
     /// @param baseFacets Array of 4 base facet addresses
     /// @param functionSelectors 2D array of function selectors corresponding to each base facet
-    function initialize(
+    constructor(
         address initialOwner,
         address[4] memory baseFacets,
         bytes4[][] memory functionSelectors
     )
-        public
-        initializer
+        Ownable(initialOwner)
     {
-        __Ownable_init(initialOwner);
-
         for (uint8 i = 0; i < baseFacets.length; i++) {
             if (baseFacets[i] == address(0)) {
-                revert FacetRegistry_FacetAddressIsZero();
+                revert FacetRegistry_BaseFacetAddressIsZero(baseFacets[i]);
             }
             _baseFacets[i] = baseFacets[i];
             _addBaseFacet(baseFacets[i], functionSelectors[i]);
         }
-
-        emit FacetRegistryInitialized(initialOwner, baseFacets, functionSelectors);
     }
 
     // ========================================================================

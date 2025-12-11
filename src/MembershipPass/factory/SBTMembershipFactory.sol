@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.31;
 
 import { UniversalSBTCollection } from "src/MembershipPass/collection/UniversalSBTCollection.sol";
 import { SBTNoDelegateCall } from "src/MembershipPass/factory/SBTNoDelegateCall.sol";
@@ -31,6 +31,7 @@ contract SBTMembershipFactory is SBTNoDelegateCall {
         DAO_ONLY,
         DAO_OR_WORKER
     }
+
     mapping(address => MintPolicy) public mintPolicyOf;
 
     // Worker → collection → allowed
