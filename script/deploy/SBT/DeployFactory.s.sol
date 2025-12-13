@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
-import "forge-std/Script.sol";
 import { SBTMembershipFactory } from "src/MembershipPass/factory/SBTMembershipFactory.sol";
 import { BaseScript } from "script/Base.s.sol";
+
+import { console2 } from "forge-std/console2.sol";
 
 contract DeployFactory is BaseScript {
     // CHANGE THIS BEFORE DEPLOYING — this address becomes DAO owner

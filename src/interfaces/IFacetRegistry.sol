@@ -33,20 +33,10 @@ interface IFacetRegistry {
         uint256 facetAddressPosition; // position of facetAddress in facetAddresses array
     }
 
-    /// @notice Adds a new facet to the registry.
-    /// @param _facetAddress Address of the facet to add.
-    /// @param _functionSelectors Function selectors of the facet to add.
-    function addFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external;
-
-    /// @notice Removes functions from a facet in the registry.
-    /// @param _facetAddress Address of the facet to remove functions from.
-    /// @param _functionSelectors Function selectors to remove.
-    function replaceFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external;
-
-    /// @notice Removes functions from a facet in the registry.
-    /// @param _facetAddress Address of the facet to remove functions from.
-    /// @param _functionSelectors Function selectors to remove.
-    function removeFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external;
+    /// @notice Upgrades the facet registry
+    /// @dev Upgrades the facet registry by adding new facet cuts
+    /// @param _facetCuts Array of facet cuts to add
+    function upgradeFacetRegistry(IDiamondCut.FacetCut[] memory _facetCuts) external;
 
     /// @notice Returns all facets and their selectors.
     /// @return facets_ Array of Facet structs containing facet addresses and their function selectors.

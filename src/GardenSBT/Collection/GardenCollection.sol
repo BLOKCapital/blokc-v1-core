@@ -9,7 +9,7 @@ import { ERC721 as OZ_ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721
 
 error NonTransferable();
 error ApproveNotAllowed();
-error AlreadyHasSBT(address to);
+error AlreadyHasSbt(address to);
 error InvalidAddress();
 error URIQueryForNonexistentToken();
 error NoMembershipPass(address to);
@@ -18,26 +18,26 @@ error RenounceDisabled();
 /// @title GardenCollection – Soulbound PFP (Image + Video)
 contract GardenCollection is ERC721, Ownable, IERC5484 {
     uint256 public mintedCount;
-    string public baseCID;
+    string public baseCid;
 
     /// NEW: protocol-wide pass required
     address public parentPass;
 
-    mapping(address => bool) public hasSBT;
+    mapping(address => bool) public hasSbt;
 
     event Mint(address indexed to, uint256 indexed tokenId, string metadataURI);
 
-    constructor(string memory _baseCID, address _parentPass) ERC721("Garden", "GARDEN") Ownable(msg.sender) {
-        baseCID = _baseCID;
+    constructor(string memory _baseCid, address _parentPass) ERC721("Garden", "GARDEN") Ownable(msg.sender) {
+        baseCid = _baseCid;
         parentPass = _parentPass;
     }
 
     /// @notice Owner-only mint. User must have protocol pass.
     function mint(address to, uint256 tokenId) external onlyOwner returns (uint256) {
         if (to == address(0)) revert InvalidAddress();
-        if (hasSBT[to]) revert AlreadyHasSBT(to);
+        if (hasSbt[to]) revert AlreadyHasSbt(to);
         if (tokenId == 0) revert InvalidAddress();
-        if (_ownerOf(tokenId) != address(0)) revert AlreadyHasSBT(to);
+        if (_ownerOf(tokenId) != address(0)) revert AlreadyHasSbt(to);
 
         // -----------------------------
         // NEW: membership pass check
@@ -51,12 +51,12 @@ contract GardenCollection is ERC721, Ownable, IERC5484 {
         }
 
         mintedCount++;
-        hasSBT[to] = true;
+        hasSbt[to] = true;
 
         _safeMint(to, tokenId);
 
         string memory metadataURI =
-            string(abi.encodePacked("ipfs://", baseCID, "/", Strings.toString(tokenId), ".json"));
+            string(abi.encodePacked("ipfs://", baseCid, "/", Strings.toString(tokenId), ".json"));
 
         emit Issued(msg.sender, to, tokenId, BurnAuth.Neither);
         emit Mint(to, tokenId, metadataURI);
@@ -108,7 +108,7 @@ contract GardenCollection is ERC721, Ownable, IERC5484 {
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         if (ownerOf(tokenId) == address(0)) revert URIQueryForNonexistentToken();
 
-        return string(abi.encodePacked("ipfs://", baseCID, "/", Strings.toString(tokenId), ".json"));
+        return string(abi.encodePacked("ipfs://", baseCid, "/", Strings.toString(tokenId), ".json"));
     }
 
     function totalSupply() external view returns (uint256) {

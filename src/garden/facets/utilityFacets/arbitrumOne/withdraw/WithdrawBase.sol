@@ -63,13 +63,13 @@ abstract contract WithdrawBase is IWithdraw {
     /// @notice Emitted when USDC is withdrawn from the contract
     /// @param to The recipient address (owner)
     /// @param amount The amount of USDC withdrawn
-    event WithdrawFacetUSDCWithdrawn(address indexed to, uint256 amount);
+    event WithdrawFacetUsdcWithdrawn(address indexed to, uint256 amount);
 
     /// @notice Withdraws USDC from the contract to the owner address
     /// @dev Validates amount is non-zero, owner is valid, and contract has
     ///      sufficient balance. Uses SafeERC20 for secure transfer.
     /// @param amount The amount of USDC to withdraw (in USDC decimals, usually 6)
-    function _withdrawUSDC(uint256 amount) internal {
+    function _withdrawUsdc(uint256 amount) internal {
         if (amount == 0) {
             revert WithdrawFacet_WithdrawZeroAmount();
         }
@@ -90,6 +90,6 @@ abstract contract WithdrawBase is IWithdraw {
         // Safe transfer to owner
         usdc.safeTransfer(to, amount);
 
-        emit WithdrawFacetUSDCWithdrawn(to, amount);
+        emit WithdrawFacetUsdcWithdrawn(to, amount);
     }
 }

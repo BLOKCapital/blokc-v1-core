@@ -106,29 +106,26 @@ contract FacetRegistry is IFacetRegistry, Ownable {
 
     /// @notice Emitted when a facet is added, removed, or replaced
     /// @param facetAddress The address of the facet that had function selectors added
-    /// @param oldVersion The version of the registry when the function selectors were added
     /// @param newVersion The version of the registry when the function selectors were added
     /// @param functionSelectors The function selectors that were added
     event FacetRegistryFunctionsAdded(
-        address indexed facetAddress, uint256 indexed oldVersion, uint256 indexed newVersion, bytes4[] functionSelectors
+        address indexed facetAddress, uint256 indexed newVersion, bytes4[] functionSelectors
     );
 
     /// @notice Emitted when function selectors are removed from a facet
     /// @param facetAddress The address of the facet that had function selectors removed
-    /// @param oldVersion The version of the registry when the function selectors were removed
     /// @param newVersion The version of the registry when the function selectors were removed
     /// @param functionSelectors The function selectors that were removed
     event FacetRegistryFunctionsRemoved(
-        address indexed facetAddress, uint256 indexed oldVersion, uint256 indexed newVersion, bytes4[] functionSelectors
+        address indexed facetAddress, uint256 indexed newVersion, bytes4[] functionSelectors
     );
 
     /// @notice Emitted when function selectors are replaced from one facet to another
-    /// @param oldVersion The version of the registry when the function selectors were replaced
-    /// @param newVersion The version of the registry when the function selectors were replaced
     /// @param facetAddress The address of the facet that had function selectors replaced
+    /// @param newVersion The version of the registry when the function selectors were replaced
     /// @param functionSelectors The function selectors that were replaced
     event FacetRegistryFunctionsReplaced(
-        uint256 indexed oldVersion, uint256 indexed newVersion, address indexed facetAddress, bytes4[] functionSelectors
+        address indexed facetAddress, uint256 indexed newVersion, bytes4[] functionSelectors
     );
 
     // ========================================================================
@@ -160,11 +157,29 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     // External Functions (State-Changing)
     // ========================================================================
 
+    /// @notice Upgrades the facet registry
+    /// @dev Upgrades the facet registry by adding new facet cuts
+    /// @param _facetCuts Array of facet cuts to add
+    function upgradeFacetRegistry(IDiamondCut.FacetCut[] memory _facetCuts) external onlyOwner {
+        _currentVersion++;
+        for (uint256 i = 0; i < _facetCuts.length; i++) {
+            if (_facetCuts[i].action == IDiamondCut.FacetCutAction.Add) {
+                addFunctions(_facetCuts[i].facetAddress, _facetCuts[i].functionSelectors);
+            }
+            if (_facetCuts[i].action == IDiamondCut.FacetCutAction.Replace) {
+                replaceFunctions(_facetCuts[i].facetAddress, _facetCuts[i].functionSelectors);
+            }
+            if (_facetCuts[i].action == IDiamondCut.FacetCutAction.Remove) {
+                removeFunctions(_facetCuts[i].facetAddress, _facetCuts[i].functionSelectors);
+            }
+        }
+    }
+
     /// @notice Adds function selectors to a facet
     /// @dev If the facet is new, it will be added to the registry. Cannot add functions to base facets.
     /// @param _facetAddress The address of the facet contract
     /// @param _functionSelectors Array of function selectors to add
-    function addFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external onlyOwner {
+    function addFunctions(address _facetAddress, bytes4[] memory _functionSelectors) internal {
         if (_functionSelectors.length == 0) {
             revert FacetRegistry_SelectorArrayEmpty();
         }
@@ -193,18 +208,17 @@ contract FacetRegistry is IFacetRegistry, Ownable {
             _addFunction(selector, selectorPosition, _facetAddress);
             selectorPosition++;
         }
-        _currentVersion++;
         _facetCutByVersion[_currentVersion] = IDiamondCut.FacetCut({
             facetAddress: _facetAddress, action: IDiamondCut.FacetCutAction.Add, functionSelectors: _functionSelectors
         });
-        emit FacetRegistryFunctionsAdded(_facetAddress, _currentVersion - 1, _currentVersion, _functionSelectors);
+        emit FacetRegistryFunctionsAdded(_facetAddress, _currentVersion, _functionSelectors);
     }
 
     /// @notice Replaces function selectors from old facet to new facet
     /// @dev Cannot replace functions in base facets. If the new facet is not registered, it will be added.
     /// @param _facetAddress The address of the destination facet contract
     /// @param _functionSelectors Array of function selectors to replace
-    function replaceFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external onlyOwner {
+    function replaceFunctions(address _facetAddress, bytes4[] memory _functionSelectors) internal {
         if (_functionSelectors.length == 0) {
             revert FacetRegistry_SelectorArrayEmpty();
         }
@@ -244,13 +258,12 @@ contract FacetRegistry is IFacetRegistry, Ownable {
             selectorPosition++;
         }
 
-        _currentVersion++;
         _facetCutByVersion[_currentVersion] = IDiamondCut.FacetCut({
             facetAddress: _facetAddress,
             action: IDiamondCut.FacetCutAction.Replace,
             functionSelectors: _functionSelectors
         });
-        emit FacetRegistryFunctionsReplaced(_currentVersion - 1, _currentVersion, _facetAddress, _functionSelectors);
+        emit FacetRegistryFunctionsReplaced(_facetAddress, _currentVersion, _functionSelectors);
     }
 
     /// @notice Removes function selectors from the registry
@@ -258,7 +271,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     ///      facets.
     /// @param _facetAddress Must be address(0) for remove operations
     /// @param _functionSelectors Array of function selectors to remove
-    function removeFunctions(address _facetAddress, bytes4[] memory _functionSelectors) external onlyOwner {
+    function removeFunctions(address _facetAddress, bytes4[] memory _functionSelectors) internal {
         if (_functionSelectors.length == 0) {
             revert FacetRegistry_SelectorArrayEmpty();
         }
@@ -280,13 +293,12 @@ contract FacetRegistry is IFacetRegistry, Ownable {
             _removeFunction(oldFacetAddress, selector);
         }
 
-        _currentVersion++;
         _facetCutByVersion[_currentVersion] = IDiamondCut.FacetCut({
             facetAddress: _facetAddress,
             action: IDiamondCut.FacetCutAction.Remove,
             functionSelectors: _functionSelectors
         });
-        emit FacetRegistryFunctionsRemoved(_facetAddress, _currentVersion - 1, _currentVersion, _functionSelectors);
+        emit FacetRegistryFunctionsRemoved(_facetAddress, _currentVersion, _functionSelectors);
     }
 
     // ========================================================================

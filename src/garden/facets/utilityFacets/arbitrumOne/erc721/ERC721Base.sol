@@ -24,7 +24,6 @@ import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions
 import { IERC721Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import { ERC721Utils } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Utils.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 // Local Storage
 import { ERC721Storage } from "src/garden/facets/utilityFacets/arbitrumOne/erc721/ERC721Storage.sol";

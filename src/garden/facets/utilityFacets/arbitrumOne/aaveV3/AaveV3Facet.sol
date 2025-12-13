@@ -21,11 +21,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Aave Contracts
-import { IPool } from "@aave/aave-v3-core/contracts/interfaces/IPool.sol";
 import { DataTypes } from "@aave/aave-v3-core/contracts/protocol/libraries/types/DataTypes.sol";
-
-// Local Interfaces
-import { IAaveV3 } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/IAaveV3.sol";
 
 // Local Contracts
 import { AaveV3Base } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Base.sol";

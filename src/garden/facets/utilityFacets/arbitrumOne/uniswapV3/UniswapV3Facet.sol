@@ -21,17 +21,10 @@ pragma solidity ^0.8.31;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-// Uniswap V3 Contracts
-import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-
 // Local Interfaces
 import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/IUniswapV3.sol";
-import { IPoolRegistry } from "src/interfaces/IPoolRegistry.sol";
 
 // Local Libraries
-import { TickMath } from "src/garden/libraries/TickMath.sol";
 import { UniswapV3Base } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Base.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 

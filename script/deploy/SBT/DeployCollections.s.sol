@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
-import "forge-std/Script.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { BaddieCollection } from "src/GardenSBT/Collection/BaddieCollection.sol";
 import { BuilderCollection } from "src/GardenSBT/Collection/BuilderCollection.sol";
 import { GardenCollection } from "src/GardenSBT/Collection/GardenCollection.sol";
 
 import { SBTRegistry } from "src/GardenSBT/CollectionRegistry/SBTRegistry.sol";
+
+import { console2 } from "forge-std/console2.sol";
 
 contract DeployCollections is BaseScript {
     // ------------------------------

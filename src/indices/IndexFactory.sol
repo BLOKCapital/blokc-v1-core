@@ -10,7 +10,7 @@ pragma solidity >=0.8.31;
          Maintains a registry of all deployed indices for tracking and governance.
          Enforces maximum component limits and validates against calculation/component registries.
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -19,9 +19,7 @@ pragma solidity >=0.8.31;
 ################################################################################*/
 
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
 import { Index } from "src/indices/Index.sol";
 import { IndexCalculationRegistry } from "src/indices/IndexCalculationRegistry.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
@@ -116,11 +114,11 @@ contract IndexFactory is Ownable {
 
     /// @notice Reference to the IndexCalculationRegistry for validation
     /// @dev Immutable to ensure consistent validation logic
-    address private immutable i_indexCalculationRegistry;
+    address private immutable INDEX_CALCULATION_REGISTRY;
 
     /// @notice Reference to the IndexComponentRegistry for validation
     /// @dev Immutable to ensure consistent component validation
-    address private immutable i_componentRegistry;
+    address private immutable COMPONENT_REGISTRY;
 
     /// @notice Counter for assigning unique IDs to deployed indices
     /// @dev Incremented for each new index deployment
@@ -153,31 +151,39 @@ contract IndexFactory is Ownable {
         if (componentRegistry == address(0)) {
             revert IndexFactory_InvalidComponentRegistryAddress(componentRegistry);
         }
-        i_indexCalculationRegistry = indexCalculationRegistry;
-        i_componentRegistry = componentRegistry;
+        INDEX_CALCULATION_REGISTRY = indexCalculationRegistry;
+        COMPONENT_REGISTRY = componentRegistry;
     }
 
     /// @notice Validates that a calculation strategy is registered
     /// @param indexCalculationAddress Address of the calculation contract to validate
     /// @dev Modifier checks against IndexCalculationRegistry
     modifier checkCalculationRegistered(address indexCalculationAddress) {
-        if (!IndexCalculationRegistry(i_indexCalculationRegistry).isIndexCalculationRegistered(indexCalculationAddress))
+        _checkCalculationRegistered(indexCalculationAddress);
+        _;
+    }
+
+    function _checkCalculationRegistered(address indexCalculationAddress) internal view {
+        if (!IndexCalculationRegistry(INDEX_CALCULATION_REGISTRY).isIndexCalculationRegistered(indexCalculationAddress))
         {
             revert IndexFactory_IndexCalculationNotRegistered(indexCalculationAddress);
         }
-        _;
     }
 
     /// @notice Validates that all components are registered
     /// @param components Array of component addresses to validate
     /// @dev Modifier checks each component against IndexComponentRegistry
     modifier checkComponentsRegistered(address[] memory components) {
+        _checkComponentsRegistered(components);
+        _;
+    }
+
+    function _checkComponentsRegistered(address[] memory components) internal view {
         for (uint256 i = 0; i < components.length; i++) {
-            if (!IndexComponentRegistry(i_componentRegistry).isComponentRegistered(components[i])) {
+            if (!IndexComponentRegistry(COMPONENT_REGISTRY).isComponentRegistered(components[i])) {
                 revert IndexFactory_ComponentNotRegistered(components[i]);
             }
         }
-        _;
     }
 
     /// @notice Deploys a new Index contract with specified parameters
@@ -205,7 +211,7 @@ contract IndexFactory is Ownable {
             revert IndexFactory_InvalidIndexAddress(address(0));
         }
 
-        indexAddress = address(new Index(address(this), indexCalculationAddress, i_componentRegistry, components));
+        indexAddress = address(new Index(address(this), indexCalculationAddress, COMPONENT_REGISTRY, components));
         _registerIndex(indexAddress, name, indexCalculationAddress, components);
         return indexAddress;
     }

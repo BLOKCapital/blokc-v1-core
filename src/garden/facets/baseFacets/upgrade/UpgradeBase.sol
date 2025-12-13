@@ -23,7 +23,6 @@ import { IUpgrade } from "src/garden/facets/baseFacets/upgrade/IUpgrade.sol";
 
 // Local Libraries
 import { UpgradeStorage } from "src/garden/facets/baseFacets/upgrade/UpgradeStorage.sol";
-import { DiamondCutStorage } from "src/garden/facets/baseFacets/cut/DiamondCutStorage.sol";
 import { DiamondCutBase } from "src/garden/facets/baseFacets/cut/DiamondCutBase.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 

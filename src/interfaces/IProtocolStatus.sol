@@ -31,7 +31,7 @@ interface IProtocolStatus {
      * EXPIRED — Membership expired based on timestamp
      * ADDRESS_CHANGED — ENS resolved address changed since last update
      */
-    enum SCMStatus {
+    enum ScmStatus {
         ACTIVE,
         EXPIRED,
         ADDRESS_CHANGED
@@ -50,13 +50,13 @@ interface IProtocolStatus {
      * @param expiryTimestamp Timestamp after which membership is considered expired.
      * @param status Current SCM status (active, expired, address changed).
      */
-    struct ENSMember {
+    struct EnsMember {
         bytes32 namehash;
         string ensName;
         address resolvedAddress;
         address previousAddress;
         uint256 expiryTimestamp;
-        SCMStatus status;
+        ScmStatus status;
     }
 
     // =============================================================
@@ -71,7 +71,7 @@ interface IProtocolStatus {
      * @param newAddress Newly resolved address.
      * @param timestamp Block timestamp of the update.
      */
-    event SCMAddressChanged(
+    event ScmAddressChanged(
         bytes32 indexed namehash, string ensName, address oldAddress, address newAddress, uint256 timestamp
     );
 
@@ -80,14 +80,14 @@ interface IProtocolStatus {
      * @param scm The SCM address involved.
      * @param action Description of the action (ex: "Added", "Removed", "ExtendedExpiry").
      */
-    event SCMAction(address indexed scm, string action);
+    event ScmAction(address indexed scm, string action);
 
     /**
      * @notice Emitted when an unauthorized caller attempts a restricted action.
      * @param caller Address that attempted the action.
      * @param attemptedAction Description of the attempted operation.
      */
-    event SCMUnauthorizedAttempt(address indexed caller, string attemptedAction);
+    event ScmUnauthorizedAttempt(address indexed caller, string attemptedAction);
 
     // =============================================================
     //                         MEMBERSHIP MGMT
@@ -99,25 +99,20 @@ interface IProtocolStatus {
      * @param ensName Human-readable ENS name.
      * @param expiryTimestamp Timestamp after which SCM is considered expired.
      */
-    function addSecurityCouncilMemberByENS(
-        bytes32 namehash,
-        string calldata ensName,
-        uint256 expiryTimestamp
-    )
-        external;
+    function addSecurityCouncilMemberByEns(bytes32 namehash, string calldata ensName, uint256 expiryTimestamp) external;
 
     /**
      * @notice Removes a Security Council Member by ENS namehash.
      * @param namehash ENS namehash of the SCM.
      */
-    function removeSecurityCouncilMemberByENS(bytes32 namehash) external;
+    function removeSecurityCouncilMemberByEns(bytes32 namehash) external;
 
     /**
      * @notice Extends the expiry time of an existing SCM.
      * @param namehash ENS namehash of the SCM.
      * @param newExpiry New expiry timestamp.
      */
-    function extendSCMExpiry(bytes32 namehash, uint256 newExpiry) external;
+    function extendScmExpiry(bytes32 namehash, uint256 newExpiry) external;
 
     // =============================================================
     //                       PROTOCOL STATE MGMT
@@ -146,7 +141,7 @@ interface IProtocolStatus {
     /**
      * @notice Returns all registered SCMs.
      */
-    function getSecurityCouncilMembers() external view returns (ENSMember[] memory);
+    function getSecurityCouncilMembers() external view returns (EnsMember[] memory);
 
     /**
      * @notice Returns the current protocol state.
@@ -182,7 +177,7 @@ interface IProtocolStatus {
      * @notice Returns the current SCM status (active / expired / changed).
      * @param namehash ENS namehash.
      */
-    function getSCMStatus(bytes32 namehash) external view returns (SCMStatus);
+    function getScmStatus(bytes32 namehash) external view returns (ScmStatus);
 
     /**
      * @notice Returns the expiry timestamp for an SCM.
@@ -194,5 +189,5 @@ interface IProtocolStatus {
      * @notice Returns the ENS name for an SCM.
      * @param namehash ENS namehash.
      */
-    function getENSName(bytes32 namehash) external view returns (string memory);
+    function getEnsName(bytes32 namehash) external view returns (string memory);
 }

@@ -29,7 +29,7 @@ contract CCTPFacet is CCTPBase, Facet {
     /// @param amount USDC amount to send (usually 6 decimals)
     /// @param destinationDomain Circle domain ID of the destination chain
     /// @param mintRecipient Bytes32-encoded recipient address on destination chain
-    function sendUSDC(
+    function sendUsdc(
         uint256 amount,
         uint32 destinationDomain,
         bytes32 mintRecipient
@@ -38,13 +38,13 @@ contract CCTPFacet is CCTPBase, Facet {
         onlyGardenOwner
         ifIndexNotConnected
     {
-        _sendUSDC(amount, destinationDomain, mintRecipient);
+        _sendUsdc(amount, destinationDomain, mintRecipient);
     }
 
     /// @notice Redeems (mints) USDC from another chain using Circle attestation
     /// @param message Raw message bytes from Circle attestation flow
     /// @param attestation Attestation bytes from Circle network
-    function redeemUSDC(
+    function redeemUsdc(
         bytes calldata message,
         bytes calldata attestation
     )
@@ -52,6 +52,6 @@ contract CCTPFacet is CCTPBase, Facet {
         onlyGardenOwner
         ifIndexNotConnected
     {
-        _redeemUSDC(message, attestation);
+        _redeemUsdc(message, attestation);
     }
 }

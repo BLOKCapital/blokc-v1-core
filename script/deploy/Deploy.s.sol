@@ -10,7 +10,6 @@ import { OwnershipFacet } from "src/garden/facets/baseFacets/ownership/Ownership
 import { UpgradeFacet } from "src/garden/facets/baseFacets/upgrade/UpgradeFacet.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
-import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 import { ProtocolStatus } from "src/protocolStatus/ProtocolStatus.sol";
 import { GardenFactory } from "src/factory/GardenFactory.sol";
 import { SBTRegistry } from "src/GardenSBT/CollectionRegistry/SBTRegistry.sol";
