@@ -6,7 +6,7 @@ import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 
-import { UniswapV3Facet } from "src/diamond/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
+import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
 
 contract ReplaceUniswapV3Facet is BaseScript {
     address constant registryProxy = 0xE011b5C63191cB238b7ed95FAd0e5945F78ef77f;

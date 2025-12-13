@@ -9,7 +9,7 @@ pragma solidity >=0.8.31;
     @dev FacetRegistry manages the registration and tracking of facets for a diamond proxy pattern implementation.
          Base facets cannot be modified once registered. The registry maintains version tracking for all modifications.
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -19,7 +19,7 @@ pragma solidity >=0.8.31;
 
 // Local Interfaces
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
-import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
+import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 // OpenZeppelin Standard Contracts
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
@@ -195,9 +195,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
         }
         _currentVersion++;
         _facetCutByVersion[_currentVersion] = IDiamondCut.FacetCut({
-            facetAddress: _facetAddress,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: _functionSelectors
+            facetAddress: _facetAddress, action: IDiamondCut.FacetCutAction.Add, functionSelectors: _functionSelectors
         });
         emit FacetRegistryFunctionsAdded(_facetAddress, _currentVersion - 1, _currentVersion, _functionSelectors);
     }

@@ -4,10 +4,10 @@ pragma solidity >=0.8.31;
 import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
-import { DiamondCutFacet } from "src/diamond/facets/baseFacets/cut/DiamondCutFacet.sol";
-import { DiamondLoupeFacet } from "src/diamond/facets/baseFacets/loupe/DiamondLoupeFacet.sol";
-import { OwnershipFacet } from "src/diamond/facets/baseFacets/ownership/OwnershipFacet.sol";
-import { UpgradeFacet } from "src/diamond/facets/baseFacets/upgrade/UpgradeFacet.sol";
+import { DiamondCutFacet } from "src/garden/facets/baseFacets/cut/DiamondCutFacet.sol";
+import { DiamondLoupeFacet } from "src/garden/facets/baseFacets/loupe/DiamondLoupeFacet.sol";
+import { OwnershipFacet } from "src/garden/facets/baseFacets/ownership/OwnershipFacet.sol";
+import { UpgradeFacet } from "src/garden/facets/baseFacets/upgrade/UpgradeFacet.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
 import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
@@ -65,6 +65,7 @@ contract Deploy is BaseScript {
         baseFacetFunctionSelectors[3] = upgradeSelectors;
 
         facetRegistry = new FacetRegistry{ salt: salt }(deployer, baseFacets, baseFacetFunctionSelectors);
+        console2.log("FacetRegistry deployed at:", address(facetRegistry));
 
         // --- Deploy ProtocolStatus ---
         // For local testing: Use a placeholder ENS registry address (ENS won't resolve on Anvil)

@@ -26,12 +26,12 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 // Local Interfaces
 import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
-import { IDiamondCut } from "src/diamond/facets/baseFacets/cut/IDiamondCut.sol";
+import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 import { ISBTRegistry } from "src/interfaces/ISBTRegistry.sol";
 
 // Local Contracts
-import { Diamond } from "src/diamond/Diamond.sol";
+import { Garden } from "src/garden/Garden.sol";
 
 // ============================================================================
 // Errors
@@ -195,7 +195,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         bytes32 salt = keccak256(abi.encode(owner, index, address(this)));
 
         // Deploy the Diamond contract using CREATE2
-        Diamond garden = new Diamond{ salt: salt }(diamondCut, owner, _facetRegistry, _protocolStatus);
+        Garden garden = new Garden{ salt: salt }(diamondCut, owner, _facetRegistry, _protocolStatus);
 
         gardenAddress = address(garden);
 
@@ -205,9 +205,9 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         _userIndexToGarden[owner][index] = gardenAddress;
 
         // Mint SBT if collection is provided
-        if (collection != address(0) && block.chainid == 42_161) {
-            _sbtRegistry.mintByAddress(collection, owner, tokenId);
-        }
+        // if (collection != address(0) && block.chainid == 42_161) {
+        //     _sbtRegistry.mintByAddress(collection, owner, tokenId);
+        // }
 
         emit GardenCreated(gardenAddress, owner, index);
     }
