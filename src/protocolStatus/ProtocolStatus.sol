@@ -33,20 +33,20 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // ------------------------------------------------------------------------
     // STORAGE
     // ------------------------------------------------------------------------
-    State private s_protocolStatus;
-    IENSRegistry public immutable ensRegistry;
+    State private _protocolStatus;
+    IENSRegistry public immutable ENS_REGISTRY;
 
-    struct SCMInternal {
+    struct ScmInternal {
         bytes32 namehash;
         string ensName;
         uint256 expiryTimestamp;
         uint256 addedAt;
         address previousAddress;
-        IProtocolStatus.SCMStatus status;
+        IProtocolStatus.ScmStatus status;
     }
 
-    EnumerableSet.Bytes32Set private s_namehashes;
-    mapping(bytes32 => SCMInternal) private s_scm;
+    EnumerableSet.Bytes32Set private _namehashes;
+    mapping(bytes32 => ScmInternal) private _scm;
 
     // ------------------------------------------------------------------------
     // ERRORS
@@ -66,7 +66,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     error ProtocolStatus_MustBeActiveToDisableUpgrades();
 
     // ------------------------------------------------------------------------
-    // EVENTS (interface defines SCMAddressChanged with timestamp)
+    // EVENTS (interface defines ScmAddressChanged with timestamp)
     // ------------------------------------------------------------------------
     event ProtocolStatusChanged(
         State indexed oldStatus, State indexed newStatus, address indexed changedBy, string name
@@ -89,20 +89,24 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
      * This ensures address-rotations are detected at the time of the call and SCM loses power immediately.
      */
     modifier onlyAuthorized(string memory actionName) {
+        _onlyAuthorized(actionName);
+        _;
+    }
+
+    function _onlyAuthorized(string memory actionName) internal {
         if (msg.sender == owner()) {
-            emit SCMAction(msg.sender, actionName);
-            _;
+            emit ScmAction(msg.sender, actionName);
             return;
         }
 
-        uint256 len = s_namehashes.length();
+        uint256 len = _namehashes.length();
         for (uint256 i = 0; i < len; i++) {
-            bytes32 nh = s_namehashes.at(i);
-            SCMInternal storage m = s_scm[nh];
+            bytes32 nh = _namehashes.at(i);
+            ScmInternal storage m = _scm[nh];
 
             // if expired, skip (but status may be updated by syncResolution too)
             if (block.timestamp >= m.expiryTimestamp) {
-                if (m.status != SCMStatus.EXPIRED) m.status = SCMStatus.EXPIRED;
+                if (m.status != ScmStatus.EXPIRED) m.status = ScmStatus.EXPIRED;
                 continue;
             }
 
@@ -111,25 +115,25 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
             // If resolved differs from previously approved address, detect & handle it.
             if (resolved != m.previousAddress) {
                 // mark as address changed (and emit event) if not already marked
-                if (m.status != SCMStatus.ADDRESS_CHANGED) {
-                    _handleENSChange(nh, m, resolved);
+                if (m.status != ScmStatus.ADDRESS_CHANGED) {
+                    _handleEnsChange(nh, m, resolved);
                 }
                 continue; // changed addresses cannot be active
             }
 
             // status must be ACTIVE to allow
-            if (m.status != SCMStatus.ACTIVE) continue;
+            if (m.status != ScmStatus.ACTIVE) continue;
 
             // if resolved matches caller -> authorized
             if (resolved == msg.sender) {
-                emit SCMAction(msg.sender, actionName);
-                _;
+                emit ScmAction(msg.sender, actionName);
+
                 return;
             }
         }
 
         // none matched
-        emit SCMUnauthorizedAttempt(msg.sender, actionName);
+        emit ScmUnauthorizedAttempt(msg.sender, actionName);
         revert ProtocolStatus_Unauthorized();
     }
 
@@ -150,7 +154,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         Ownable(initialOwner)
     {
         if (_ensRegistry == address(0)) revert ProtocolStatus_ZeroAddress();
-        ensRegistry = IENSRegistry(_ensRegistry);
+        ENS_REGISTRY = IENSRegistry(_ensRegistry);
 
         if (initialNamehashes.length != initialNames.length || initialNamehashes.length != initialExpiries.length) {
             if (initialNamehashes.length != 0) revert ProtocolStatus_EmptyArray();
@@ -167,27 +171,27 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
             address resolved = _resolve(node);
             if (resolved == address(0)) revert ProtocolStatus_ENSNotMember(node, n);
 
-            s_namehashes.add(node);
-            s_scm[node] = SCMInternal({
+            _namehashes.add(node);
+            _scm[node] = ScmInternal({
                 namehash: node,
                 ensName: n,
                 expiryTimestamp: expiry,
                 addedAt: block.timestamp,
                 previousAddress: resolved,
-                status: SCMStatus.ACTIVE
+                status: ScmStatus.ACTIVE
             });
 
             emit SecurityCouncilMemberAdded(node, n, resolved, expiry);
         }
 
-        s_protocolStatus = State.INACTIVE;
+        _protocolStatus = State.INACTIVE;
         emit ProtocolStatusChanged(State.ACTIVE, State.INACTIVE, msg.sender, "");
     }
 
     // ------------------------------------------------------------------------
     // DAO-ONLY MEMBERSHIP
     // ------------------------------------------------------------------------
-    function addSecurityCouncilMemberByENS(
+    function addSecurityCouncilMemberByEns(
         bytes32 namehash,
         string calldata ensName,
         uint256 expiryTimestamp
@@ -197,43 +201,43 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         onlyOwner
     {
         if (namehash == bytes32(0)) revert ProtocolStatus_ZeroAddress();
-        if (s_namehashes.contains(namehash)) revert ProtocolStatus_ENSAlreadyMember(namehash, ensName);
+        if (_namehashes.contains(namehash)) revert ProtocolStatus_ENSAlreadyMember(namehash, ensName);
         if (expiryTimestamp <= block.timestamp) revert ProtocolStatus_InvalidExpiry();
 
         address resolved = _resolve(namehash);
         if (resolved == address(0)) revert ProtocolStatus_ENSNotMember(namehash, ensName);
 
-        s_namehashes.add(namehash);
-        s_scm[namehash] = SCMInternal({
+        _namehashes.add(namehash);
+        _scm[namehash] = ScmInternal({
             namehash: namehash,
             ensName: ensName,
             expiryTimestamp: expiryTimestamp,
             addedAt: block.timestamp,
             previousAddress: resolved,
-            status: SCMStatus.ACTIVE
+            status: ScmStatus.ACTIVE
         });
 
         emit SecurityCouncilMemberAdded(namehash, ensName, resolved, expiryTimestamp);
-        emit SCMAction(msg.sender, "add SCM");
+        emit ScmAction(msg.sender, "add SCM");
     }
 
-    function removeSecurityCouncilMemberByENS(bytes32 namehash) external override onlyOwner {
-        if (!s_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
+    function removeSecurityCouncilMemberByEns(bytes32 namehash) external override onlyOwner {
+        if (!_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
 
-        string memory n = s_scm[namehash].ensName;
-        s_namehashes.remove(namehash);
-        delete s_scm[namehash];
+        string memory n = _scm[namehash].ensName;
+        _namehashes.remove(namehash);
+        delete _scm[namehash];
 
         emit SecurityCouncilMemberRemoved(namehash, n);
-        emit SCMAction(msg.sender, "remove SCM");
+        emit ScmAction(msg.sender, "remove SCM");
     }
 
     /**
      * DAO re-approval: extend expiry and mark ACTIVE (updates previousAddress to current resolver)
      */
-    function extendSCMExpiry(bytes32 namehash, uint256 newExpiry) external override onlyOwner {
-        if (!s_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
-        SCMInternal storage m = s_scm[namehash];
+    function extendScmExpiry(bytes32 namehash, uint256 newExpiry) external override onlyOwner {
+        if (!_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
+        ScmInternal storage m = _scm[namehash];
         if (newExpiry <= m.expiryTimestamp || newExpiry <= block.timestamp) revert ProtocolStatus_InvalidExpiry();
 
         uint256 old = m.expiryTimestamp;
@@ -242,34 +246,34 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         // re-activate and set previousAddress to current resolved (DAO approves current owner)
         address resolved = _resolve(namehash);
         m.previousAddress = resolved;
-        m.status = SCMStatus.ACTIVE;
+        m.status = ScmStatus.ACTIVE;
 
         emit SecurityCouncilMemberExpiryExtended(namehash, m.ensName, old, newExpiry);
-        emit SCMAction(msg.sender, "extend SCM expiry / reapprove");
+        emit ScmAction(msg.sender, "extend SCM expiry / reapprove");
     }
 
     // ------------------------------------------------------------------------
     // PROTOCOL MANAGEMENT
     // ------------------------------------------------------------------------
     function activateProtocol() external override onlyOwner {
-        State currentStatus = s_protocolStatus;
+        State currentStatus = _protocolStatus;
         if (currentStatus == State.ACTIVE) revert ProtocolStatus_ProtocolIsAlreadyActive();
-        s_protocolStatus = State.ACTIVE;
+        _protocolStatus = State.ACTIVE;
         emit ProtocolStatusChanged(currentStatus, State.ACTIVE, msg.sender, _getMemberName(msg.sender));
-        emit SCMAction(msg.sender, "activate protocol");
+        emit ScmAction(msg.sender, "activate protocol");
     }
 
     function deactivateProtocol() external override onlyAuthorized("deactivate protocol") {
-        State currentStatus = s_protocolStatus;
+        State currentStatus = _protocolStatus;
         if (currentStatus == State.INACTIVE) revert ProtocolStatus_ProtocolIsAlreadyInactive();
-        s_protocolStatus = State.INACTIVE;
+        _protocolStatus = State.INACTIVE;
         emit ProtocolStatusChanged(currentStatus, State.INACTIVE, msg.sender, _getMemberName(msg.sender));
     }
 
     function disableUpgrades() external override onlyAuthorized("disable upgrades") {
-        State currentStatus = s_protocolStatus;
+        State currentStatus = _protocolStatus;
         if (currentStatus != State.ACTIVE) revert ProtocolStatus_MustBeActiveToDisableUpgrades();
-        s_protocolStatus = State.UPGRADES_DISABLED;
+        _protocolStatus = State.UPGRADES_DISABLED;
         emit ProtocolStatusChanged(currentStatus, State.UPGRADES_DISABLED, msg.sender, _getMemberName(msg.sender));
     }
 
@@ -278,13 +282,13 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // Anyone (worker/DAO/offchain) can call this to update state and emit events.
     // ------------------------------------------------------------------------
     function syncResolution(bytes32 namehash) external {
-        if (!s_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
-        SCMInternal storage m = s_scm[namehash];
+        if (!_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
+        ScmInternal storage m = _scm[namehash];
 
         // Expiry check
         if (block.timestamp >= m.expiryTimestamp) {
-            if (m.status != SCMStatus.EXPIRED) {
-                m.status = SCMStatus.EXPIRED;
+            if (m.status != ScmStatus.EXPIRED) {
+                m.status = ScmStatus.EXPIRED;
             }
             return;
         }
@@ -292,21 +296,21 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         address resolved = _resolve(namehash);
         if (resolved != m.previousAddress) {
             // handle change
-            _handleENSChange(namehash, m, resolved);
+            _handleEnsChange(namehash, m, resolved);
         }
     }
 
     // ------------------------------------------------------------------------
     // VIEWS
     // ------------------------------------------------------------------------
-    function getSecurityCouncilMembers() external view override returns (ENSMember[] memory) {
-        uint256 count = s_namehashes.length();
-        ENSMember[] memory arr = new ENSMember[](count);
+    function getSecurityCouncilMembers() external view override returns (EnsMember[] memory) {
+        uint256 count = _namehashes.length();
+        EnsMember[] memory arr = new EnsMember[](count);
         for (uint256 i = 0; i < count; i++) {
-            bytes32 node = s_namehashes.at(i);
-            SCMInternal storage s = s_scm[node];
+            bytes32 node = _namehashes.at(i);
+            ScmInternal storage s = _scm[node];
             address resolved = _resolve(node);
-            arr[i] = ENSMember({
+            arr[i] = EnsMember({
                 namehash: node,
                 ensName: s.ensName,
                 resolvedAddress: resolved,
@@ -319,11 +323,11 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     }
 
     function getProtocolStatus() external view override returns (State) {
-        return s_protocolStatus;
+        return _protocolStatus;
     }
 
     function isSecurityCouncilMember(address member) external view override returns (bool) {
-        return _isActiveSCM(member);
+        return _isActiveScm(member);
     }
 
     function getMemberName(address member) external view override returns (string memory) {
@@ -331,73 +335,73 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     }
 
     function getResolvedAddress(bytes32 namehash) external view override returns (address) {
-        if (!s_namehashes.contains(namehash)) return address(0);
+        if (!_namehashes.contains(namehash)) return address(0);
         return _resolve(namehash);
     }
 
     function getPreviousResolvedAddress(bytes32 namehash) external view override returns (address) {
-        if (!s_namehashes.contains(namehash)) return address(0);
-        return s_scm[namehash].previousAddress;
+        if (!_namehashes.contains(namehash)) return address(0);
+        return _scm[namehash].previousAddress;
     }
 
-    function getSCMStatus(bytes32 namehash) external view override returns (SCMStatus) {
-        if (!s_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
+    function getScmStatus(bytes32 namehash) external view override returns (ScmStatus) {
+        if (!_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
         address r = _resolve(namehash);
         return _computeStatus(namehash, r);
     }
 
     function getExpiryTimestamp(bytes32 namehash) external view override returns (uint256) {
-        if (!s_namehashes.contains(namehash)) return 0;
-        return s_scm[namehash].expiryTimestamp;
+        if (!_namehashes.contains(namehash)) return 0;
+        return _scm[namehash].expiryTimestamp;
     }
 
-    function getENSName(bytes32 namehash) external view override returns (string memory) {
-        if (!s_namehashes.contains(namehash)) return "";
-        return s_scm[namehash].ensName;
+    function getEnsName(bytes32 namehash) external view override returns (string memory) {
+        if (!_namehashes.contains(namehash)) return "";
+        return _scm[namehash].ensName;
     }
 
     // ------------------------------------------------------------------------
     // INTERNAL HELPERS
     // ------------------------------------------------------------------------
     function _resolve(bytes32 n) internal view returns (address) {
-        address resolver = ensRegistry.resolver(n);
+        address resolver = ENS_REGISTRY.resolver(n);
         if (resolver == address(0)) return address(0);
         return IENSResolver(resolver).addr(n);
     }
 
     /**
-     * _handleENSChange:
-     * - emits SCMAddressChanged(namehash, ensName, oldAddr, newAddr, timestamp)
+     * _handleEnsChange:
+     * - emits ScmAddressChanged(namehash, ensName, oldAddr, newAddr, timestamp)
      * - sets status = ADDRESS_CHANGED
      * - does NOT overwrite previousAddress (keeps last DAO-approved address)
      */
-    function _handleENSChange(bytes32 namehash, SCMInternal storage m, address newResolved) internal {
+    function _handleEnsChange(bytes32 namehash, ScmInternal storage m, address newResolved) internal {
         address old = m.previousAddress;
         // mark as address changed
-        m.status = SCMStatus.ADDRESS_CHANGED;
+        m.status = ScmStatus.ADDRESS_CHANGED;
         // emit with timestamp
-        emit SCMAddressChanged(namehash, m.ensName, old, newResolved, block.timestamp);
+        emit ScmAddressChanged(namehash, m.ensName, old, newResolved, block.timestamp);
     }
 
-    function _computeStatus(bytes32 namehash, address resolved) internal view returns (SCMStatus) {
-        SCMInternal storage s = s_scm[namehash];
-        if (block.timestamp >= s.expiryTimestamp) return SCMStatus.EXPIRED;
-        if (s.status == SCMStatus.ADDRESS_CHANGED) return SCMStatus.ADDRESS_CHANGED;
-        if (resolved == address(0)) return SCMStatus.ADDRESS_CHANGED;
-        if (resolved != s.previousAddress) return SCMStatus.ADDRESS_CHANGED;
-        return SCMStatus.ACTIVE;
+    function _computeStatus(bytes32 namehash, address resolved) internal view returns (ScmStatus) {
+        ScmInternal storage s = _scm[namehash];
+        if (block.timestamp >= s.expiryTimestamp) return ScmStatus.EXPIRED;
+        if (s.status == ScmStatus.ADDRESS_CHANGED) return ScmStatus.ADDRESS_CHANGED;
+        if (resolved == address(0)) return ScmStatus.ADDRESS_CHANGED;
+        if (resolved != s.previousAddress) return ScmStatus.ADDRESS_CHANGED;
+        return ScmStatus.ACTIVE;
     }
 
-    function _isActiveSCM(address addr) internal view returns (bool) {
-        uint256 len = s_namehashes.length();
+    function _isActiveScm(address addr) internal view returns (bool) {
+        uint256 len = _namehashes.length();
         for (uint256 i = 0; i < len; i++) {
-            bytes32 nh = s_namehashes.at(i);
-            SCMInternal storage m = s_scm[nh];
+            bytes32 nh = _namehashes.at(i);
+            ScmInternal storage m = _scm[nh];
             if (block.timestamp >= m.expiryTimestamp) continue;
             address resolved = _resolve(nh);
             if (resolved == address(0)) continue;
             if (resolved != m.previousAddress) continue;
-            if (m.status != SCMStatus.ACTIVE) continue;
+            if (m.status != ScmStatus.ACTIVE) continue;
             if (resolved == addr) return true;
         }
         return false;
@@ -405,11 +409,11 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
 
     function _getMemberName(address addr) internal view returns (string memory) {
         if (addr == owner()) return ""; // owner has no ENS name in this contract
-        uint256 len = s_namehashes.length();
+        uint256 len = _namehashes.length();
         for (uint256 i = 0; i < len; i++) {
-            bytes32 n = s_namehashes.at(i);
+            bytes32 n = _namehashes.at(i);
             address resolved = _resolve(n);
-            if (resolved == addr) return s_scm[n].ensName;
+            if (resolved == addr) return _scm[n].ensName;
         }
         return "";
     }

@@ -23,7 +23,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Local Interfaces
-import { IWithdraw } from "src/garden/facets/utilityFacets/arbitrumOne/withdraw/IWithdraw.sol";
 import { WithdrawBase } from "src/garden/facets/utilityFacets/arbitrumOne/withdraw/WithdrawBase.sol";
 
 import { Facet } from "src/garden/facets/Facet.sol";
@@ -50,7 +49,7 @@ contract WithdrawFacet is WithdrawBase, Facet {
     /// @param amount The amount of USDC to withdraw (in USDC decimals, usually 6)
     /// @dev Validates amount is non-zero, owner is valid, and contract has
     ///      sufficient balance. Uses SafeERC20 for secure transfer.
-    function withdrawUSDC(uint256 amount) external override onlyGardenOwner ifIndexNotConnected {
-        _withdrawUSDC(amount);
+    function withdrawUsdc(uint256 amount) external override onlyGardenOwner ifIndexNotConnected {
+        _withdrawUsdc(amount);
     }
 }

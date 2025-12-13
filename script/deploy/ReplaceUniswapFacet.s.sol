@@ -8,19 +8,28 @@ import { console2 } from "forge-std/console2.sol";
 
 import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
 
+import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
+
 contract ReplaceUniswapV3Facet is BaseScript {
-    address constant registryProxy = 0xE011b5C63191cB238b7ed95FAd0e5945F78ef77f;
+    address constant REGISTRY = 0x7aC04e3ED7e529B852d9963494D6d176B1068546;
 
     function run() public broadcaster {
         setUp();
+        UniswapV3Facet uniswapFacet = new UniswapV3Facet();
         bytes4[] memory uniswapFacetSelectors = new bytes4[](4);
         uniswapFacetSelectors[0] = UniswapV3Facet.swapExactInputSingleHop.selector;
         uniswapFacetSelectors[1] = UniswapV3Facet.swapExactInputMultiHop.selector;
         uniswapFacetSelectors[2] = UniswapV3Facet.getSqrtTwapX96.selector;
         uniswapFacetSelectors[3] = UniswapV3Facet.getCombinedTwapX96.selector;
 
-        // FacetRegistry(registryProxy).removeFunctions(address(0), uniswapFacetSelectors);
+        IDiamondCut.FacetCut[] memory facetCuts = new IDiamondCut.FacetCut[](1);
+        facetCuts[0] = IDiamondCut.FacetCut({
+            facetAddress: address(uniswapFacet),
+            action: IDiamondCut.FacetCutAction.Replace,
+            functionSelectors: uniswapFacetSelectors
+        });
 
-        FacetRegistry(registryProxy).addFunctions(0x9F2b077F51e651392A4Bd8684294AF5fFa6305a0, uniswapFacetSelectors);
+        FacetRegistry(REGISTRY).upgradeFacetRegistry(facetCuts);
+        console2.log("UniswapV3Facet replaced");
     }
 }

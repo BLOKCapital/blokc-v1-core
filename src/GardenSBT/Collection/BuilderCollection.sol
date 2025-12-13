@@ -10,7 +10,7 @@ import { ERC721 as OZ_ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721
 
 error NonTransferable();
 error ApproveNotAllowed();
-error AlreadyHasSBT(address to);
+error AlreadyHasSbt(address to);
 error MaxSupplyReached();
 error NonBurnable();
 error InvalidAddress();
@@ -24,15 +24,15 @@ contract BuilderCollection is ERC721, Ownable, IERC5484 {
     uint256 public mintedCount;
     uint256 public constant MAX_SUPPLY = 100;
 
-    string public baseCID;
+    string public baseCid;
     address public parentPass;
 
-    mapping(address => bool) public hasSBT;
+    mapping(address => bool) public hasSbt;
 
     event Mint(address indexed to, uint256 indexed tokenId, string tokenURI);
 
-    constructor(string memory _baseCID, address _parentPass) ERC721("Builder", "BUILDER") Ownable(msg.sender) {
-        baseCID = _baseCID;
+    constructor(string memory _baseCid, address _parentPass) ERC721("Builder", "BUILDER") Ownable(msg.sender) {
+        baseCid = _baseCid;
         parentPass = _parentPass;
     }
 
@@ -41,9 +41,9 @@ contract BuilderCollection is ERC721, Ownable, IERC5484 {
     // ----------------------------------------------------------
     function mint(address to, uint256 tokenId) external onlyOwner returns (uint256) {
         if (to == address(0)) revert InvalidAddress();
-        if (hasSBT[to]) revert AlreadyHasSBT(to);
+        if (hasSbt[to]) revert AlreadyHasSbt(to);
         if (tokenId == 0 || tokenId > MAX_SUPPLY) revert MaxSupplyReached();
-        if (_ownerOf(tokenId) != address(0)) revert AlreadyHasSBT(to);
+        if (_ownerOf(tokenId) != address(0)) revert AlreadyHasSbt(to);
 
         if (parentPass != address(0)) {
             try OZ_ERC721(parentPass).balanceOf(to) returns (uint256 bal) {
@@ -54,7 +54,7 @@ contract BuilderCollection is ERC721, Ownable, IERC5484 {
         }
 
         mintedCount++;
-        hasSBT[to] = true;
+        hasSbt[to] = true;
 
         _safeMint(to, tokenId);
 
@@ -112,7 +112,7 @@ contract BuilderCollection is ERC721, Ownable, IERC5484 {
         if (ownerOf(tokenId) == address(0)) revert URIQueryForNonexistentToken();
 
         string memory id = Strings.toString(tokenId);
-        string memory video = string(abi.encodePacked("ipfs://", baseCID, "/", id, ".mp4"));
+        string memory video = string(abi.encodePacked("ipfs://", baseCid, "/", id, ".mp4"));
 
         bytes memory json = abi.encodePacked(
             "{",

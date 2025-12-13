@@ -9,7 +9,7 @@ pragma solidity ^0.8.31;
     @dev This interface provides functions for sending and receiving USDC across
          chains using Circle's CCTP protocol.
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -36,12 +36,12 @@ interface ICCTP {
     /// @param amount The amount of USDC to send (usually 6 decimals)
     /// @param destinationDomain The Circle domain ID of the destination chain
     /// @param mintRecipient The recipient address on the destination chain (encoded as bytes32)
-    function sendUSDC(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external;
+    function sendUsdc(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external;
 
     /// @notice Redeems (mints) USDC from another chain using Circle attestation
     /// @param message Raw message bytes from Circle attestation flow
     /// @param attestation Attestation bytes from Circle network
-    function redeemUSDC(bytes calldata message, bytes calldata attestation) external;
+    function redeemUsdc(bytes calldata message, bytes calldata attestation) external;
 }
 
 // ============================================================================

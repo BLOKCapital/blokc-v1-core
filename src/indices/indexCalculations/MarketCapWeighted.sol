@@ -10,7 +10,7 @@ pragma solidity >=0.8.31;
          market cap. Each component's weight = (component market cap) / (total market cap).
          Uses Chainlink price feeds and circulating supply data for calculations.
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -41,11 +41,11 @@ error MarketCapWeighted_MarketCapOverflow();
 contract MarketCapWeighted is IIndexCalculation {
     /// @notice Reference to the IndexComponentRegistry for price feed lookups
     /// @dev Immutable for consistent pricing sources
-    IndexComponentRegistry private immutable _indexComponentRegistry;
+    IndexComponentRegistry private immutable INDEX_COMPONENT_REGISTRY;
 
     /// @notice Reference to the CirculatingSupply contract for supply data
     /// @dev Immutable for consistent supply data sources
-    CirculatingSupply private immutable _circulatingSupply;
+    CirculatingSupply private immutable CIRCULATING_SUPPLY;
 
     /// @notice Constructs the MarketCapWeighted calculation strategy
     /// @param _indexComponentRegistryAddress Address of the IndexComponentRegistry
@@ -54,8 +54,8 @@ contract MarketCapWeighted is IIndexCalculation {
         if (_indexComponentRegistryAddress == address(0)) {
             revert MarketCapWeighted_InvalidIndexComponentRegistryAddress();
         }
-        _indexComponentRegistry = IndexComponentRegistry(_indexComponentRegistryAddress);
-        _circulatingSupply = CirculatingSupply(_indexComponentRegistryAddress);
+        INDEX_COMPONENT_REGISTRY = IndexComponentRegistry(_indexComponentRegistryAddress);
+        CIRCULATING_SUPPLY = CirculatingSupply(_indexComponentRegistryAddress);
     }
 
     /// @notice Calculates market cap weighted allocations for components
@@ -93,8 +93,8 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @dev Uses Chainlink price feed and CirculatingSupply contract
     function _getComponentMarketCap(address componentAddress) internal view returns (uint256 componentMarketCap) {
         (uint256 componentPrice, uint256 componentPriceDecimals) = _getComponentPrice(componentAddress);
-        string memory componentSymbol = _indexComponentRegistry.getComponentSymbol(componentAddress);
-        uint256 componentCirculatingSupply = _circulatingSupply.getSupply(componentSymbol);
+        string memory componentSymbol = INDEX_COMPONENT_REGISTRY.getComponentSymbol(componentAddress);
+        uint256 componentCirculatingSupply = CIRCULATING_SUPPLY.getSupply(componentSymbol);
         componentMarketCap =
             Math.mulDiv(componentCirculatingSupply, componentPrice, 10 ** componentPriceDecimals, Math.Rounding.Floor);
     }
@@ -110,7 +110,7 @@ contract MarketCapWeighted is IIndexCalculation {
         returns (uint256 componentPrice, uint8 componentPriceDecimals)
     {
         AggregatorV3Interface priceFeed =
-            AggregatorV3Interface(_indexComponentRegistry.getComponentAddressToPriceFeedAddress(componentAddress));
+            AggregatorV3Interface(INDEX_COMPONENT_REGISTRY.getComponentAddressToPriceFeedAddress(componentAddress));
         (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) = priceFeed.latestRoundData();
 
         IndexMath.validateOracleData(roundId, price, updatedAt, answeredInRound);

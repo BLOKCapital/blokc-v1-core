@@ -4,8 +4,8 @@ pragma solidity ^0.8.31;
 import { UniversalSBTCollection } from "src/MembershipPass/collection/UniversalSBTCollection.sol";
 import { SBTNoDelegateCall } from "src/MembershipPass/factory/SBTNoDelegateCall.sol";
 import { IERC5484 } from "src/interfaces/IERC5484.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-error NotOwner();
 error InvalidAddress();
 error CollectionNotFound();
 error CollectionAlreadyExists(string name);
@@ -13,9 +13,7 @@ error NotAuthorized();
 error AlreadyWorkerForCollection(address worker, address collection);
 error NotWorkerForCollection(address worker, address collection);
 
-contract SBTMembershipFactory is SBTNoDelegateCall {
-    address public owner;
-
+contract SBTMembershipFactory is SBTNoDelegateCall, Ownable {
     // name → collection address
     mapping(string => address) public collections;
 
@@ -41,26 +39,17 @@ contract SBTMembershipFactory is SBTNoDelegateCall {
     event Minted(string indexed collectionName, address indexed collection, address indexed to, uint256 tokenId);
     event WorkerForCollectionAdded(address indexed worker, address indexed collection);
     event WorkerForCollectionRemoved(address indexed worker, address indexed collection);
-    event OwnerSet(address indexed newOwner);
     event MintPolicySet(address indexed collection, MintPolicy policy);
 
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert NotOwner();
-        _;
+    constructor(address initialOwner) Ownable(initialOwner) {
+        if (initialOwner == address(0)) revert InvalidAddress();
     }
 
-    constructor(address dao) {
-        owner = dao;
-    }
-
-    // ----------------------------------------------------------------
-    //                        DEPLOY NEW COLLECTION
-    // ----------------------------------------------------------------
     function deployCollection(
         string memory name,
         string memory symbol,
         string memory description,
-        string memory baseCID,
+        string memory baseCid,
         uint256 maxSupply,
         IERC5484.BurnAuth defaultBurnAuth,
         MintPolicy policy
@@ -74,10 +63,10 @@ contract SBTMembershipFactory is SBTNoDelegateCall {
         if (bytes(name).length == 0) revert InvalidAddress();
         if (bytes(symbol).length == 0) revert InvalidAddress();
         if (bytes(description).length == 0) revert InvalidAddress();
-        if (bytes(baseCID).length == 0) revert InvalidAddress();
+        if (bytes(baseCid).length == 0) revert InvalidAddress();
 
         collection = address(
-            new UniversalSBTCollection(name, symbol, description, baseCID, maxSupply, defaultBurnAuth, address(this))
+            new UniversalSBTCollection(name, symbol, description, baseCid, maxSupply, defaultBurnAuth, address(this))
         );
 
         collections[name] = collection;
@@ -127,9 +116,9 @@ contract SBTMembershipFactory is SBTNoDelegateCall {
 
         // Authorization: DAO or workers depending on policy
         if (policy == MintPolicy.DAO_ONLY) {
-            if (msg.sender != owner) revert NotAuthorized();
+            if (msg.sender != owner()) revert NotAuthorized();
         } else {
-            if (msg.sender != owner && !isWorkerForCollection[msg.sender][collection]) {
+            if (msg.sender != owner() && !isWorkerForCollection[msg.sender][collection]) {
                 revert NotAuthorized();
             }
         }
@@ -145,7 +134,7 @@ contract SBTMembershipFactory is SBTNoDelegateCall {
     // ----------------------------------------------------------------
     function burn(address collection, uint256 tokenId) external noDelegateCall {
         if (!isCollection[collection]) revert CollectionNotFound();
-        if (msg.sender != owner && !isWorkerForCollection[msg.sender][collection]) revert NotAuthorized();
+        if (msg.sender != owner() && !isWorkerForCollection[msg.sender][collection]) revert NotAuthorized();
 
         UniversalSBTCollection(collection).burn(tokenId);
     }

@@ -33,19 +33,27 @@ abstract contract Facet is ReentrancyGuard {
     /// @notice Restricts function access to the diamond contract owner
     /// @dev Checks msg.sender against owner stored in OwnershipStorage
     modifier onlyGardenOwner() {
+        _onlyGardenOwner();
+        _;
+    }
+
+    function _onlyGardenOwner() internal view {
         if (msg.sender != OwnershipStorage.layout().owner) {
             revert Garden_UnauthorizedCaller();
         }
-        _;
     }
 
     /// @notice Restricts function access if the garden is connected to an index
     /// @dev Checks if the connected index is set in the diamond storage
     modifier ifIndexNotConnected() {
+        _ifIndexNotConnected();
+        _;
+    }
+
+    function _ifIndexNotConnected() internal view {
         LibDiamond.Layout storage ld = LibDiamond.layout();
         if (ld.isConnectedToIndex) {
             revert Garden_CannotCallIfConnectedToIndex();
         }
-        _;
     }
 }

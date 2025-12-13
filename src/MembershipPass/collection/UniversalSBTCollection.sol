@@ -29,7 +29,7 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
 
     // Immutable
     string public description;
-    string public baseCID;
+    string public baseCid;
     uint256 public maxSupply;
 
     address public factory; // only factory can mint
@@ -40,7 +40,7 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
     bool public mintingClosed;
 
     mapping(uint256 => TokenData) private _tokenData;
-    mapping(address => bool) public hasSBT;
+    mapping(address => bool) public hasSbt;
 
     event Mint(address indexed to, uint256 indexed tokenId, string metadataURI);
 
@@ -48,7 +48,7 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
         string memory _name,
         string memory _symbol,
         string memory _description,
-        string memory _baseCID,
+        string memory _baseCid,
         uint256 _maxSupply,
         IERC5484.BurnAuth _defaultBurnAuth,
         address _factory
@@ -57,7 +57,7 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
         Ownable(_factory)
     {
         description = _description;
-        baseCID = _baseCID;
+        baseCid = _baseCid;
         maxSupply = _maxSupply;
         defaultBurnAuth = _defaultBurnAuth;
         factory = _factory;
@@ -67,13 +67,21 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
     }
 
     modifier onlyFactory() {
-        if (msg.sender != factory) revert NotFactory();
+        _onlyFactory();
         _;
     }
 
+    function _onlyFactory() internal view {
+        if (msg.sender != factory) revert NotFactory();
+    }
+
     modifier whenMintingOpen() {
-        if (mintingClosed) revert MintingClosed();
+        _whenMintingOpen();
         _;
+    }
+
+    function _whenMintingOpen() internal view {
+        if (mintingClosed) revert MintingClosed();
     }
 
     // -------------------------------------------------------
@@ -81,7 +89,7 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
     // -------------------------------------------------------
     function mint(address to) external onlyFactory whenMintingOpen returns (uint256) {
         if (to == address(0)) revert InvalidAddress();
-        if (hasSBT[to]) revert AlreadyHasSBT(to);
+        if (hasSbt[to]) revert AlreadyHasSBT(to);
         if (maxSupply != 0 && mintedCount >= maxSupply) revert MaxSupplyReached();
 
         uint256 tokenId = ++mintedCount;
@@ -90,10 +98,10 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
 
         _tokenData[tokenId] = TokenData({ holder: to, burnAuth: defaultBurnAuth });
 
-        hasSBT[to] = true;
+        hasSbt[to] = true;
 
         string memory metadataURI =
-            string(abi.encodePacked("ipfs://", baseCID, "/", Strings.toString(tokenId), ".json"));
+            string(abi.encodePacked("ipfs://", baseCid, "/", Strings.toString(tokenId), ".json"));
 
         emit Issued(msg.sender, to, tokenId, defaultBurnAuth);
         emit Mint(to, tokenId, metadataURI);
@@ -124,7 +132,7 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
             if (msg.sender != holder && msg.sender != factory) revert Both();
         }
 
-        hasSBT[holder] = false;
+        hasSbt[holder] = false;
         delete _tokenData[tokenId];
 
         _burn(tokenId);
@@ -168,7 +176,7 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
     // -------------------------------------------------------
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         if (ownerOf(tokenId) == address(0)) revert URIQueryForNonexistentToken();
-        return string(abi.encodePacked("ipfs://", baseCID, "/", Strings.toString(tokenId), ".json"));
+        return string(abi.encodePacked("ipfs://", baseCid, "/", Strings.toString(tokenId), ".json"));
     }
 
     function getTokenData(uint256 tokenId) external view returns (address holder, IERC5484.BurnAuth auth) {

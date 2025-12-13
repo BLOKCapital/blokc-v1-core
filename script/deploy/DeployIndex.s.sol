@@ -6,7 +6,6 @@ import { console2 } from "forge-std/console2.sol";
 import { IndexCalculationRegistry } from "src/indices/IndexCalculationRegistry.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 import { IndexFactory } from "src/indices/IndexFactory.sol";
-import { Index } from "src/indices/Index.sol";
 import { MarketCapWeighted } from "src/indices/indexCalculations/MarketCapWeighted.sol";
 
 contract DeployIndex is BaseScript {

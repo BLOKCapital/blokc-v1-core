@@ -19,7 +19,6 @@ pragma solidity ^0.8.31;
 
 import { Facet } from "src/garden/facets/Facet.sol";
 import { ERC721Base } from "src/garden/facets/utilityFacets/arbitrumOne/erc721/ERC721Base.sol";
-import { ERC721Storage } from "src/garden/facets/utilityFacets/arbitrumOne/erc721/ERC721Storage.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";

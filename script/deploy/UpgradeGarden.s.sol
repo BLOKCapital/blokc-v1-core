@@ -8,7 +8,7 @@ import { UpgradeFacet } from "src/garden/facets/baseFacets/upgrade/UpgradeFacet.
 contract UpgradeGarden is BaseScript {
     function run() public broadcaster {
         setUp();
-        address garden = 0xd39742791d07936211190b563c459f7aA7D46ecA;
+        address garden = 0x413C8164F03B811E609d9b840Fd87B516234136a;
         (,,, bytes32 hashData) = UpgradeFacet(garden).upgradeDetails();
         console2.logBytes32(hashData);
         UpgradeFacet(garden).upgrade(hashData);

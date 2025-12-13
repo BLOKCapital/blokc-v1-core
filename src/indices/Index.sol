@@ -11,7 +11,7 @@ pragma solidity >=0.8.31;
          Weights are automatically recalculated during rebalancing using the specified
          calculation strategy (e.g., market cap weighted).
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -69,11 +69,11 @@ contract Index is Ownable {
 
     /// @notice Reference to the calculation strategy contract (e.g., market cap weighted)
     /// @dev Immutable to ensure index methodology remains consistent
-    IIndexCalculation public immutable indexCalculation;
+    IIndexCalculation public immutable INDEX_CALCULATION;
 
     /// @notice Reference to the component registry for validation
     /// @dev Immutable to ensure consistent component validation
-    IndexComponentRegistry public immutable indexComponentRegistry;
+    IndexComponentRegistry public immutable INDEX_COMPONENT_REGISTRY;
 
     /// @notice Mapping of component addresses to their current weights
     /// @dev Weights are scaled to 1e18 (100% = 1e18)
@@ -113,11 +113,11 @@ contract Index is Ownable {
             revert Index_InvalidIndexComponentRegistryAddress(indexComponentRegistryAddress);
         }
 
-        indexCalculation = IIndexCalculation(indexCalculationAddress);
-        indexComponentRegistry = IndexComponentRegistry(indexComponentRegistryAddress);
+        INDEX_CALCULATION = IIndexCalculation(indexCalculationAddress);
+        INDEX_COMPONENT_REGISTRY = IndexComponentRegistry(indexComponentRegistryAddress);
 
         for (uint256 i = 0; i < componentAddresses.length; i++) {
-            if (!indexComponentRegistry.isComponentRegistered(componentAddresses[i])) {
+            if (!INDEX_COMPONENT_REGISTRY.isComponentRegistered(componentAddresses[i])) {
                 revert Index_ComponentNotRegistered(componentAddresses[i]);
             }
             _componentAddresses.add(componentAddresses[i]);
@@ -204,7 +204,7 @@ contract Index is Ownable {
             componentAddresses[i] = _componentAddresses.at(i);
         }
 
-        uint256[] memory weights = indexCalculation.getWeights(componentAddresses);
+        uint256[] memory weights = INDEX_CALCULATION.getWeights(componentAddresses);
 
         if (weights.length != componentAddresses.length) {
             revert Index_WeightsMismatch(weights.length, componentAddresses.length);
