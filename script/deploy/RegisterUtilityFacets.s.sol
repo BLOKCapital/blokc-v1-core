@@ -6,13 +6,13 @@ import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 
-import { WithdrawFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/withdraw/WithdrawFacet.sol";
-import { UniswapV3Facet } from "src/diamond/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
-import { AaveV3Facet } from "src/diamond/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Facet.sol";
-import { CCTPFacet } from "src/diamond/facets/utilityFacets/arbitrumOne/cctp/CCTPFacet.sol";
+import { WithdrawFacet } from "src/garden/facets/utilityFacets/arbitrumOne/withdraw/WithdrawFacet.sol";
+import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
+import { AaveV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Facet.sol";
+import { CCTPFacet } from "src/garden/facets/utilityFacets/arbitrumOne/cctp/CCTPFacet.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant facetRegistry = 0x0101DDa693A25Be135caEE7BCbc82dECbf9D31C5;
+    address constant facetRegistry = 0xac9259cd6ebDa27520DE83c9182218ae37832A6F;
 
     function run() public broadcaster {
         setUp();
