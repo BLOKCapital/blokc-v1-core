@@ -18,9 +18,9 @@ contract DeployCollections is Script {
     string constant GARDEN_CID = "bafybeidzu4jyntdof2mno5b3hf2cgtnj67jowdbacx7q3lfgw3y7w5teue";
 
     // parent-pass for gated collections (if any)
-    address constant BADDIE_PASS = address(0);
-    address constant BUILDER_PASS = address(0);
-    address constant GARDEN_PASS = address(0);
+    address constant BADDIE_PASS  = 0x0000000000000000000000000000000000000000; 
+    address constant BUILDER_PASS = 0x0000000000000000000000000000000000000000; 
+    address constant GARDEN_PASS  = 0x0000000000000000000000000000000000000000; 
 
     function run() external {
         vm.startBroadcast();

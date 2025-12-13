@@ -141,12 +141,13 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
      * @param initialNamehashes bootstrap (parallel arrays)
      */
     constructor(
+        address _owner,
         address _ensRegistry,
         bytes32[] memory initialNamehashes,
         string[] memory initialNames,
         uint256[] memory initialExpiries
     )
-        Ownable(msg.sender)
+        Ownable(_owner)
     {
         if (_ensRegistry == address(0)) revert ProtocolStatus_ZeroAddress();
         ensRegistry = IENSRegistry(_ensRegistry);
