@@ -4,6 +4,7 @@ pragma solidity >=0.8.20;
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { IERC5484 } from "src/interfaces/IERC5484.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Base64 } from "@openzeppelin/contracts/utils/Base64.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 error NotFactory();
@@ -168,8 +169,34 @@ contract UniversalSBTCollection is ERC721, Ownable, IERC5484 {
     // -------------------------------------------------------
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         if (ownerOf(tokenId) == address(0)) revert URIQueryForNonexistentToken();
-        return string(abi.encodePacked("ipfs://", baseCID, "/", Strings.toString(tokenId), ".json"));
+
+        string memory image = string(
+            abi.encodePacked(
+                "ipfs://",
+                baseCID,
+                "/",
+                Strings.toString(tokenId),
+                ".jpg"
+            )
+        );
+
+        bytes memory json = abi.encodePacked(
+            "{",
+                '"name":"', name(), " #", Strings.toString(tokenId), '",',
+                '"description":"', description, '",',
+                '"image":"', image, '",',
+                '"attributes":[]',
+            "}"
+        );
+
+        return string(
+            abi.encodePacked(
+                "data:application/json;base64,",
+                Base64.encode(json)
+            )
+        );
     }
+
 
     function getTokenData(uint256 tokenId) external view returns (address holder, IERC5484.BurnAuth auth) {
         if (ownerOf(tokenId) == address(0)) revert URIQueryForNonexistentToken();

@@ -109,26 +109,38 @@ contract BuilderCollection is ERC721, Ownable, IERC5484 {
     //                          METADATA
     // ----------------------------------------------------------
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        if (ownerOf(tokenId) == address(0)) revert URIQueryForNonexistentToken();
+    if (ownerOf(tokenId) == address(0)) revert URIQueryForNonexistentToken();
 
-        string memory id = Strings.toString(tokenId);
-        string memory video = string(abi.encodePacked("ipfs://", baseCID, "/", id, ".mp4"));
+    string memory id = Strings.toString(tokenId);
 
-        bytes memory json = abi.encodePacked(
-            "{",
-            '"name":"Builder #',
-            id,
-            '",',
+    // Video for detail page
+    string memory video = string(
+        abi.encodePacked("ipfs://", baseCID, "/", id, ".mp4")
+    );
+
+    // Static thumbnail for grid view
+    string memory image = string(
+        abi.encodePacked("ipfs://", baseCID, "/", id, ".png")
+        // Recommended: use per-token thumbnails instead of preview.png
+    );
+
+    bytes memory json = abi.encodePacked(
+        "{",
+            '"name":"Builder #', id, '",',
             '"description":"Official Builder Soulbound Video Token - Proof of contribution on Blokc",',
-            '"animation_url":"',
-            video,
-            '"',
-            "}"
-        );
+            '"image":"', image, '",',
+            '"animation_url":"', video, '",',  // ← Added comma
+            '"attributes":[]',  // ← ADDED THIS
+        "}"
+    );
 
-        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(json)));
-    }
-
+    return string(
+        abi.encodePacked(
+            "data:application/json;base64,",
+            Base64.encode(json)
+        )
+    );
+}
     function totalSupply() external view returns (uint256) {
         return mintedCount;
     }
