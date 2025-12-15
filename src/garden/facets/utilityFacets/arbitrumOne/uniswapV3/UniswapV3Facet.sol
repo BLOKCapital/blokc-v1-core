@@ -28,7 +28,7 @@ import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV
 import { UniswapV3Base } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Base.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
-contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
+contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     using SafeERC20 for IERC20;
 
     // ========================================================================
@@ -39,52 +39,52 @@ contract UniswapV3Facet is UniswapV3Base, IUniswapV3, Facet {
     /// @param params Exact input single-hop swap parameters
     /// @dev Validates pool registration, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function swapExactInputSingleHop(IUniswapV3.ExactInputSingleHopSwapParams memory params)
+    function uniswapV3ExactInputSingle(UniswapV3ExactInputSingleParams memory params)
         external
         override
         onlyGardenOwner
         ifIndexNotConnected
     {
-        _swapExactInputSingleHop(params);
+        _uniswapV3ExactInputSingle(params);
     }
 
     /// @notice Executes a multi-hop exact-input swap on Uniswap V3
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
     /// @dev Validates all pools in the path are registered, handles approvals,
     ///      encodes the path, and executes the swap.
-    function swapExactInputMultiHop(IUniswapV3.ExactInputMultiHopSwapParams memory params)
+    function uniswapV3ExactInput(UniswapV3ExactInputParams memory params)
         external
         override
         onlyGardenOwner
         ifIndexNotConnected
     {
-        _swapExactInputMultiHop(params);
+        _uniswapV3ExactInput(params);
     }
 
     /// @notice Executes a single-hop exact-output swap on Uniswap V3
     /// @param params Swap parameters including tokens, amounts, fees, and deadline
     /// @dev Validates pool registration, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function swapExactOutputSingleHop(IUniswapV3.ExactOutputSingleHopSwapParams memory params)
+    function uniswapV3ExactOutputSingle(UniswapV3ExactOutputSingleParams memory params)
         external
         override
         onlyGardenOwner
         ifIndexNotConnected
     {
-        _swapExactOutputSingleHop(params);
+        _uniswapV3ExactOutputSingle(params);
     }
 
     /// @notice Executes a multi-hop exact-output swap on Uniswap V3
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
     /// @dev Validates all pools in the path are registered, handles approvals,
     ///      encodes the path, and executes the swap.
-    function swapExactOutputMultiHop(IUniswapV3.ExactOutputMultiHopSwapParams memory params)
+    function uniswapV3ExactOutput(UniswapV3ExactOutputParams memory params)
         external
         override
         onlyGardenOwner
         ifIndexNotConnected
     {
-        _swapExactOutputMultiHop(params);
+        _uniswapV3ExactOutput(params);
     }
 
     // ========================================================================

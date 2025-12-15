@@ -9,11 +9,14 @@ import { console2 } from "forge-std/console2.sol";
 import { WithdrawFacet } from "src/garden/facets/utilityFacets/arbitrumOne/withdraw/WithdrawFacet.sol";
 import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
 import { AaveV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Facet.sol";
+import {
+    GardenCollectionFacet
+} from "src/garden/facets/utilityFacets/arbitrumOne/gardenCollection/GardenCollectionFacet.sol";
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant FACET_REGISTRY = 0x967877A297090e3A9c5A5FbC2F2f4B1294E523F9;
+    address constant FACET_REGISTRY = 0x5fe7C66E3B8979175fA26cC88AD2f52a10A96162;
 
     function run() public broadcaster {
         setUp();
@@ -26,10 +29,10 @@ contract RegisterUtilityFacets is BaseScript {
 
         UniswapV3Facet uniswapFacet = new UniswapV3Facet();
         bytes4[] memory uniswapFacetSelectors = new bytes4[](6);
-        uniswapFacetSelectors[0] = UniswapV3Facet.swapExactInputSingleHop.selector;
-        uniswapFacetSelectors[1] = UniswapV3Facet.swapExactInputMultiHop.selector;
-        uniswapFacetSelectors[2] = UniswapV3Facet.swapExactOutputSingleHop.selector;
-        uniswapFacetSelectors[3] = UniswapV3Facet.swapExactOutputMultiHop.selector;
+        uniswapFacetSelectors[0] = UniswapV3Facet.uniswapV3ExactInputSingle.selector;
+        uniswapFacetSelectors[1] = UniswapV3Facet.uniswapV3ExactInput.selector;
+        uniswapFacetSelectors[2] = UniswapV3Facet.uniswapV3ExactOutputSingle.selector;
+        uniswapFacetSelectors[3] = UniswapV3Facet.uniswapV3ExactOutput.selector;
         uniswapFacetSelectors[4] = UniswapV3Facet.getSqrtTwapX96.selector;
         uniswapFacetSelectors[5] = UniswapV3Facet.getCombinedTwapX96.selector;
 
@@ -43,7 +46,19 @@ contract RegisterUtilityFacets is BaseScript {
 
         console2.log("AaveV3Facet deployed at:", address(aaveFacet));
 
-        IDiamondCut.FacetCut[] memory facetCuts = new IDiamondCut.FacetCut[](3);
+        GardenCollectionFacet gardenCollectionFacet = new GardenCollectionFacet();
+        bytes4[] memory gardenCollectionFacetSelectors = new bytes4[](8);
+        gardenCollectionFacetSelectors[0] = GardenCollectionFacet.name.selector;
+        gardenCollectionFacetSelectors[1] = GardenCollectionFacet.symbol.selector;
+        gardenCollectionFacetSelectors[2] = GardenCollectionFacet.tokenURI.selector;
+        gardenCollectionFacetSelectors[3] = GardenCollectionFacet.transferFrom.selector;
+        gardenCollectionFacetSelectors[4] = GardenCollectionFacet.mint.selector;
+        gardenCollectionFacetSelectors[5] = GardenCollectionFacet.burn.selector;
+        gardenCollectionFacetSelectors[6] = GardenCollectionFacet.ownerOf.selector;
+        gardenCollectionFacetSelectors[7] = GardenCollectionFacet.balanceOf.selector;
+        console2.log("GardenCollectionFacet deployed at:", address(gardenCollectionFacet));
+
+        IDiamondCut.FacetCut[] memory facetCuts = new IDiamondCut.FacetCut[](4);
         facetCuts[0] = IDiamondCut.FacetCut({
             facetAddress: address(withdrawFacet),
             action: IDiamondCut.FacetCutAction.Add,
@@ -58,6 +73,11 @@ contract RegisterUtilityFacets is BaseScript {
             facetAddress: address(aaveFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: aaveFacetSelectors
+        });
+        facetCuts[3] = IDiamondCut.FacetCut({
+            facetAddress: address(gardenCollectionFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: gardenCollectionFacetSelectors
         });
 
         FacetRegistry(FACET_REGISTRY).upgradeFacetRegistry(facetCuts);

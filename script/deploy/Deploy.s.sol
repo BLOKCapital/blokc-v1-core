@@ -25,7 +25,10 @@ contract Deploy is BaseScript {
 
     function run() public broadcaster {
         setUp();
-
+        if (block.chainid != 31_337) {
+            revert("Not on Anvil");
+        }
+        console2.log("Deploying on Anvil");
         // Register default facets
         DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
         bytes4[] memory cutSelectors = new bytes4[](1);

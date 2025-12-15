@@ -3,14 +3,15 @@ pragma solidity >=0.8.31;
 
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
-import { UpgradeFacet } from "src/garden/facets/baseFacets/upgrade/UpgradeFacet.sol";
+import {
+    GardenCollectionFacet
+} from "src/garden/facets/utilityFacets/arbitrumOne/gardenCollection/GardenCollectionFacet.sol";
 
-contract UpgradeGarden is BaseScript {
+contract MintNFT is BaseScript {
     function run() public broadcaster {
         setUp();
         address garden = 0xe4A134aAFac77585d0d2D5623a676a8EE2727A2e;
-        (,,, bytes32 hashData) = UpgradeFacet(garden).upgradeDetails();
-        console2.logBytes32(hashData);
-        UpgradeFacet(garden).upgrade(hashData);
+        GardenCollectionFacet(garden).mint(1);
+        console2.log("NFT minted");
     }
 }
