@@ -3,13 +3,13 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IUniswapV3   
+    @title IUniswapV3
     @author BLOK Capital DAO
     @notice Interface for Uniswap V3 integration (swaps and TWAP queries)
     @dev This interface provides functions for executing token swaps on Uniswap V3
          and querying TWAP (Time-Weighted Average Price) prices from pools.
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -29,7 +29,7 @@ interface IUniswapV3 {
     /// @param deadline Unix timestamp after which the swap is invalid
     /// @param tokenIn Address of the ERC20 input token
     /// @param tokenOut Address of the ERC20 output token
-    struct ExactInputSingleHopSwapParams {
+    struct UniswapV3ExactInputSingleParams {
         uint24 swapFee;
         uint256 amountIn;
         uint256 amountOutMinimum;
@@ -51,14 +51,14 @@ interface IUniswapV3 {
     /// @param deadline Unix timestamp after which the swap is invalid
     /// @param amountIn Amount of input token to swap
     /// @param amountOutMin Minimum acceptable output amount (slippage protection)
-    struct ExactInputMultiHopSwapParams {
+    struct UniswapV3ExactInputParams {
         TokenWithFee[] pathWithFees;
         uint256 deadline;
         uint256 amountIn;
         uint256 amountOutMin;
     }
 
-    struct ExactOutputSingleHopSwapParams {
+    struct UniswapV3ExactOutputSingleParams {
         uint24 swapFee;
         uint256 amountOut;
         uint256 amountInMaximum;
@@ -67,7 +67,7 @@ interface IUniswapV3 {
         address tokenOut;
     }
 
-    struct ExactOutputMultiHopSwapParams {
+    struct UniswapV3ExactOutputParams {
         TokenWithFee[] pathWithFees;
         uint256 deadline;
         uint256 amountOut;
@@ -91,26 +91,26 @@ interface IUniswapV3 {
     ///      Pool must be registered in the PoolRegistry. All operations are restricted
     ///      to the diamond owner.
     /// @param params Swap parameters including tokens, amounts, fees, and deadline
-    function swapExactInputSingleHop(ExactInputSingleHopSwapParams calldata params) external;
+    function uniswapV3ExactInputSingle(UniswapV3ExactInputSingleParams calldata params) external;
 
     /// @notice Executes a multi-hop exact-input swap on Uniswap V3
     /// @dev Swaps an exact amount of input token across multiple pools in a path.
     ///      All pools in the path must be registered in the PoolRegistry.
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
-    function swapExactInputMultiHop(ExactInputMultiHopSwapParams calldata params) external;
+    function uniswapV3ExactInput(UniswapV3ExactInputParams calldata params) external;
 
     /// @notice Executes a single-hop exact-output swap on Uniswap V3
     /// @dev Swaps an exact amount of output token for input token using a single pool.
     ///      Pool must be registered in the PoolRegistry. All operations are restricted
     ///      to the diamond owner.
     /// @param params Swap parameters including tokens, amounts, fees, and deadline
-    function swapExactOutputSingleHop(ExactOutputSingleHopSwapParams calldata params) external;
+    function uniswapV3ExactOutputSingle(UniswapV3ExactOutputSingleParams calldata params) external;
 
     /// @notice Executes a multi-hop exact-output swap on Uniswap V3
     /// @dev Swaps an exact amount of output token across multiple pools in a path.
     ///      All pools in the path must be registered in the PoolRegistry.
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
-    function swapExactOutputMultiHop(ExactOutputMultiHopSwapParams calldata params) external;
+    function uniswapV3ExactOutput(UniswapV3ExactOutputParams calldata params) external;
 
     /// @notice Gets the TWAP sqrt price for a single Uniswap V3 pool
     /// @dev Returns either the current spot price (if twapInterval is 0) or the

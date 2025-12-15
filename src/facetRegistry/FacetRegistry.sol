@@ -161,8 +161,8 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     /// @dev Upgrades the facet registry by adding new facet cuts
     /// @param _facetCuts Array of facet cuts to add
     function upgradeFacetRegistry(IDiamondCut.FacetCut[] memory _facetCuts) external onlyOwner {
-        _currentVersion++;
         for (uint256 i = 0; i < _facetCuts.length; i++) {
+            _currentVersion++;
             if (_facetCuts[i].action == IDiamondCut.FacetCutAction.Add) {
                 addFunctions(_facetCuts[i].facetAddress, _facetCuts[i].functionSelectors);
             }

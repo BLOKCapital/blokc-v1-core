@@ -34,6 +34,9 @@ import { IERC173 } from "src/interfaces/IERC173.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import { IERC721Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
 // ============================================================================
 // Errors
@@ -110,6 +113,9 @@ contract Garden is DiamondCutBase {
         ls.supportedInterfaces[type(IDiamondLoupe).interfaceId] = true;
         ls.supportedInterfaces[type(IERC173).interfaceId] = true;
         ls.supportedInterfaces[type(IUpgrade).interfaceId] = true;
+        ls.supportedInterfaces[type(IERC721).interfaceId] = true;
+        ls.supportedInterfaces[type(IERC721Metadata).interfaceId] = true;
+        ls.supportedInterfaces[type(IERC721Errors).interfaceId] = true;
     }
 
     // ========================================================================

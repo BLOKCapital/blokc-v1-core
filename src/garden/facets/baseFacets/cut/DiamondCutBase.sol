@@ -87,11 +87,18 @@ error DiamondCut_FacetIsNotContract(address facetAddress);
 error DiamondCut_SelectorArrayEmpty();
 
 contract DiamondCutBase {
-    /// @notice Emitted when a diamond cut is performed
-    /// @param _diamondCut Array of facet cuts applied
-    /// @param _init The initialization contract address
-    /// @param _calldata The initialization calldata
-    event DiamondCut(IDiamondCut.FacetCut[] _diamondCut, address _init, bytes _calldata);
+    /// @notice Emitted when functions are added to a facet
+    /// @param facetAddress The address of the facet
+    /// @param functionSelectors The function selectors that were added
+    event DiamondCutFunctionsAdded(address indexed facetAddress, bytes4[] functionSelectors);
+    /// @notice Emitted when functions are replaced in a facet
+    /// @param facetAddress The address of the facet
+    /// @param functionSelectors The function selectors that were replaced
+    event DiamondCutFunctionsReplaced(address indexed facetAddress, bytes4[] functionSelectors);
+    /// @notice Emitted when functions are removed from a facet
+    /// @param facetAddress The address of the facet
+    /// @param functionSelectors The function selectors that were removed
+    event DiamondCutFunctionsRemoved(address indexed facetAddress, bytes4[] functionSelectors);
 
     /**
      * @notice Internal function version of diamondCut that applies facet cuts
@@ -124,7 +131,6 @@ contract DiamondCutBase {
                 revert DiamondCut_IncorrectFacetCutAction(action);
             }
         }
-        emit DiamondCut(_diamondCut, _init, _calldata);
     }
 
     // ========================================================================
@@ -186,6 +192,7 @@ contract DiamondCutBase {
             addFunction(ds, selector, selectorPosition, _facetAddress);
             selectorPosition++;
         }
+        emit DiamondCutFunctionsAdded(_facetAddress, _functionSelectors);
     }
 
     // ========================================================================
@@ -247,6 +254,7 @@ contract DiamondCutBase {
             addFunction(ds, selector, selectorPosition, _facetAddress);
             selectorPosition++;
         }
+        emit DiamondCutFunctionsReplaced(_facetAddress, _functionSelectors);
     }
 
     // ========================================================================
@@ -278,6 +286,7 @@ contract DiamondCutBase {
             address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
             removeFunction(ds, oldFacetAddress, selector);
         }
+        emit DiamondCutFunctionsRemoved(_facetAddress, _functionSelectors);
     }
 
     // ========================================================================

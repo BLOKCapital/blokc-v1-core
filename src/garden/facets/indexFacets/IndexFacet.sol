@@ -180,7 +180,7 @@ contract IndexFacet is UniswapV3Base, Facet {
                 IndexStorage.MAX_SLIPPAGE_BPS
             );
 
-            IUniswapV3.ExactInputSingleHopSwapParams memory swapParams = IUniswapV3.ExactInputSingleHopSwapParams({
+            IUniswapV3.UniswapV3ExactInputSingleParams memory swapParams = IUniswapV3.UniswapV3ExactInputSingleParams({
                 swapFee: 100,
                 amountIn: usdcBalance,
                 amountOutMinimum: minWethOut,
@@ -188,7 +188,7 @@ contract IndexFacet is UniswapV3Base, Facet {
                 tokenIn: usdcAddress,
                 tokenOut: wethAddress
             });
-            _swapExactInputSingleHop(swapParams);
+            _uniswapV3ExactInputSingle(swapParams);
             emit AssetSwapped(usdcAddress, wethAddress, usdcBalance, minWethOut);
         }
 
@@ -244,7 +244,7 @@ contract IndexFacet is UniswapV3Base, Facet {
                 // Calculate minimum WETH output with slippage protection
                 uint256 minWethOut = IndexMath.applySlippageDown(excessValueInWeth, IndexStorage.MAX_SLIPPAGE_BPS);
 
-                IUniswapV3.ExactInputSingleHopSwapParams memory swapParams = IUniswapV3.ExactInputSingleHopSwapParams({
+                IUniswapV3.UniswapV3ExactInputSingleParams memory swapParams = IUniswapV3.UniswapV3ExactInputSingleParams({
                     swapFee: 100,
                     amountIn: amountToSell,
                     amountOutMinimum: minWethOut,
@@ -252,7 +252,7 @@ contract IndexFacet is UniswapV3Base, Facet {
                     tokenIn: componentAddresses[i],
                     tokenOut: wethAddress
                 });
-                _swapExactInputSingleHop(swapParams);
+                _uniswapV3ExactInputSingle(swapParams);
                 emit AssetSwapped(componentAddresses[i], wethAddress, amountToSell, minWethOut);
             }
         }
@@ -275,15 +275,16 @@ contract IndexFacet is UniswapV3Base, Facet {
                 // Calculate maximum WETH input with slippage protection
                 uint256 maxWethIn = IndexMath.applySlippageUp(deficitValueInWeth, IndexStorage.MAX_SLIPPAGE_BPS);
 
-                IUniswapV3.ExactOutputSingleHopSwapParams memory swapParams = IUniswapV3.ExactOutputSingleHopSwapParams({
-                    swapFee: 100,
-                    amountOut: amountToBuy,
-                    amountInMaximum: maxWethIn,
-                    deadline: block.timestamp + IndexStorage.SWAP_DEADLINE_SECONDS,
-                    tokenIn: wethAddress,
-                    tokenOut: componentAddresses[i]
-                });
-                _swapExactOutputSingleHop(swapParams);
+                IUniswapV3.UniswapV3ExactOutputSingleParams memory swapParams =
+                    IUniswapV3.UniswapV3ExactOutputSingleParams({
+                        swapFee: 100,
+                        amountOut: amountToBuy,
+                        amountInMaximum: maxWethIn,
+                        deadline: block.timestamp + IndexStorage.SWAP_DEADLINE_SECONDS,
+                        tokenIn: wethAddress,
+                        tokenOut: componentAddresses[i]
+                    });
+                _uniswapV3ExactOutputSingle(swapParams);
                 emit AssetSwapped(wethAddress, componentAddresses[i], maxWethIn, amountToBuy);
             }
         }

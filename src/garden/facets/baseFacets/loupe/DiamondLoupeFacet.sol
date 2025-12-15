@@ -69,7 +69,7 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165, DiamondLoupeBase, Facet {
     /// @notice Queries if a contract implements an interface
     /// @param _interfaceId The 4-byte interface identifier (e.g., 0x01ffc9a7 for ERC-165)
     /// @return True if the interface is supported, false otherwise
-    function supportsInterface(bytes4 _interfaceId) external view override onlyGardenOwner returns (bool) {
+    function supportsInterface(bytes4 _interfaceId) external view override returns (bool) {
         return _supportsInterface(_interfaceId);
     }
 }

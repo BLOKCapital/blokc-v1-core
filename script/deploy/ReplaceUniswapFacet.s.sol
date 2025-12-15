@@ -17,10 +17,10 @@ contract ReplaceUniswapV3Facet is BaseScript {
         setUp();
         UniswapV3Facet uniswapFacet = new UniswapV3Facet();
         bytes4[] memory uniswapFacetSelectors = new bytes4[](4);
-        uniswapFacetSelectors[0] = UniswapV3Facet.swapExactInputSingleHop.selector;
-        uniswapFacetSelectors[1] = UniswapV3Facet.swapExactInputMultiHop.selector;
-        uniswapFacetSelectors[2] = UniswapV3Facet.getSqrtTwapX96.selector;
-        uniswapFacetSelectors[3] = UniswapV3Facet.getCombinedTwapX96.selector;
+        uniswapFacetSelectors[0] = UniswapV3Facet.uniswapV3ExactInputSingle.selector;
+        uniswapFacetSelectors[1] = UniswapV3Facet.uniswapV3ExactInput.selector;
+        uniswapFacetSelectors[2] = UniswapV3Facet.uniswapV3ExactOutputSingle.selector;
+        uniswapFacetSelectors[3] = UniswapV3Facet.uniswapV3ExactOutput.selector;
 
         IDiamondCut.FacetCut[] memory facetCuts = new IDiamondCut.FacetCut[](1);
         facetCuts[0] = IDiamondCut.FacetCut({
