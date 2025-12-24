@@ -8,7 +8,7 @@ pragma solidity >=0.8.31;
     @notice Storage for the DiamondLoupeFacet
     @dev This storage is used to store the supported interfaces for the DiamondLoupeFacet
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -18,7 +18,7 @@ pragma solidity >=0.8.31;
 
 library DiamondLoupeStorage {
     /// @notice Fixed storage slot for loupe persistent state.
-    bytes32 internal constant DIAMOND_LOUPE_STORAGE_POSITION = keccak256("diamond.loupe.storage");
+    bytes32 internal constant DIAMOND_LOUPE_STORAGE_POSITION = keccak256("garden.loupe.storage");
 
     /// @notice Layout for the DiamondLoupeStorage
     /// @dev The map stores bytes4 -> bool for ERC-165 interface support

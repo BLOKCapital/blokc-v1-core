@@ -8,7 +8,7 @@ pragma solidity >=0.8.31;
     @notice Storage for the OwnershipFacet
     @dev This storage is used to store the ownership of the contract
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -18,7 +18,7 @@ pragma solidity >=0.8.31;
 
 library OwnershipStorage {
     /// @notice Fixed storage slot for ownable layout (unique label reduces collision risk).
-    bytes32 internal constant OWNERSHIP_STORAGE_SLOT_POSITION = keccak256("ownership.storage");
+    bytes32 internal constant OWNERSHIP_STORAGE_SLOT_POSITION = keccak256("garden.ownership.storage");
 
     /// @notice Layout for the OwnershipStorage
     /// @dev The struct stores the address of the owner

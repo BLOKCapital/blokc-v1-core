@@ -44,6 +44,56 @@ library IndexMath {
         return weight;
     }
 
+    function usdToToken(
+        uint256 usdValue,
+        uint256 priceInUsd,
+        uint8 tokenDecimals,
+        uint8 priceDecimals
+    )
+        internal
+        pure
+        returns (uint256 tokenAmount)
+    {
+        if (priceInUsd == 0) revert IndexMath_InvalidPrice();
+        if (usdValue == 0) return 0;
+
+        // Calculate: (usdValue * 10^tokenDecimals * 10^priceDecimals) / (price * 1e18)
+        uint256 numerator = usdValue * (10 ** uint256(tokenDecimals)) * (10 ** uint256(priceDecimals));
+
+        tokenAmount = Math.mulDiv(numerator, 1, priceInUsd * PRECISION, Math.Rounding.Floor);
+
+        return tokenAmount;
+    }
+
+    /// @notice Convert token amount to USD value using USD price feed
+    /// @dev Only used for display/reporting purposes, not for rebalancing calculations
+    /// @param tokenAmount Amount of tokens
+    /// @param priceInUsd Price per token from USD price feed
+    /// @param tokenDecimals Token decimals
+    /// @param priceDecimals Price feed decimals
+    /// @return usdValue USD value normalized to 1e18
+    function tokenToUsd(
+        uint256 tokenAmount,
+        uint256 priceInUsd,
+        uint8 tokenDecimals,
+        uint8 priceDecimals
+    )
+        internal
+        pure
+        returns (uint256 usdValue)
+    {
+        if (priceInUsd == 0) revert IndexMath_InvalidPrice();
+        if (tokenAmount == 0) return 0;
+
+        // Calculate: (tokenAmount * price * 1e18) / (10^tokenDecimals * 10^priceDecimals)
+        uint256 scaledAmount = Math.mulDiv(tokenAmount, priceInUsd, 1, Math.Rounding.Floor);
+        uint256 denominator = (10 ** uint256(tokenDecimals)) * (10 ** uint256(priceDecimals));
+
+        usdValue = Math.mulDiv(scaledAmount, PRECISION, denominator, Math.Rounding.Floor);
+
+        return usdValue;
+    }
+
     /// @notice Convert token amount to WETH value with safe decimal handling
     /// @dev More efficient than USD conversion - uses direct WETH prices
     /// @param tokenAmount Amount of tokens in native decimals
@@ -93,35 +143,6 @@ library IndexMath {
         tokenAmount = Math.mulDiv(wethValue, 10 ** uint256(tokenDecimals), priceInWeth, Math.Rounding.Floor);
 
         return tokenAmount;
-    }
-
-    /// @notice Convert token amount to USD value using USD price feed
-    /// @dev Only used for display/reporting purposes, not for rebalancing calculations
-    /// @param tokenAmount Amount of tokens
-    /// @param priceInUsd Price per token from USD price feed
-    /// @param tokenDecimals Token decimals
-    /// @param priceDecimals Price feed decimals
-    /// @return usdValue USD value normalized to 1e18
-    function tokenToUsd(
-        uint256 tokenAmount,
-        uint256 priceInUsd,
-        uint8 tokenDecimals,
-        uint8 priceDecimals
-    )
-        internal
-        pure
-        returns (uint256 usdValue)
-    {
-        if (priceInUsd == 0) revert IndexMath_InvalidPrice();
-        if (tokenAmount == 0) return 0;
-
-        // Calculate: (tokenAmount * price * 1e18) / (10^tokenDecimals * 10^priceDecimals)
-        uint256 scaledAmount = Math.mulDiv(tokenAmount, priceInUsd, 1, Math.Rounding.Floor);
-        uint256 denominator = (10 ** uint256(tokenDecimals)) * (10 ** uint256(priceDecimals));
-
-        usdValue = Math.mulDiv(scaledAmount, PRECISION, denominator, Math.Rounding.Floor);
-
-        return usdValue;
     }
 
     /// @notice Calculate expected value based on weight

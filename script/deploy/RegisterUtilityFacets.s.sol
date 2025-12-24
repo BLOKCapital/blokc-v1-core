@@ -10,13 +10,13 @@ import { WithdrawFacet } from "src/garden/facets/utilityFacets/arbitrumOne/withd
 import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
 import { AaveV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Facet.sol";
 import {
-    GardenCollectionFacet
-} from "src/garden/facets/utilityFacets/arbitrumOne/gardenCollection/GardenCollectionFacet.sol";
+    RewardCollectionFacet
+} from "src/garden/facets/utilityFacets/arbitrumOne/rewardCollection/RewardCollectionFacet.sol";
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant FACET_REGISTRY = 0x5fe7C66E3B8979175fA26cC88AD2f52a10A96162;
+    address constant FACET_REGISTRY = 0x51Fb0731E6fE1F7DC520ac970A6Ef6980f70c126;
 
     function run() public broadcaster {
         setUp();
@@ -40,23 +40,23 @@ contract RegisterUtilityFacets is BaseScript {
 
         AaveV3Facet aaveFacet = new AaveV3Facet();
         bytes4[] memory aaveFacetSelectors = new bytes4[](3);
-        aaveFacetSelectors[0] = AaveV3Facet.getReserveData.selector;
-        aaveFacetSelectors[1] = AaveV3Facet.lend.selector;
-        aaveFacetSelectors[2] = AaveV3Facet.withdraw.selector;
+        aaveFacetSelectors[0] = AaveV3Facet.getReserveDataAaveV3.selector;
+        aaveFacetSelectors[1] = AaveV3Facet.lendAaveV3.selector;
+        aaveFacetSelectors[2] = AaveV3Facet.withdrawAaveV3.selector;
 
         console2.log("AaveV3Facet deployed at:", address(aaveFacet));
 
-        GardenCollectionFacet gardenCollectionFacet = new GardenCollectionFacet();
-        bytes4[] memory gardenCollectionFacetSelectors = new bytes4[](8);
-        gardenCollectionFacetSelectors[0] = GardenCollectionFacet.name.selector;
-        gardenCollectionFacetSelectors[1] = GardenCollectionFacet.symbol.selector;
-        gardenCollectionFacetSelectors[2] = GardenCollectionFacet.tokenURI.selector;
-        gardenCollectionFacetSelectors[3] = GardenCollectionFacet.transferFrom.selector;
-        gardenCollectionFacetSelectors[4] = GardenCollectionFacet.mint.selector;
-        gardenCollectionFacetSelectors[5] = GardenCollectionFacet.burn.selector;
-        gardenCollectionFacetSelectors[6] = GardenCollectionFacet.ownerOf.selector;
-        gardenCollectionFacetSelectors[7] = GardenCollectionFacet.balanceOf.selector;
-        console2.log("GardenCollectionFacet deployed at:", address(gardenCollectionFacet));
+        RewardCollectionFacet rewardCollectionFacet = new RewardCollectionFacet();
+        bytes4[] memory rewardCollectionFacetSelectors = new bytes4[](8);
+        rewardCollectionFacetSelectors[0] = RewardCollectionFacet.name.selector;
+        rewardCollectionFacetSelectors[1] = RewardCollectionFacet.symbol.selector;
+        rewardCollectionFacetSelectors[2] = RewardCollectionFacet.tokenURI.selector;
+        rewardCollectionFacetSelectors[3] = RewardCollectionFacet.transferFrom.selector;
+        rewardCollectionFacetSelectors[4] = RewardCollectionFacet.mint.selector;
+        rewardCollectionFacetSelectors[5] = RewardCollectionFacet.burn.selector;
+        rewardCollectionFacetSelectors[6] = RewardCollectionFacet.ownerOf.selector;
+        rewardCollectionFacetSelectors[7] = RewardCollectionFacet.balanceOf.selector;
+        console2.log("RewardCollectionFacet deployed at:", address(rewardCollectionFacet));
 
         IDiamondCut.FacetCut[] memory facetCuts = new IDiamondCut.FacetCut[](4);
         facetCuts[0] = IDiamondCut.FacetCut({
@@ -75,9 +75,9 @@ contract RegisterUtilityFacets is BaseScript {
             functionSelectors: aaveFacetSelectors
         });
         facetCuts[3] = IDiamondCut.FacetCut({
-            facetAddress: address(gardenCollectionFacet),
+            facetAddress: address(rewardCollectionFacet),
             action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: gardenCollectionFacetSelectors
+            functionSelectors: rewardCollectionFacetSelectors
         });
 
         FacetRegistry(FACET_REGISTRY).upgradeFacetRegistry(facetCuts);

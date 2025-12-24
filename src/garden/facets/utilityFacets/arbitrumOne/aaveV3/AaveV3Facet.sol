@@ -66,8 +66,8 @@ contract AaveV3Facet is AaveV3Base, Facet {
     /// @notice Gets reserve data from an Aave pool for a specific token
     /// @param tokenIn The underlying asset token address whose reserve data is requested
     /// @return reserveData The Aave ReserveData struct for the token
-    function getReserveData(address tokenIn) external view returns (DataTypes.ReserveData memory reserveData) {
-        return _getReserveData(tokenIn);
+    function getReserveDataAaveV3(address tokenIn) external view returns (DataTypes.ReserveData memory reserveData) {
+        return _getReserveDataAaveV3(tokenIn);
     }
 
     // ========================================================================
@@ -77,14 +77,14 @@ contract AaveV3Facet is AaveV3Base, Facet {
     /// @notice Lends tokens to an Aave pool
     /// @param tokenIn The ERC20 token address to supply
     /// @param amountIn Amount of token to supply
-    function lend(address tokenIn, uint256 amountIn) external onlyGardenOwner ifIndexNotConnected {
-        _lend(tokenIn, amountIn);
+    function lendAaveV3(address tokenIn, uint256 amountIn) external onlyGardenOwner ifIndexNotConnected {
+        _lendAaveV3(tokenIn, amountIn);
     }
 
     /// @notice Withdraws tokens from an Aave pool
     /// @param tokenIn The underlying asset address (asset corresponding to the aToken)
     /// @param amountToWithdraw Amount of underlying to withdraw (in token decimals)
-    function withdraw(address tokenIn, uint256 amountToWithdraw) external onlyGardenOwner ifIndexNotConnected {
-        _withdraw(tokenIn, amountToWithdraw);
+    function withdrawAaveV3(address tokenIn, uint256 amountToWithdraw) external onlyGardenOwner ifIndexNotConnected {
+        _withdrawAaveV3(tokenIn, amountToWithdraw);
     }
 }

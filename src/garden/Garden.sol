@@ -104,6 +104,7 @@ contract Garden is DiamondCutBase {
         // Initialize diamond storage with registry addresses
         ld.facetRegistry = _facetRegistry;
         ld.protocolStatus = _protocolStatus;
+        
         // Apply initial diamond cuts (validates against registry)
         _applyDiamondCut(_diamondCut, address(0), "");
 

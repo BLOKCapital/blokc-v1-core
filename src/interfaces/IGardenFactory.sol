@@ -7,7 +7,7 @@ pragma solidity >=0.8.31;
     @author BLOK Capital DAO
     @notice Interface for Garden Factory
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -21,7 +21,13 @@ interface IGardenFactory {
     /// @param  collection The address of the collection to mint from.
     /// @param  tokenId The token id to mint.
     /// @return garden The address of the newly deployed garden proxy.
-    function createGarden(uint256 index, address collection, uint256 tokenId) external returns (address garden);
+    function createGarden(
+        uint256 index,
+        address collection,
+        uint256 tokenId
+    )
+        external
+        returns (address garden);
 
     /// @notice Returns all registered gardens.
     /// @return gardens Array of all registered garden addresses.

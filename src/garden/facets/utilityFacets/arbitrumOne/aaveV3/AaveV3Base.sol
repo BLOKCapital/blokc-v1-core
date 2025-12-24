@@ -77,14 +77,14 @@ abstract contract AaveV3Base is IAaveV3 {
     /// @notice Gets reserve data from an Aave pool for a specific token
     /// @param tokenIn The underlying asset token address whose reserve data is requested
     /// @return reserveData The Aave ReserveData struct for the token
-    function _getReserveData(address tokenIn) internal view returns (DataTypes.ReserveData memory reserveData) {
+    function _getReserveDataAaveV3(address tokenIn) internal view returns (DataTypes.ReserveData memory reserveData) {
         reserveData = IPool(AAVE_V3_POOL_ADDRESS).getReserveData(tokenIn);
     }
 
     /// @notice Lends tokens to an Aave pool
     /// @param tokenIn The ERC20 token address to supply
     /// @param amountIn Amount of token to supply
-    function _lend(address tokenIn, uint256 amountIn) internal {
+    function _lendAaveV3(address tokenIn, uint256 amountIn) internal {
         // Create typed references
         IPool pool = IPool(AAVE_V3_POOL_ADDRESS);
         IERC20 token = IERC20(tokenIn);
@@ -101,7 +101,7 @@ abstract contract AaveV3Base is IAaveV3 {
     /// @notice Withdraws tokens from an Aave pool
     /// @param tokenIn The underlying asset address (asset corresponding to the aToken)
     /// @param amountToWithdraw Amount of underlying to withdraw (in token decimals)
-    function _withdraw(address tokenIn, uint256 amountToWithdraw) internal {
+    function _withdrawAaveV3(address tokenIn, uint256 amountToWithdraw) internal {
         IPool pool = IPool(AAVE_V3_POOL_ADDRESS);
 
         // Get reserve data to discover the aToken address

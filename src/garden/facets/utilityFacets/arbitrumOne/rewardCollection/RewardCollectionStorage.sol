@@ -17,12 +17,12 @@ pragma solidity >=0.8.31;
 
 ################################################################################*/
 
-library GardenCollectionStorage {
+library RewardCollectionStorage {
     /// @notice Fixed storage slot for Garden Collection layout (unique label reduces collision risk).
-    bytes32 internal constant GARDEN_COLLECTION_STORAGE_SLOT_POSITION = keccak256("gardenCollection.storage");
+    bytes32 internal constant GARDEN_COLLECTION_STORAGE_SLOT_POSITION = keccak256("garden.reward.storage");
 
-    string internal constant DEFAULT_NAME = "Toku";
-    string internal constant DEFAULT_SYMBOL = "TOKU";
+    string internal constant DEFAULT_NAME = "Reward Token";
+    string internal constant DEFAULT_SYMBOL = "RT";
 
     // ========================================================================
     // Layout
@@ -31,6 +31,8 @@ library GardenCollectionStorage {
     /// @notice Layout for the Garden Collection Storage
     /// @dev The struct stores all Garden Collection state including name, symbol, owners, balances, and approvals
     struct Layout {
+        /// @notice Total supply of tokens
+        uint256 totalSupply;
         /// @notice Mapping from token ID to owner address
         mapping(uint256 tokenId => address) owners;
         /// @notice Mapping from owner address to token count
