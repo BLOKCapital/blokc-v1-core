@@ -52,7 +52,7 @@ contract IndexComponentRegistry is Ownable {
         address priceFeedAddress;
     }
 
-    mapping(address => Component) private _components;
+    mapping(string => Component) private _components;
 
     /// @notice Set of all registered component token addresses
     /// @dev Provides efficient lookup and iteration
@@ -63,101 +63,62 @@ contract IndexComponentRegistry is Ownable {
     constructor(address initialOwner) Ownable(initialOwner) { }
 
     /// @notice Registers multiple components with their corresponding price feeds
-    /// @param componentAddresses Array of ERC20 token addresses to register
-    /// @param priceFeedAddresses Array of Chainlink price feed addresses (parallel to componentAddresses)
-    /// @dev Only callable by owner. Arrays must have equal length. Components must not already be registered.
-    function registerComponents(
-        address[] memory componentAddresses,
-        address[] memory priceFeedAddresses,
-        string[] memory symbols
-    )
-        public
-        onlyOwner
-    {
-        uint256 totalComponents = componentAddresses.length;
-        uint256 totalPriceFeeds = priceFeedAddresses.length;
-        if (totalComponents != totalPriceFeeds) revert IndexComponentRegistry_TotalComponentsAndPriceFeedsMismatch();
-        if (totalComponents != symbols.length) revert IndexComponentRegistry_TotalComponentsAndSymbolsMismatch();
+    /// @param components Array of Component structs to register
+    /// @dev Only callable by owner. Components must not already be registered.
+    function registerComponents(Component[] memory components) public onlyOwner {
+        uint256 totalComponents = components.length;
         for (uint256 i = 0; i < totalComponents; i++) {
-            address componentAddress = componentAddresses[i];
-            address priceFeedAddress = priceFeedAddresses[i];
-            string memory symbol = symbols[i];
-            if (componentAddress == address(0)) revert IndexComponentRegistry_InvalidComponentAddress();
-            if (priceFeedAddress == address(0)) revert IndexComponentRegistry_InvalidPriceFeedAddress();
-            if (_componentAddresses.contains(componentAddress)) {
+            Component memory component = components[i];
+            if (component.tokenAddress == address(0)) revert IndexComponentRegistry_InvalidComponentAddress();
+            if (component.priceFeedAddress == address(0)) revert IndexComponentRegistry_InvalidPriceFeedAddress();
+            if (_components[component.symbol].tokenAddress != address(0)) {
                 revert IndexComponentRegistry_ComponentAlreadyRegistered();
             }
-            _componentAddresses.add(componentAddress);
-            _components[componentAddress] =
-                Component({ symbol: symbol, tokenAddress: componentAddress, priceFeedAddress: priceFeedAddress });
+            _componentAddresses.add(component.tokenAddress);
+            _components[component.symbol] = component;
         }
     }
 
     /// @notice Unregisters multiple components from the registry
-    /// @param componentAddresses Array of component addresses to unregister
+    /// @param symbols Array of component symbols to unregister
     /// @dev Only callable by owner. All components must be registered.
-    function unregisterComponents(address[] memory componentAddresses) public onlyOwner {
-        uint256 totalComponents = componentAddresses.length;
-        for (uint256 i = 0; i < totalComponents; i++) {
-            address componentAddress = componentAddresses[i];
-            if (!_componentAddresses.contains(componentAddress)) {
+    function unregisterComponents(string[] memory symbols) public onlyOwner {
+        uint256 totalSymbols = symbols.length;
+        for (uint256 i = 0; i < totalSymbols; i++) {
+            string memory symbol = symbols[i];
+            if (_components[symbol].tokenAddress == address(0)) {
                 revert IndexComponentRegistry_ComponentNotRegistered();
             }
-            _componentAddresses.remove(componentAddress);
-            delete _components[componentAddress];
+            delete _components[symbol];
         }
     }
 
     /// @notice Checks if a component is registered
-    /// @param componentAddress Address to check
+    /// @param symbol Symbol to check
     /// @return True if the component is registered, false otherwise
-    function isComponentRegistered(address componentAddress) public view returns (bool) {
-        return _componentAddresses.contains(componentAddress);
-    }
-
-    /// @notice Returns all registered component addresses
-    /// @return Array of registered component token addresses
-    function getComponentAddresses() public view returns (address[] memory) {
-        address[] memory componentAddresses = new address[](_componentAddresses.length());
-        for (uint256 i = 0; i < _componentAddresses.length(); i++) {
-            componentAddresses[i] = _componentAddresses.at(i);
-        }
-        return componentAddresses;
-    }
-
-    /// @notice Returns all registered components and their price feed addresses
-    /// @return components Array of component token addresses
-    /// @return priceFeedAddresses Array of corresponding Chainlink price feed addresses
-    /// @dev Returned arrays are parallel - priceFeedAddresses[i] is the feed for components[i]
-    function getComponentsAndPriceFeedAddresses() public view returns (address[] memory, address[] memory) {
-        address[] memory components = new address[](_componentAddresses.length());
-        address[] memory priceFeedAddresses = new address[](_componentAddresses.length());
-        for (uint256 i = 0; i < _componentAddresses.length(); i++) {
-            components[i] = _components[_componentAddresses.at(i)].tokenAddress;
-            priceFeedAddresses[i] = _components[_componentAddresses.at(i)].priceFeedAddress;
-        }
-        return (components, priceFeedAddresses);
+    function isComponentRegistered(string memory symbol) public view returns (bool) {
+        return _components[symbol].tokenAddress != address(0);
     }
 
     /// @notice Returns the price feed address for a specific component
-    /// @param componentAddress The component token address
+    /// @param symbol The component symbol
     /// @return The Chainlink price feed address for the component
-    function getComponentAddressToPriceFeedAddress(address componentAddress) public view returns (address) {
-        return _components[componentAddress].priceFeedAddress;
+    function getComponentSymbolToPriceFeedAddress(string memory symbol) public view returns (address) {
+        return _components[symbol].priceFeedAddress;
     }
 
     /// @notice Returns price feed addresses for multiple components
-    /// @param componentAddresses Array of component addresses
+    /// @param symbols Array of component symbols
     /// @return priceFeedAddresses Array of corresponding Chainlink price feed addresses
     /// @dev All components must be registered. Returns parallel array to input.
-    function getPriceFeedAddresses(address[] memory componentAddresses) public view returns (address[] memory) {
-        uint256 totalComponents = componentAddresses.length;
-        address[] memory priceFeedAddresses = new address[](totalComponents);
-        for (uint256 i = 0; i < totalComponents; i++) {
-            if (!_componentAddresses.contains(componentAddresses[i])) {
+    function getPriceFeedAddresses(string[] memory symbols) public view returns (address[] memory) {
+        uint256 totalSymbols = symbols.length;
+        address[] memory priceFeedAddresses = new address[](totalSymbols);
+        for (uint256 i = 0; i < totalSymbols; i++) {
+            if (_components[symbols[i]].tokenAddress == address(0)) {
                 revert IndexComponentRegistry_ComponentNotRegistered();
             }
-            priceFeedAddresses[i] = _components[componentAddresses[i]].priceFeedAddress;
+            priceFeedAddresses[i] = _components[symbols[i]].priceFeedAddress;
             if (priceFeedAddresses[i] == address(0)) {
                 revert IndexComponentRegistry_InvalidPriceFeedAddress();
             }
@@ -165,10 +126,10 @@ contract IndexComponentRegistry is Ownable {
         return priceFeedAddresses;
     }
 
-    /// @notice Returns the symbol of a specific component
-    /// @param componentAddress The component token address
-    /// @return The symbol of the component
-    function getComponentSymbol(address componentAddress) public view returns (string memory) {
-        return _components[componentAddress].symbol;
+    /// @notice Returns the token address for a specific component
+    /// @param symbol The component symbol
+    /// @return The token address for the component
+    function getComponentAddress(string memory symbol) public view returns (address) {
+        return _components[symbol].tokenAddress;
     }
 }

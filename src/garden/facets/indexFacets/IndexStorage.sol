@@ -6,11 +6,11 @@ pragma solidity >=0.8.31;
     @title IndexStorage
     @author BLOK Capital DAO
     @notice Storage layout and constants for Index-related facets
-    @dev Uses diamond storage pattern with a fixed storage slot to ensure 
+    @dev Uses diamond storage pattern with a fixed storage slot to ensure
          compatibility across diamond upgrades. Contains Arbitrum One mainnet
          addresses for tokens, oracles, and registries.
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -41,10 +41,10 @@ library IndexStorage {
     // ========================================================================
 
     /// @notice IndexFactory contract address
-    address internal constant INDEX_FACTORY_ADDRESS = 0x320873b52432573384682054981277673E577014;
+    address internal constant INDEX_FACTORY_ADDRESS = 0x822aC87bDf3f8Fb429B2465cf6AeD379509f8C95;
 
     /// @notice IndexComponentRegistry contract address
-    address internal constant INDEX_COMPONENT_REGISTRY_ADDRESS = 0x5692577D77b886977946e755928349797843264b;
+    address internal constant INDEX_COMPONENT_REGISTRY_ADDRESS = 0x5b1e9bc7253b2f9419b382E0B21D721A2B599070;
 
     // ========================================================================
     // Rebalancing Parameters
@@ -60,16 +60,16 @@ library IndexStorage {
     uint256 internal constant PRECISION = 1e18;
 
     /// @notice Minimum USDC amount to trigger swap (100 USDC with 6 decimals)
-    uint256 internal constant MIN_SWAP_AMOUNT = 10 ** 5;
+    uint256 internal constant MIN_SWAP_AMOUNT = 10 ** 4;
 
-    /// @notice Minimum WETH value for rebalance operations (0.01 WETH)
-    uint256 internal constant MIN_REBALANCE_VALUE_WETH = 0.01e18;
+    /// @notice Minimum WETH value for rebalance operations (0.01 USD)
+    uint256 internal constant MIN_REBALANCE_VALUE_USD = 0.01e8;
 
     /// @notice Maximum slippage tolerance in basis points (5% = 500 bps)
     uint256 internal constant MAX_SLIPPAGE_BPS = 500;
 
-    /// @notice Swap deadline in seconds (30 minutes)
-    uint256 internal constant SWAP_DEADLINE_SECONDS = 1800;
+    /// @notice Swap deadline in seconds (5 minutes)
+    uint256 internal constant SWAP_DEADLINE_SECONDS = 300;
 
     /// @notice Maximum number of assets allowed in an index
     uint256 internal constant MAX_ASSETS = 30;

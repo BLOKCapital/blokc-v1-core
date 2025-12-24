@@ -35,7 +35,7 @@ abstract contract CamelotV2Base {
     //Arbitrum One
     address internal constant CAMELOT_V2_ROUTER_ADDRESS = 0xc873fEcbd354f5A56E00E710B90EF4201db2448d;
     address internal constant CAMELOT_V2_FACTORY_ADDRESS = 0x6EcCab422D763aC031210895C81787E87B43A652;
-    address internal constant POOL_REGISTRY_ADDRESS = 0x7aC04e3ED7e529B852d9963494D6d176B1068546;
+    address internal constant POOL_REGISTRY_ADDRESS = 0xBa7898DbE9C2be340197e1fffe85FC5a3B977744;
 
     /// @notice Camelot V2 facet tokens swapped event
     /// @param tokenIn The input token

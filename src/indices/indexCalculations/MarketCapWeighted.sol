@@ -49,37 +49,38 @@ contract MarketCapWeighted is IIndexCalculation {
 
     /// @notice Constructs the MarketCapWeighted calculation strategy
     /// @param _indexComponentRegistryAddress Address of the IndexComponentRegistry
+    /// @param _circulatingSupplyAddress Address of the CirculatingSupply contract
     /// @dev Validates registry address is not zero
-    constructor(address _indexComponentRegistryAddress) {
-        if (_indexComponentRegistryAddress == address(0)) {
+    constructor(address _indexComponentRegistryAddress, address _circulatingSupplyAddress) {
+        if (_indexComponentRegistryAddress == address(0) || _circulatingSupplyAddress == address(0)) {
             revert MarketCapWeighted_InvalidIndexComponentRegistryAddress();
         }
         INDEX_COMPONENT_REGISTRY = IndexComponentRegistry(_indexComponentRegistryAddress);
-        CIRCULATING_SUPPLY = CirculatingSupply(_indexComponentRegistryAddress);
+        CIRCULATING_SUPPLY = CirculatingSupply(_circulatingSupplyAddress);
     }
 
     /// @notice Calculates market cap weighted allocations for components
-    /// @param componentAddresses Array of component token addresses
+    /// @param symbols Array of component symbols
     /// @return weights Array of weights scaled to 1e18 (100% = 1e18)
     /// @dev For each component: weight = (component market cap) / (total market cap)
     ///      Uses Chainlink price feeds and circulating supply data
-    function getWeights(address[] memory componentAddresses) public view override returns (uint256[] memory weights) {
-        weights = new uint256[](componentAddresses.length);
-        uint256 totalMarketCap = _getTotalMarketCap(componentAddresses);
+    function getWeights(string[] memory symbols) external view override returns (uint256[] memory weights) {
+        weights = new uint256[](symbols.length);
+        uint256 totalMarketCap = _getTotalMarketCap(symbols);
         if (totalMarketCap == 0) revert MarketCapWeighted_InvalidTotalMarketCap();
-        for (uint256 i = 0; i < componentAddresses.length; i++) {
-            weights[i] = IndexMath.calculateWeight(_getComponentMarketCap(componentAddresses[i]), totalMarketCap);
+        for (uint256 i = 0; i < symbols.length; i++) {
+            weights[i] = IndexMath.calculateWeight(_getComponentMarketCap(symbols[i]), totalMarketCap);
         }
         return weights;
     }
 
     /// @notice Calculates total market cap across all components
-    /// @param assetAddresses Array of component addresses
+    /// @param symbols Array of component symbols
     /// @return totalMarketCap Sum of all component market caps
     /// @dev Uses safe math to prevent overflow
-    function _getTotalMarketCap(address[] memory assetAddresses) internal view returns (uint256 totalMarketCap) {
-        for (uint256 i = 0; i < assetAddresses.length; i++) {
-            (bool success, uint256 result) = Math.tryAdd(totalMarketCap, _getComponentMarketCap(assetAddresses[i]));
+    function _getTotalMarketCap(string[] memory symbols) internal view returns (uint256 totalMarketCap) {
+        for (uint256 i = 0; i < symbols.length; i++) {
+            (bool success, uint256 result) = Math.tryAdd(totalMarketCap, _getComponentMarketCap(symbols[i]));
             if (!success) {
                 revert MarketCapWeighted_MarketCapOverflow();
             }
@@ -88,29 +89,28 @@ contract MarketCapWeighted is IIndexCalculation {
     }
 
     /// @notice Calculates market cap for a single component
-    /// @param componentAddress Address of the component token
+    /// @param symbol Component symbol
     /// @return componentMarketCap Market cap = (circulating supply) * (price)
     /// @dev Uses Chainlink price feed and CirculatingSupply contract
-    function _getComponentMarketCap(address componentAddress) internal view returns (uint256 componentMarketCap) {
-        (uint256 componentPrice, uint256 componentPriceDecimals) = _getComponentPrice(componentAddress);
-        string memory componentSymbol = INDEX_COMPONENT_REGISTRY.getComponentSymbol(componentAddress);
-        uint256 componentCirculatingSupply = CIRCULATING_SUPPLY.getSupply(componentSymbol);
+    function _getComponentMarketCap(string memory symbol) internal view returns (uint256 componentMarketCap) {
+        (uint256 componentPrice, uint256 componentPriceDecimals) = _getComponentPrice(symbol);
+        uint256 componentCirculatingSupply = CIRCULATING_SUPPLY.getSupply(symbol);
         componentMarketCap =
             Math.mulDiv(componentCirculatingSupply, componentPrice, 10 ** componentPriceDecimals, Math.Rounding.Floor);
     }
 
     /// @notice Retrieves current price for a component from Chainlink oracle
-    /// @param componentAddress Address of the component token
+    /// @param symbol Component symbol
     /// @return componentPrice Current price from oracle
     /// @return componentPriceDecimals Decimal precision of the price
     /// @dev Validates oracle data for freshness and completeness
-    function _getComponentPrice(address componentAddress)
+    function _getComponentPrice(string memory symbol)
         internal
         view
         returns (uint256 componentPrice, uint8 componentPriceDecimals)
     {
         AggregatorV3Interface priceFeed =
-            AggregatorV3Interface(INDEX_COMPONENT_REGISTRY.getComponentAddressToPriceFeedAddress(componentAddress));
+            AggregatorV3Interface(INDEX_COMPONENT_REGISTRY.getComponentSymbolToPriceFeedAddress(symbol));
         (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) = priceFeed.latestRoundData();
 
         IndexMath.validateOracleData(roundId, price, updatedAt, answeredInRound);

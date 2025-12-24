@@ -32,9 +32,9 @@ error CamelotV3Facet_UnregisteredPool();
 
 abstract contract CamelotV3Base {
     using SafeERC20 for IERC20;
-    address internal constant CAMELOT_V3_ROUTER_ADDRESS = 0x0000000000000000000000000000000000000000;
-    address internal constant CAMELOT_V3_FACTORY_ADDRESS = 0x6EcCab422D763aC031210895C81787E87B43A652;
-    address internal constant POOL_REGISTRY_ADDRESS = 0x7aC04e3ED7e529B852d9963494D6d176B1068546;
+    address internal constant CAMELOT_V3_ROUTER_ADDRESS = 0x1F721E2E82F6676FCE4eA07A5958cF098D339e18;
+    address internal constant CAMELOT_V3_FACTORY_ADDRESS = 0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B;
+    address internal constant POOL_REGISTRY_ADDRESS = 0xBa7898DbE9C2be340197e1fffe85FC5a3B977744;
 
     /// @notice Camelot V3 facet tokens swapped event
     /// @param tokenIn The input token

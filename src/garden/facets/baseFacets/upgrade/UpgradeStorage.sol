@@ -8,7 +8,7 @@ pragma solidity >=0.8.31;
     @notice Storage for the UpgradeFacet
     @dev This storage is used to store the upgrade version of the diamond
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -18,7 +18,7 @@ pragma solidity >=0.8.31;
 
 library UpgradeStorage {
     /// @notice Fixed storage slot for ownable layout (unique label reduces collision risk).
-    bytes32 internal constant UPGRADE_STORAGE_SLOT_POSITION = keccak256("upgrade.storage");
+    bytes32 internal constant UPGRADE_STORAGE_SLOT_POSITION = keccak256("garden.upgrade.storage");
 
     /// @notice Layout for the UpgradeStorage
     /// @dev The struct stores the diamond version

@@ -8,7 +8,7 @@ pragma solidity >=0.8.31;
     @notice Storage layout used by the Diamond Cut facet and helpers.
     @dev Uses a fixed storage slot to ensure compatibility across diamond upgrades.
 
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖ 
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
@@ -18,7 +18,7 @@ pragma solidity >=0.8.31;
 
 library DiamondCutStorage {
     /// @notice Fixed storage slot for diamond-cut related persistent state.
-    bytes32 internal constant DIAMOND_CUT_STORAGE_POSITION = keccak256("diamond.cut.storage");
+    bytes32 internal constant DIAMOND_CUT_STORAGE_POSITION = keccak256("garden.cut.storage");
 
     struct FacetAddressAndPosition {
         address facetAddress;

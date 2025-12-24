@@ -13,43 +13,71 @@ contract DeployIndex is BaseScript {
         setUp();
         IndexComponentRegistry indexComponentRegistry = new IndexComponentRegistry(deployer);
         console2.log("IndexComponentRegistry deployed at:", address(indexComponentRegistry));
-        address[] memory componentAddresses = new address[](5);
-        address[] memory priceFeedAddresses = new address[](5);
-        string[] memory symbols = new string[](5);
+
+        string[] memory symbols = new string[](6);
+
         symbols[0] = "BTC";
-        componentAddresses[0] = 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f;
-        priceFeedAddresses[0] = 0x6ce185860a4963106506C203335A2910413708e9;
-
         symbols[1] = "ETH";
-        componentAddresses[1] = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
-        priceFeedAddresses[1] = 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612;
-
         symbols[2] = "USDC";
-        componentAddresses[2] = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-        priceFeedAddresses[2] = 0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3;
-
         symbols[3] = "LINK";
-        componentAddresses[3] = 0xf97f4df75117a78c1A5a0DBb814Af92458539FB4;
-        priceFeedAddresses[3] = 0x86E53CF1B870786351Da77A57575e79CB55812CB;
-
         symbols[4] = "UNI";
-        componentAddresses[4] = 0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0;
-        priceFeedAddresses[4] = 0x9C917083fDb403ab5ADbEC26Ee294f6EcAda2720;
+        symbols[5] = "ARB";
 
-        symbols[5] = "AAVE";
-        componentAddresses[5] = 0xba5DdD1f9d7F570dc94a51479a000E3BCE967196;
-        priceFeedAddresses[5] = 0xaD1d5344AaDE45F43E596773Bcc4c423EAbdD034;
+        IndexComponentRegistry.Component[] memory components = new IndexComponentRegistry.Component[](6);
+        components[0] = IndexComponentRegistry.Component({
+            symbol: "BTC",
+            tokenAddress: 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f,
+            priceFeedAddress: 0x6ce185860a4963106506C203335A2910413708e9
+        });
 
-        indexComponentRegistry.registerComponents(componentAddresses, priceFeedAddresses, symbols);
+        components[1] = IndexComponentRegistry.Component({
+            symbol: "ETH",
+            tokenAddress: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1,
+            priceFeedAddress: 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612
+        });
+
+        components[2] = IndexComponentRegistry.Component({
+            symbol: "USDC",
+            tokenAddress: 0xaf88d065e77c8cC2239327C5EDb3A432268e5831,
+            priceFeedAddress: 0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3
+        });
+
+        components[3] = IndexComponentRegistry.Component({
+            symbol: "LINK",
+            tokenAddress: 0xf97f4df75117a78c1A5a0DBb814Af92458539FB4,
+            priceFeedAddress: 0x86E53CF1B870786351Da77A57575e79CB55812CB
+        });
+
+        components[4] = IndexComponentRegistry.Component({
+            symbol: "UNI",
+            tokenAddress: 0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0,
+            priceFeedAddress: 0x9C917083fDb403ab5ADbEC26Ee294f6EcAda2720
+        });
+
+        components[5] = IndexComponentRegistry.Component({
+            symbol: "ARB",
+            tokenAddress: 0x912CE59144191C1204E64559FE8253a0e49E6548,
+            priceFeedAddress: 0xb2A824043730FE05F3DA2efaFa1CBbe83fa548D6
+        });
+
+        indexComponentRegistry.registerComponents(components);
         IndexCalculationRegistry indexCalculationRegistry = new IndexCalculationRegistry(deployer);
         console2.log("IndexCalculationRegistry deployed at:", address(indexCalculationRegistry));
-        MarketCapWeighted marketCapWeighted = new MarketCapWeighted(address(indexComponentRegistry));
+        MarketCapWeighted marketCapWeighted =
+            new MarketCapWeighted(address(indexComponentRegistry), 0x01590A36B357cc54d4c4DCA16631596E943C29FD);
         console2.log("MarketCapWeighted deployed at:", address(marketCapWeighted));
         indexCalculationRegistry.registerIndexCalculation(address(marketCapWeighted));
         IndexFactory indexFactory =
             new IndexFactory(deployer, address(indexCalculationRegistry), address(indexComponentRegistry));
         console2.log("IndexFactory deployed at:", address(indexFactory));
-        address indexAddress = indexFactory.deployIndex("Index5", address(marketCapWeighted), componentAddresses);
+        string[] memory indexSymbols = new string[](5);
+        indexSymbols[0] = "BTC";
+        indexSymbols[1] = "ETH";
+        indexSymbols[2] = "ARB";   
+        indexSymbols[3] = "LINK";
+        indexSymbols[4] = "UNI";
+        
+        address indexAddress = indexFactory.deployIndex("Index5", address(marketCapWeighted), indexSymbols);
         console2.log("Index5 deployed at:", indexAddress);
     }
 }

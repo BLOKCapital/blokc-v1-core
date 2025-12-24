@@ -21,16 +21,18 @@ import { IERC721Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093
 import { ERC721Utils } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Utils.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { Base64 } from "@openzeppelin/contracts/utils/Base64.sol";
+import { IERC165 } from "src/interfaces/IERC165.sol";
 
 import {
-    GardenCollectionStorage
-} from "src/garden/facets/utilityFacets/arbitrumOne/gardenCollection/GardenCollectionStorage.sol";
-import { IERC165 } from "src/interfaces/IERC165.sol";
+    RewardCollectionStorage
+} from "src/garden/facets/utilityFacets/arbitrumOne/rewardCollection/RewardCollectionStorage.sol";
 
 /// @notice Thrown when a query is made for a nonexistent token
 error GardenCollectionBase_URIQueryForNonexistentToken();
 
-abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Errors {
+error GardenCollectionFacet_TokenAlreadyExists(uint256 tokenId);
+
+abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Errors {
     using Strings for uint256;
 
     // CID for the rewards
@@ -42,7 +44,7 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
     function _balanceOf(address owner) internal view returns (uint256) {
         // Check if the owner is the zero address
         if (owner == address(0)) revert ERC721InvalidOwner(address(0));
-        return GardenCollectionStorage.layout().balances[owner];
+        return RewardCollectionStorage.layout().balances[owner];
     }
 
     /// @notice Gets the owner of a token
@@ -50,7 +52,7 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
     /// @return The owner of the token
     function _ownerOf(uint256 tokenId) internal view returns (address) {
         // Check if the token exists
-        address owner = GardenCollectionStorage.layout().owners[tokenId];
+        address owner = RewardCollectionStorage.layout().owners[tokenId];
         if (owner == address(0)) revert ERC721NonexistentToken(tokenId);
         return owner;
     }
@@ -58,13 +60,13 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
     /// @notice Gets the name of the collection
     /// @return The name of the collection
     function _name() internal pure returns (string memory) {
-        return GardenCollectionStorage.DEFAULT_NAME;
+        return RewardCollectionStorage.DEFAULT_NAME;
     }
 
     /// @notice Gets the symbol of the collection
     /// @return The symbol of the collection
     function _symbol() internal pure returns (string memory) {
-        return GardenCollectionStorage.DEFAULT_SYMBOL;
+        return RewardCollectionStorage.DEFAULT_SYMBOL;
     }
 
     /// @notice Gets the URI of a token
@@ -72,7 +74,7 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
     /// @return The URI of the token
     function _tokenURI(uint256 tokenId) internal view returns (string memory) {
         // Check if the token exists
-        address owner = GardenCollectionStorage.layout().owners[tokenId];
+        address owner = RewardCollectionStorage.layout().owners[tokenId];
         if (owner == address(0)) revert GardenCollectionBase_URIQueryForNonexistentToken();
 
         // Get the ID of the token
@@ -102,11 +104,15 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
         return "";
     }
 
+    function _totalSupply() internal view returns (uint256) {
+        return RewardCollectionStorage.layout().totalSupply;
+    }
+
     /// @notice Gets the approved address for a token
     /// @param tokenId The ID of the token
     /// @return The approved address for the token
     function _getApproved(uint256 tokenId) internal view returns (address) {
-        return GardenCollectionStorage.layout().tokenApprovals[tokenId];
+        return RewardCollectionStorage.layout().tokenApprovals[tokenId];
     }
 
     /// @notice Checks if an operator is approved for all tokens
@@ -114,7 +120,7 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
     /// @param operator The address of the operator
     /// @return True if the operator is approved for all tokens, false otherwise
     function _isApprovedForAll(address owner, address operator) internal view returns (bool) {
-        return GardenCollectionStorage.layout().operatorApprovals[owner][operator];
+        return RewardCollectionStorage.layout().operatorApprovals[owner][operator];
     }
 
     /// @notice Checks if the contract supports an interface
@@ -165,6 +171,9 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
     /// @param to The address of the to address
     /// @param tokenId The ID of the token
     function _mint(address to, uint256 tokenId) internal {
+        if (RewardCollectionStorage.layout().owners[tokenId] != address(0)) {
+            revert GardenCollectionFacet_TokenAlreadyExists(tokenId);
+        }
         if (to == address(0)) {
             revert ERC721InvalidReceiver(address(0));
         }
@@ -172,6 +181,7 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
         if (previousOwner != address(0)) {
             revert ERC721InvalidSender(address(0));
         }
+        RewardCollectionStorage.layout().totalSupply += 1;
     }
 
     /// @notice Burns a token
@@ -181,6 +191,7 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
         if (previousOwner == address(0)) {
             revert ERC721NonexistentToken(tokenId);
         }
+        RewardCollectionStorage.layout().totalSupply -= 1;
     }
 
     // ========================================================================
@@ -196,7 +207,7 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
         if (auth != address(0) && owner != auth && !_isApprovedForAll(owner, auth)) {
             revert ERC721InvalidApprover(auth);
         }
-        GardenCollectionStorage.layout().tokenApprovals[tokenId] = to;
+        RewardCollectionStorage.layout().tokenApprovals[tokenId] = to;
         emit Approval(owner, to, tokenId);
     }
 
@@ -208,7 +219,7 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
         if (operator == address(0)) {
             revert ERC721InvalidOperator(operator);
         }
-        GardenCollectionStorage.layout().operatorApprovals[owner][operator] = approved;
+        RewardCollectionStorage.layout().operatorApprovals[owner][operator] = approved;
         emit ApprovalForAll(owner, operator, approved);
     }
 
@@ -223,7 +234,7 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
     /// @return The previous owner of the token
     function _update(address to, uint256 tokenId, address auth) internal returns (address) {
         // Get the previous owner of the token
-        address from = GardenCollectionStorage.layout().owners[tokenId];
+        address from = RewardCollectionStorage.layout().owners[tokenId];
 
         // Check authorization if needed
         if (auth != address(0) && from != address(0)) {
@@ -234,20 +245,20 @@ abstract contract GardenCollectionBase is IERC721, IERC721Metadata, IERC721Error
 
         // Clear approval when transferring
         if (from != address(0)) {
-            GardenCollectionStorage.layout().tokenApprovals[tokenId] = address(0);
+            RewardCollectionStorage.layout().tokenApprovals[tokenId] = address(0);
             unchecked {
-                GardenCollectionStorage.layout().balances[from] -= 1;
+                RewardCollectionStorage.layout().balances[from] -= 1;
             }
         }
 
         // Update balances and ownership
         if (to != address(0)) {
             unchecked {
-                GardenCollectionStorage.layout().balances[to] += 1;
+                RewardCollectionStorage.layout().balances[to] += 1;
             }
         }
 
-        GardenCollectionStorage.layout().owners[tokenId] = to;
+        RewardCollectionStorage.layout().owners[tokenId] = to;
 
         // Emit the transfer event
         emit Transfer(from, to, tokenId);

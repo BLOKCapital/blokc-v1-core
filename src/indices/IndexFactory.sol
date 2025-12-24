@@ -53,8 +53,8 @@ error IndexFactory_IndexCalculationNotRegistered(address indexCalculationAddress
 error IndexFactory_IndexCalculationAlreadyRegistered(address indexCalculationAddress);
 
 /// @notice Thrown when component is not registered in IndexComponentRegistry
-/// @param component The unregistered component address
-error IndexFactory_ComponentNotRegistered(address component);
+/// @param symbol The unregistered component symbol
+error IndexFactory_ComponentNotRegistered(string symbol);
 
 /// @notice Thrown when IndexCalculationRegistry address is zero during construction
 /// @param indexCalculationRegistryAddress The invalid registry address
@@ -99,14 +99,14 @@ contract IndexFactory is Ownable {
     /// @notice Metadata for a deployed index
     /// @param name Human-readable name of the index
     /// @param id Unique identifier assigned during deployment
-    /// @param components Array of component token addresses in the index
+    /// @param symbols Array of component symbols in the index
     /// @param indexAddress Address of the deployed Index contract
     /// @param indexCalculationAddress Address of the calculation strategy used
     /// @param createdAt Block timestamp when the index was created
     struct IndexInfo {
         string name;
         uint256 id;
-        address[] components;
+        string[] symbols;
         address indexAddress;
         address indexCalculationAddress;
         uint256 createdAt;
@@ -171,17 +171,17 @@ contract IndexFactory is Ownable {
     }
 
     /// @notice Validates that all components are registered
-    /// @param components Array of component addresses to validate
+    /// @param symbols Array of component symbols to validate
     /// @dev Modifier checks each component against IndexComponentRegistry
-    modifier checkComponentsRegistered(address[] memory components) {
-        _checkComponentsRegistered(components);
+    modifier checkComponentsRegistered(string[] memory symbols) {
+        _checkComponentsRegistered(symbols);
         _;
     }
 
-    function _checkComponentsRegistered(address[] memory components) internal view {
-        for (uint256 i = 0; i < components.length; i++) {
-            if (!IndexComponentRegistry(COMPONENT_REGISTRY).isComponentRegistered(components[i])) {
-                revert IndexFactory_ComponentNotRegistered(components[i]);
+    function _checkComponentsRegistered(string[] memory symbols) internal view {
+        for (uint256 i = 0; i < symbols.length; i++) {
+            if (!IndexComponentRegistry(COMPONENT_REGISTRY).isComponentRegistered(symbols[i])) {
+                revert IndexFactory_ComponentNotRegistered(symbols[i]);
             }
         }
     }
@@ -189,30 +189,30 @@ contract IndexFactory is Ownable {
     /// @notice Deploys a new Index contract with specified parameters
     /// @param name Human-readable name for the index
     /// @param indexCalculationAddress Address of the calculation strategy contract
-    /// @param components Array of component token addresses to include
+    /// @param symbols Array of component symbols to include
     /// @return indexAddress Address of the newly deployed Index contract
     /// @dev Only callable by owner. Validates calculation and components are registered.
     ///      Enforces component count limits and non-empty name.
     function deployIndex(
         string calldata name,
         address indexCalculationAddress,
-        address[] memory components
+        string[] memory symbols
     )
         external
         onlyOwner
         checkCalculationRegistered(indexCalculationAddress)
-        checkComponentsRegistered(components)
+        checkComponentsRegistered(symbols)
         returns (address indexAddress)
     {
-        if (components.length == 0 || components.length > MAX_COMPONENTS_PER_INDEX) {
-            revert IndexFactory_TooManyComponents(components.length, MAX_COMPONENTS_PER_INDEX);
+        if (symbols.length == 0 || symbols.length > MAX_COMPONENTS_PER_INDEX) {
+            revert IndexFactory_TooManyComponents(symbols.length, MAX_COMPONENTS_PER_INDEX);
         }
         if (bytes(name).length == 0) {
             revert IndexFactory_InvalidIndexAddress(address(0));
         }
 
-        indexAddress = address(new Index(address(this), indexCalculationAddress, COMPONENT_REGISTRY, components));
-        _registerIndex(indexAddress, name, indexCalculationAddress, components);
+        indexAddress = address(new Index(address(this), indexCalculationAddress, COMPONENT_REGISTRY, symbols));
+        _registerIndex(indexAddress, name, indexCalculationAddress, symbols);
         return indexAddress;
     }
 
@@ -260,13 +260,13 @@ contract IndexFactory is Ownable {
     /// @param indexAddress Address of the deployed Index contract
     /// @param name Name of the index
     /// @param indexCalculationAddress Calculation strategy address
-    /// @param components Array of component addresses
+    /// @param symbols Array of component symbols
     /// @dev Assigns unique ID and stores complete metadata
     function _registerIndex(
         address indexAddress,
         string calldata name,
         address indexCalculationAddress,
-        address[] memory components
+        string[] memory symbols
     )
         internal
     {
@@ -276,7 +276,7 @@ contract IndexFactory is Ownable {
             name: name,
             id: _indexIdCounter,
             indexAddress: indexAddress,
-            components: components,
+            symbols: symbols,
             indexCalculationAddress: indexCalculationAddress,
             createdAt: block.timestamp
         });

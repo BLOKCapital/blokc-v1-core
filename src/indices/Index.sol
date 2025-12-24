@@ -57,12 +57,10 @@ error Index_GardenAlreadyConnected(address garden);
 error Index_GardenNotConnected(address garden);
 
 /// @notice Thrown when attempting to add unregistered component to index
-/// @param componentAddress Address of the unregistered component
-error Index_ComponentNotRegistered(address componentAddress);
+/// @param symbol Symbol of the unregistered component
+error Index_ComponentNotRegistered(string symbol);
 
 contract Index is Ownable {
-    using EnumerableSet for EnumerableSet.AddressSet;
-
     /// @notice Minimum time interval between rebalances
     /// @dev Set to 1 hour to prevent excessive rebalancing and associated gas costs
     uint256 public constant REBALANCE_INTERVAL = 1 hours;
@@ -77,15 +75,15 @@ contract Index is Ownable {
 
     /// @notice Mapping of component addresses to their current weights
     /// @dev Weights are scaled to 1e18 (100% = 1e18)
-    mapping(address => uint256) private _componentWeights;
+    mapping(string => uint256) private _componentWeights;
 
     /// @notice Timestamp of the last rebalance
     /// @dev Used to enforce REBALANCE_INTERVAL
     uint256 private _lastRebalanceTimestamp;
 
-    /// @notice Set of component token addresses in this index
+    /// @notice Set of component symbols in this index
     /// @dev EnumerableSet provides efficient iteration and membership checks
-    EnumerableSet.AddressSet private _componentAddresses;
+    EnumerableSet.StringSet private _componentSymbols;
 
     /// @notice Set of garden addresses connected to this index
     /// @dev Gardens track this index's composition for their portfolios
@@ -95,13 +93,13 @@ contract Index is Ownable {
     /// @param initialOwner Address of the contract owner
     /// @param indexCalculationAddress Address of the calculation strategy contract
     /// @param indexComponentRegistryAddress Address of the component registry
-    /// @param componentAddresses Array of component token addresses to include in index
+    /// @param symbols Array of component symbols to include in index
     /// @dev Validates all addresses, ensures components are registered, and performs initial rebalance
     constructor(
         address initialOwner,
         address indexCalculationAddress,
         address indexComponentRegistryAddress,
-        address[] memory componentAddresses
+        string[] memory symbols
     )
         Ownable(initialOwner)
     {
@@ -116,11 +114,12 @@ contract Index is Ownable {
         INDEX_CALCULATION = IIndexCalculation(indexCalculationAddress);
         INDEX_COMPONENT_REGISTRY = IndexComponentRegistry(indexComponentRegistryAddress);
 
-        for (uint256 i = 0; i < componentAddresses.length; i++) {
-            if (!INDEX_COMPONENT_REGISTRY.isComponentRegistered(componentAddresses[i])) {
-                revert Index_ComponentNotRegistered(componentAddresses[i]);
+        for (uint256 i = 0; i < symbols.length; i++) {
+            string memory symbol = symbols[i];
+            if (!INDEX_COMPONENT_REGISTRY.isComponentRegistered(symbol)) {
+                revert Index_ComponentNotRegistered(symbol);
             }
-            _componentAddresses.add(componentAddresses[i]);
+            EnumerableSet.add(_componentSymbols, symbol);
         }
 
         _rebalance();
@@ -141,20 +140,20 @@ contract Index is Ownable {
     /// @dev Allows gardens to track this index for portfolio management
     ///      Gardens must call this before using the index's weights
     function connectGardenToIndex() external {
-        if (_connectedGardens.contains(msg.sender)) {
+        if (EnumerableSet.contains(_connectedGardens, msg.sender)) {
             revert Index_GardenAlreadyConnected(msg.sender);
         }
 
-        _connectedGardens.add(msg.sender);
+        EnumerableSet.add(_connectedGardens, msg.sender);
     }
 
     /// @notice Disconnects a garden (msg.sender) from this index
     /// @dev Gardens call this when they no longer want to track this index
     function disconnectGardenFromIndex() external {
-        if (!_connectedGardens.contains(msg.sender)) {
+        if (!EnumerableSet.contains(_connectedGardens, msg.sender)) {
             revert Index_GardenNotConnected(msg.sender);
         }
-        _connectedGardens.remove(msg.sender);
+        EnumerableSet.remove(_connectedGardens, msg.sender);
     }
 
     //=======================================================================
@@ -162,15 +161,15 @@ contract Index is Ownable {
     //=======================================================================
 
     /// @notice Returns the current weights for all components in the index
-    /// @return componentAddresses Array of component token addresses
+    /// @return symbols Array of component symbols
     /// @return weights Array of weights (scaled to 1e18, where 1e18 = 100%)
-    /// @dev Arrays are parallel - weights[i] corresponds to componentAddresses[i]
-    function getWeights() external view returns (address[] memory componentAddresses, uint256[] memory weights) {
-        componentAddresses = new address[](_componentAddresses.length());
-        weights = new uint256[](_componentAddresses.length());
-        for (uint256 i = 0; i < _componentAddresses.length(); i++) {
-            componentAddresses[i] = _componentAddresses.at(i);
-            weights[i] = _componentWeights[componentAddresses[i]];
+    /// @dev Arrays are parallel - weights[i] corresponds to symbols[i]
+    function getWeights() external view returns (string[] memory symbols, uint256[] memory weights) {
+        symbols = new string[](EnumerableSet.length(_componentSymbols));
+        weights = new uint256[](EnumerableSet.length(_componentSymbols));
+        for (uint256 i = 0; i < EnumerableSet.length(_componentSymbols); i++) {
+            symbols[i] = EnumerableSet.at(_componentSymbols, i);
+            weights[i] = _componentWeights[symbols[i]];
         }
     }
 
@@ -183,7 +182,7 @@ contract Index is Ownable {
     /// @notice Returns all gardens currently connected to this index
     /// @return Array of connected garden addresses
     function getConnectedGardens() external view returns (address[] memory) {
-        return _connectedGardens.values();
+        return EnumerableSet.values(_connectedGardens);
     }
 
     //=======================================================================
@@ -199,19 +198,19 @@ contract Index is Ownable {
         }
 
         // Create array from EnumerableSet for calculation strategy
-        address[] memory componentAddresses = new address[](_componentAddresses.length());
-        for (uint256 i = 0; i < _componentAddresses.length(); i++) {
-            componentAddresses[i] = _componentAddresses.at(i);
+        string[] memory symbols = new string[](EnumerableSet.length(_componentSymbols));
+        for (uint256 i = 0; i < EnumerableSet.length(_componentSymbols); i++) {
+            symbols[i] = EnumerableSet.at(_componentSymbols, i);
         }
 
-        uint256[] memory weights = INDEX_CALCULATION.getWeights(componentAddresses);
+        uint256[] memory weights = INDEX_CALCULATION.getWeights(symbols);
 
-        if (weights.length != componentAddresses.length) {
-            revert Index_WeightsMismatch(weights.length, componentAddresses.length);
+        if (weights.length != symbols.length) {
+            revert Index_WeightsMismatch(weights.length, symbols.length);
         }
 
-        for (uint256 i = 0; i < componentAddresses.length; i++) {
-            _componentWeights[componentAddresses[i]] = weights[i];
+        for (uint256 i = 0; i < symbols.length; i++) {
+            _componentWeights[symbols[i]] = weights[i];
         }
 
         _lastRebalanceTimestamp = block.timestamp;

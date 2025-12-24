@@ -23,14 +23,12 @@ interface IUniswapV3 {
     // ========================================================================
 
     /// @notice Parameters for a single-hop exact-input swap
-    /// @param swapFee Fee tier (e.g., 3000 for 0.3%)
     /// @param amountIn Amount of input token to swap
     /// @param amountOutMinimum Minimum acceptable output amount (slippage protection)
     /// @param deadline Unix timestamp after which the swap is invalid
     /// @param tokenIn Address of the ERC20 input token
     /// @param tokenOut Address of the ERC20 output token
     struct UniswapV3ExactInputSingleParams {
-        uint24 swapFee;
         uint256 amountIn;
         uint256 amountOutMinimum;
         uint256 deadline;
@@ -58,8 +56,14 @@ interface IUniswapV3 {
         uint256 amountOutMin;
     }
 
+    /// @notice Parameters for a single-hop exact-output swap
+    /// @param swapFee Fee tier (e.g., 3000 for 0.3%)
+    /// @param amountOut Amount of output token to swap
+    /// @param amountInMaximum Maximum acceptable input amount (slippage protection)
+    /// @param deadline Unix timestamp after which the swap is invalid
+    /// @param tokenIn Address of the ERC20 input token
+    /// @param tokenOut Address of the ERC20 output token
     struct UniswapV3ExactOutputSingleParams {
-        uint24 swapFee;
         uint256 amountOut;
         uint256 amountInMaximum;
         uint256 deadline;
@@ -67,6 +71,11 @@ interface IUniswapV3 {
         address tokenOut;
     }
 
+    /// @notice Parameters for a multi-hop exact-output swap
+    /// @param pathWithFees Array describing the token path and fees between hops
+    /// @param deadline Unix timestamp after which the swap is invalid
+    /// @param amountOut Amount of output token to swap
+    /// @param amountInMaximum Maximum acceptable input amount (slippage protection)
     struct UniswapV3ExactOutputParams {
         TokenWithFee[] pathWithFees;
         uint256 deadline;

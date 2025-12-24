@@ -18,24 +18,21 @@ pragma solidity ^0.8.31;
 
 import { Facet } from "src/garden/facets/Facet.sol";
 import {
-    GardenCollectionBase
-} from "src/garden/facets/utilityFacets/arbitrumOne/gardenCollection/GardenCollectionBase.sol";
+    RewardCollectionBase
+} from "src/garden/facets/utilityFacets/arbitrumOne/rewardCollection/RewardCollectionBase.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import {
-    GardenCollectionStorage
-} from "src/garden/facets/utilityFacets/arbitrumOne/gardenCollection/GardenCollectionStorage.sol";
+    RewardCollectionStorage
+} from "src/garden/facets/utilityFacets/arbitrumOne/rewardCollection/RewardCollectionStorage.sol";
 
-/// @notice Thrown when a token already exists
-error GardenCollectionFacet_TokenAlreadyExists(uint256 tokenId);
-
-contract GardenCollectionFacet is GardenCollectionBase, Facet {
+contract RewardCollectionFacet is RewardCollectionBase, Facet {
     /// @inheritdoc IERC165
     /// @notice Checks if the contract supports an interface
     /// @param interfaceId The ID of the interface
     /// @return True if the contract supports the interface, false otherwise
-    function supportsInterface(bytes4 interfaceId) public view override(IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public pure override(IERC165) returns (bool) {
         return _supportsInterface(interfaceId);
     }
 
@@ -138,13 +135,13 @@ contract GardenCollectionFacet is GardenCollectionBase, Facet {
         return _tokenURI(tokenId);
     }
 
+    function totalSupply() public view returns (uint256) {
+        return _totalSupply();
+    }
+
     /// @notice Mints a token
     /// @param tokenId The ID of the token
     function mint(uint256 tokenId) public onlyGardenOwner {
-        // optionally check token not exists
-        if (GardenCollectionStorage.layout().owners[tokenId] != address(0)) {
-            revert GardenCollectionFacet_TokenAlreadyExists(tokenId);
-        }
         _mint(address(this), tokenId);
     }
 
