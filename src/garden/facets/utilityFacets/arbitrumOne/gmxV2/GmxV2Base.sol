@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.31;
 
 /*###############################################################################
 
     @title GmxV2Base
-    @author Blok Capital
+    @author BLOK Capital DAO
     @notice Base contract for GmxV2Facet providing core GMX V2 integration logic
-    @dev Handles interaction with GMX ExchangeRouter and Reader contracts
-         Implements position management and PnL calculations
+    @dev Handles interaction with GMX ExchangeRouter and Reader contracts to open and close short positions.
+
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
+    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
+    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
+    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
 ################################################################################*/
 
@@ -21,7 +25,6 @@ import { IGmxV2 } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/IGmxV2
 // Local Libraries
 import { GmxV2Storage } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/GmxV2Storage.sol";
 
-/// @notice Minimal interface for GMX V2 ExchangeRouter
 interface IExchangeRouter {
     struct CreateOrderParams {
         address[] addresses;
@@ -33,7 +36,6 @@ interface IExchangeRouter {
     function cancelOrder(bytes32 key) external;
 }
 
-/// @notice Minimal interface for GMX V2 Reader
 interface IReader {
     struct Position {
         address account;

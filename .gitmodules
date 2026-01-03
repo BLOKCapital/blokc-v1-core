@@ -19,3 +19,6 @@
 [submodule "lib/v3-periphery"]
 	path = lib/v3-periphery
 	url = https://github.com/Uniswap/uniswap-v3-periphery
+[submodule "lib/pendle-core-v2-public"]
+	path = lib/pendle-core-v2-public
+	url = https://github.com/pendle-finance/pendle-core-v2-public.git
