@@ -3,12 +3,17 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title GMXV2Facet
-    @author Netan Mangal
-    @notice Facet for GMX V2 integration - enables short positions for hedging wealth
-    @dev Provides external functions to open/close shorts, manage collateral, and query positions
-         This facet enables hedge fund functionality by allowing users to short assets
-         for portfolio protection and risk management.
+    @title GmxV2Facet
+    @author BLOK Capital DAO
+    @notice Facet for GMX V2 protocol integration
+    @dev Facet for GMX V2 protocol integration - enables short positions for hedging wealth
+         This facet provides the functionality for the GMX V2 protocol.
+
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
+    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
+    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
+    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
+
 
 ################################################################################*/
 
