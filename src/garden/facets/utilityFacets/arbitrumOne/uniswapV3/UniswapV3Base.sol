@@ -114,7 +114,7 @@ abstract contract UniswapV3Base {
 
         uint24 fee = IUniswapV3Pool(pool).fee();
         // Approve the input tokens for the swap
-        tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountIn);
+        tokenIn.approve(UNISWAP_V3_ROUTER_ADDRESS, params.amountIn);
 
         // Build swap parameters
         ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter.ExactInputSingleParams({
