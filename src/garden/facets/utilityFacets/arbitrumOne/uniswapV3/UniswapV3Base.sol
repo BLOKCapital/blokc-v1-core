@@ -150,7 +150,7 @@ abstract contract UniswapV3Base {
         // Validate all pools in the multi-hop path are registered
         _validateMultiHopPools(params.pathWithFees);
 
-        tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountIn);
+        SafeERC20.forceApprove(tokenIn, UNISWAP_V3_ROUTER_ADDRESS, params.amountIn);
 
         // Encode path (token, fee, token, fee, token, ...)
         bytes memory path = _encodePath(params.pathWithFees);
@@ -184,7 +184,7 @@ abstract contract UniswapV3Base {
         IERC20 tokenIn = IERC20(params.tokenIn);
 
         // Approve the input tokens for the swap
-        tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountInMaximum);
+        SafeERC20.forceApprove(tokenIn, UNISWAP_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
         // Build swap parameters
         ISwapRouter.ExactOutputSingleParams memory swapParams = ISwapRouter.ExactOutputSingleParams({
@@ -222,7 +222,7 @@ abstract contract UniswapV3Base {
         // Validate all pools in the multi-hop path are registered
         _validateMultiHopPools(params.pathWithFees);
 
-        tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountInMaximum);
+        SafeERC20.forceApprove(tokenIn, UNISWAP_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
         // Encode path (token, fee, token, fee, token, ...)
         bytes memory path = _encodePath(params.pathWithFees);

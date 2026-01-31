@@ -14,13 +14,25 @@
   "lib/openzeppelin-contracts-upgradeable": {
     "rev": "e44ec06a0ea0b49c0159acd94fa5157554a9a470"
   },
+  "lib/pendle-core-v2-public": {
+    "rev": "4469a1df4dc524138f8322357a7096498e2de4ee"
+  },
   "lib/prb-test": {
     "rev": "cd07166bdd12c7c4a899cb53951653b53939a644"
+  },
+  "lib/v2-periphery": {
+    "rev": "0335e8f7e1bd1e8d8329fd300aea2ef2f36dd19f"
   },
   "lib/v3-core": {
     "rev": "d8b1c635c275d2a9450bd6a78f3fa2484fef73eb"
   },
   "lib/v3-periphery": {
     "rev": "0682387198a24c7cd63566a2c58398533860a5d1"
+  },
+  "lib/v4-core": {
+    "tag": {
+      "name": "v4.0.0",
+      "rev": "e50237c43811bd9b526eff40f26772152a42daba"
+    }
   }
 }
