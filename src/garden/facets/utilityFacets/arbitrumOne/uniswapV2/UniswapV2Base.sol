@@ -99,7 +99,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 base exact input token-to-token swap
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
-    function _swapExactTokensForTokens(IUniswapV2.SwapExactTokensForTokensParams memory params)
+    function _uniswapV2SwapExactTokensForTokens(IUniswapV2.SwapExactTokensForTokensParams memory params)
         internal
         returns (uint256[] memory amounts)
     {
@@ -127,7 +127,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 base exact output token-to-token swap
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
-    function _swapTokensForExactTokens(IUniswapV2.SwapTokensForExactTokensParams memory params)
+    function _uniswapV2SwapTokensForExactTokens(IUniswapV2.SwapTokensForExactTokensParams memory params)
         internal
         returns (uint256[] memory amounts)
     {
@@ -155,7 +155,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 base exact input ETH-to-token swap
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered and executes swap
-    function _swapExactETHForTokens(IUniswapV2.SwapExactETHForTokensParams memory params)
+    function _uniswapV2SwapExactETHForTokens(IUniswapV2.SwapExactETHForTokensParams memory params)
         internal
         returns (uint256[] memory amounts)
     {
@@ -181,7 +181,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 base exact output token-to-ETH swap
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
-    function _swapTokensForExactETH(IUniswapV2.SwapTokensForExactETHParams memory params)
+    function _uniswapV2SwapTokensForExactETH(IUniswapV2.SwapTokensForExactETHParams memory params)
         internal
         returns (uint256[] memory amounts)
     {
@@ -213,7 +213,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 base exact input token-to-ETH swap
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
-    function _swapExactTokensForETH(IUniswapV2.SwapExactTokensForETHParams memory params)
+    function _uniswapV2SwapExactTokensForETH(IUniswapV2.SwapExactTokensForETHParams memory params)
         internal
         returns (uint256[] memory amounts)
     {
@@ -245,7 +245,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 base exact output ETH-to-token swap
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered and executes swap
-    function _swapETHForExactTokens(IUniswapV2.SwapETHForExactTokensParams memory params)
+    function _uniswapV2SwapETHForExactTokens(IUniswapV2.SwapETHForExactTokensParams memory params)
         internal
         returns (uint256[] memory amounts)
     {
@@ -272,7 +272,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 base exact input token-to-token swap supporting fee-on-transfer tokens
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
-    function _swapExactTokensForTokensSupportingFeeOnTransferTokens(
+    function _uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(
         IUniswapV2.SwapExactTokensForTokensSupportingFeeOnTransferTokensParams memory params
     ) internal {
         if (params.amountIn == 0) revert UniswapV2Facet_InvalidAmount();
@@ -299,7 +299,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 base exact input ETH-to-token swap supporting fee-on-transfer tokens
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered and executes swap
-    function _swapExactETHForTokensSupportingFeeOnTransferTokens(
+    function _uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(
         IUniswapV2.SwapExactETHForTokensSupportingFeeOnTransferTokensParams memory params
     ) internal {
         if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
@@ -324,7 +324,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 base exact input token-to-ETH swap supporting fee-on-transfer tokens
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
-    function _swapExactTokensForETHSupportingFeeOnTransferTokens(
+    function _uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(
         IUniswapV2.SwapExactTokensForETHSupportingFeeOnTransferTokensParams memory params
     ) internal {
         if (params.amountIn == 0) revert UniswapV2Facet_InvalidAmount();
@@ -360,7 +360,7 @@ abstract contract UniswapV2Base {
     /// @param amountIn Amount of input token
     /// @param path Array of token addresses representing the swap path
     /// @return amounts Array of output amounts for each step in the path
-    function _getAmountsOut(uint256 amountIn, address[] memory path)
+    function _uniswapV2GetAmountsOut(uint256 amountIn, address[] memory path)
         internal
         view
         returns (uint256[] memory amounts)
@@ -375,7 +375,7 @@ abstract contract UniswapV2Base {
     /// @param amountOut Amount of output token
     /// @param path Array of token addresses representing the swap path
     /// @return amounts Array of input amounts for each step in the path
-    function _getAmountsIn(uint256 amountOut, address[] memory path)
+    function _uniswapV2GetAmountsIn(uint256 amountOut, address[] memory path)
         internal
         view
         returns (uint256[] memory amounts)
@@ -391,7 +391,7 @@ abstract contract UniswapV2Base {
     /// @param reserveIn Reserve of input token in the pair
     /// @param reserveOut Reserve of output token in the pair
     /// @return amountOut Maximum output amount
-    function _getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
+    function _uniswapV2GetAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
         internal
         pure
         returns (uint256 amountOut)
@@ -405,7 +405,7 @@ abstract contract UniswapV2Base {
     /// @param reserveIn Reserve of input token in the pair
     /// @param reserveOut Reserve of output token in the pair
     /// @return amountIn Required input amount
-    function _getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
+    function _uniswapV2GetAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
         internal
         pure
         returns (uint256 amountIn)
@@ -419,7 +419,7 @@ abstract contract UniswapV2Base {
     /// @param reserveA Reserve of token A in the pair
     /// @param reserveB Reserve of token B in the pair
     /// @return amountB Equivalent amount of token B
-    function _quote(uint256 amountA, uint256 reserveA, uint256 reserveB)
+    function _uniswapV2Quote(uint256 amountA, uint256 reserveA, uint256 reserveB)
         internal
         pure
         returns (uint256 amountB)

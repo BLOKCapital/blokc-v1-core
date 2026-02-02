@@ -39,35 +39,35 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function swapExactTokensForTokens(SwapExactTokensForTokensParams calldata params)
+    function uniswapV2SwapExactTokensForTokens(SwapExactTokensForTokensParams calldata params)
         external
         override
         onlyGardenOwner
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
-        return _swapExactTokensForTokens(params);
+        return _uniswapV2SwapExactTokensForTokens(params);
     }
 
     /// @notice Swaps tokens for an exact amount of output tokens
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function swapTokensForExactTokens(SwapTokensForExactTokensParams calldata params)
+    function uniswapV2SwapTokensForExactTokens(SwapTokensForExactTokensParams calldata params)
         external
         override
         onlyGardenOwner
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
-        return _swapTokensForExactTokens(params);
+        return _uniswapV2SwapTokensForExactTokens(params);
     }
 
     /// @notice Swaps an exact amount of ETH for as many output tokens as possible
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered and executes swap.
     ///      ETH is sent as msg.value.
-    function swapExactETHForTokens(SwapExactETHForTokensParams calldata params)
+    function uniswapV2SwapExactETHForTokens(SwapExactETHForTokensParams calldata params)
         external
         payable
         override
@@ -75,42 +75,42 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
-        return _swapExactETHForTokens(params);
+        return _uniswapV2SwapExactETHForTokens(params);
     }
 
     /// @notice Swaps tokens for an exact amount of ETH
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function swapTokensForExactETH(SwapTokensForExactETHParams calldata params)
+    function uniswapV2SwapTokensForExactETH(SwapTokensForExactETHParams calldata params)
         external
         override
         onlyGardenOwner
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
-        return _swapTokensForExactETH(params);
+        return _uniswapV2SwapTokensForExactETH(params);
     }
 
     /// @notice Swaps an exact amount of tokens for as much ETH as possible
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function swapExactTokensForETH(SwapExactTokensForETHParams calldata params)
+    function uniswapV2SwapExactTokensForETH(SwapExactTokensForETHParams calldata params)
         external
         override
         onlyGardenOwner
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
-        return _swapExactTokensForETH(params);
+        return _uniswapV2SwapExactTokensForETH(params);
     }
 
     /// @notice Swaps ETH for an exact amount of output tokens
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered and executes swap.
     ///      ETH is sent as msg.value.
-    function swapETHForExactTokens(SwapETHForExactTokensParams calldata params)
+    function uniswapV2SwapETHForExactTokens(SwapETHForExactTokensParams calldata params)
         external
         payable
         override
@@ -118,37 +118,37 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
-        return _swapETHForExactTokens(params);
+        return _uniswapV2SwapETHForExactTokens(params);
     }
 
     /// @notice Swaps an exact amount of input tokens for as many output tokens as possible, supporting fee-on-transfer tokens
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations. Suitable for tokens with transfer fees.
-    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+    function uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(
         SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params
     ) external override onlyGardenOwner ifIndexNotConnected {
-        _swapExactTokensForTokensSupportingFeeOnTransferTokens(params);
+        _uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(params);
     }
 
     /// @notice Swaps an exact amount of ETH for as many output tokens as possible, supporting fee-on-transfer tokens
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered and executes swap.
     ///      ETH is sent as msg.value. Suitable for tokens with transfer fees.
-    function swapExactETHForTokensSupportingFeeOnTransferTokens(
+    function uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(
         SwapExactETHForTokensSupportingFeeOnTransferTokensParams calldata params
     ) external payable override onlyGardenOwner ifIndexNotConnected {
-        _swapExactETHForTokensSupportingFeeOnTransferTokens(params);
+        _uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(params);
     }
 
     /// @notice Swaps an exact amount of tokens for as much ETH as possible, supporting fee-on-transfer tokens
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations. Suitable for tokens with transfer fees.
-    function swapExactTokensForETHSupportingFeeOnTransferTokens(
+    function uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(
         SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params
     ) external override onlyGardenOwner ifIndexNotConnected {
-        _swapExactTokensForETHSupportingFeeOnTransferTokens(params);
+        _uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(params);
     }
 
     // ========================================================================
@@ -160,13 +160,13 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param reserveIn Reserve of input token in the pair
     /// @param reserveOut Reserve of output token in the pair
     /// @return amountOut Maximum output amount
-    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
+    function uniswapV2GetAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
         external
         pure
         override
         returns (uint256 amountOut)
     {
-        return _getAmountOut(amountIn, reserveIn, reserveOut);
+        return _uniswapV2GetAmountOut(amountIn, reserveIn, reserveOut);
     }
 
     /// @notice Given an output amount and reserves, returns a required input amount
@@ -174,39 +174,39 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param reserveIn Reserve of input token in the pair
     /// @param reserveOut Reserve of output token in the pair
     /// @return amountIn Required input amount
-    function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
+    function uniswapV2GetAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
         external
         pure
         override
         returns (uint256 amountIn)
     {
-        return _getAmountIn(amountOut, reserveIn, reserveOut);
+        return _uniswapV2GetAmountIn(amountOut, reserveIn, reserveOut);
     }
 
     /// @notice Returns the amount of output tokens for a given input amount along a path
     /// @param amountIn Amount of input token
     /// @param path Array of token addresses representing the swap path
     /// @return amounts Array of output amounts for each step in the path
-    function getAmountsOut(uint256 amountIn, address[] calldata path)
+    function uniswapV2GetAmountsOut(uint256 amountIn, address[] calldata path)
         external
         view
         override
         returns (uint256[] memory amounts)
     {
-        return _getAmountsOut(amountIn, path);
+        return _uniswapV2GetAmountsOut(amountIn, path);
     }
 
     /// @notice Returns the amount of input tokens required for a given output amount along a path
     /// @param amountOut Amount of output token
     /// @param path Array of token addresses representing the swap path
     /// @return amounts Array of input amounts for each step in the path
-    function getAmountsIn(uint256 amountOut, address[] calldata path)
+    function uniswapV2GetAmountsIn(uint256 amountOut, address[] calldata path)
         external
         view
         override
         returns (uint256[] memory amounts)
     {
-        return _getAmountsIn(amountOut, path);
+        return _uniswapV2GetAmountsIn(amountOut, path);
     }
 
     /// @notice Given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
@@ -214,12 +214,12 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param reserveA Reserve of token A in the pair
     /// @param reserveB Reserve of token B in the pair
     /// @return amountB Equivalent amount of token B
-    function quote(uint256 amountA, uint256 reserveA, uint256 reserveB)
+    function uniswapV2Quote(uint256 amountA, uint256 reserveA, uint256 reserveB)
         external
         pure
         override
         returns (uint256 amountB)
     {
-        return _quote(amountA, reserveA, reserveB);
+        return _uniswapV2Quote(amountA, reserveA, reserveB);
     }
 }

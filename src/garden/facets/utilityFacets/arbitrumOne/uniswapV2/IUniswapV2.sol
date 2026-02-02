@@ -150,7 +150,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function swapExactTokensForTokens(SwapExactTokensForTokensParams calldata params)
+    function uniswapV2SwapExactTokensForTokens(SwapExactTokensForTokensParams calldata params)
         external
         returns (uint256[] memory amounts);
 
@@ -158,7 +158,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function swapTokensForExactTokens(SwapTokensForExactTokensParams calldata params)
+    function uniswapV2SwapTokensForExactTokens(SwapTokensForExactTokensParams calldata params)
         external
         returns (uint256[] memory amounts);
 
@@ -166,7 +166,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function swapExactETHForTokens(SwapExactETHForTokensParams calldata params)
+    function uniswapV2SwapExactETHForTokens(SwapExactETHForTokensParams calldata params)
         external
         payable
         returns (uint256[] memory amounts);
@@ -175,7 +175,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function swapTokensForExactETH(SwapTokensForExactETHParams calldata params)
+    function uniswapV2SwapTokensForExactETH(SwapTokensForExactETHParams calldata params)
         external
         returns (uint256[] memory amounts);
 
@@ -183,7 +183,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function swapExactTokensForETH(SwapExactTokensForETHParams calldata params)
+    function uniswapV2SwapExactTokensForETH(SwapExactTokensForETHParams calldata params)
         external
         returns (uint256[] memory amounts);
 
@@ -191,7 +191,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function swapETHForExactTokens(SwapETHForExactTokensParams calldata params)
+    function uniswapV2SwapETHForExactTokens(SwapETHForExactTokensParams calldata params)
         external
         payable
         returns (uint256[] memory amounts);
@@ -199,21 +199,21 @@ interface IUniswapV2 {
     /// @notice Swaps an exact amount of input tokens for as many output tokens as possible, supporting fee-on-transfer tokens
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
-    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+    function uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(
         SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params
     ) external;
 
     /// @notice Swaps an exact amount of ETH for as many output tokens as possible, supporting fee-on-transfer tokens
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
-    function swapExactETHForTokensSupportingFeeOnTransferTokens(
+    function uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(
         SwapExactETHForTokensSupportingFeeOnTransferTokensParams calldata params
     ) external payable;
 
     /// @notice Swaps an exact amount of tokens for as much ETH as possible, supporting fee-on-transfer tokens
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
-    function swapExactTokensForETHSupportingFeeOnTransferTokens(
+    function uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(
         SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params
     ) external;
 
@@ -226,7 +226,7 @@ interface IUniswapV2 {
     /// @param reserveIn Reserve of input token in the pair
     /// @param reserveOut Reserve of output token in the pair
     /// @return amountOut Maximum output amount
-    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
+    function uniswapV2GetAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
         external
         pure
         returns (uint256 amountOut);
@@ -236,7 +236,7 @@ interface IUniswapV2 {
     /// @param reserveIn Reserve of input token in the pair
     /// @param reserveOut Reserve of output token in the pair
     /// @return amountIn Required input amount
-    function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
+    function uniswapV2GetAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
         external
         pure
         returns (uint256 amountIn);
@@ -245,7 +245,7 @@ interface IUniswapV2 {
     /// @param amountIn Amount of input token
     /// @param path Array of token addresses representing the swap path
     /// @return amounts Array of output amounts for each step in the path
-    function getAmountsOut(uint256 amountIn, address[] calldata path)
+    function uniswapV2GetAmountsOut(uint256 amountIn, address[] calldata path)
         external
         view
         returns (uint256[] memory amounts);
@@ -254,7 +254,7 @@ interface IUniswapV2 {
     /// @param amountOut Amount of output token
     /// @param path Array of token addresses representing the swap path
     /// @return amounts Array of input amounts for each step in the path
-    function getAmountsIn(uint256 amountOut, address[] calldata path)
+    function uniswapV2GetAmountsIn(uint256 amountOut, address[] calldata path)
         external
         view
         returns (uint256[] memory amounts);
@@ -264,7 +264,7 @@ interface IUniswapV2 {
     /// @param reserveA Reserve of token A in the pair
     /// @param reserveB Reserve of token B in the pair
     /// @return amountB Equivalent amount of token B
-    function quote(uint256 amountA, uint256 reserveA, uint256 reserveB)
+    function uniswapV2Quote(uint256 amountA, uint256 reserveA, uint256 reserveB)
         external
         pure
         returns (uint256 amountB);
