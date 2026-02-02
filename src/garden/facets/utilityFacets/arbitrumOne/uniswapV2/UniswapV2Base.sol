@@ -142,7 +142,7 @@ abstract contract UniswapV2Base {
         IERC20 tokenIn = IERC20(params.path[0]);
 
         // Approve router to spend tokens
-        SafeERC20.forceApprove(tokenIn, UNISWAP_V2_ROUTER_ADDRESS, params.amountInMax);
+        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountInMax);
 
         // Execute swap
         amounts = router.swapTokensForExactTokens(
@@ -200,7 +200,7 @@ abstract contract UniswapV2Base {
         IERC20 tokenIn = IERC20(params.path[0]);
 
         // Approve router to spend tokens
-        SafeERC20.forceApprove(tokenIn,UNISWAP_V2_ROUTER_ADDRESS, params.amountInMax);
+        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountInMax);
 
         // Execute swap
         amounts = router.swapTokensForExactETH(
@@ -232,7 +232,7 @@ abstract contract UniswapV2Base {
         IERC20 tokenIn = IERC20(params.path[0]);
 
         // Approve router to spend tokens
-        SafeERC20.forceApprove(tokenIn, UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
+        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
 
         // Execute swap
         amounts = router.swapExactTokensForETH(
@@ -286,7 +286,7 @@ abstract contract UniswapV2Base {
         IERC20 tokenIn = IERC20(params.path[0]);
 
         // Approve router to spend tokens
-        SafeERC20.forceApprove(tokenIn, UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
+        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
 
         // Execute swap
         router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
@@ -342,7 +342,7 @@ abstract contract UniswapV2Base {
         IERC20 tokenIn = IERC20(params.path[0]);
 
         // Approve router to spend tokens
-        SafeERC20.forceApprove(tokenIn, UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
+        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
 
         // Execute swap
         router.swapExactTokensForETHSupportingFeeOnTransferTokens(
