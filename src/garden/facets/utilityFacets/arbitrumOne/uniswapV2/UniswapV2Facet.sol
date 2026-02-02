@@ -39,7 +39,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function uniswapV2SwapExactTokensForTokens(SwapExactTokensForTokensParams calldata params)
+    function uniswapV2SwapExactTokensForTokens(UniswapV2SwapExactTokensForTokensParams calldata params)
         external
         override
         onlyGardenOwner
@@ -53,7 +53,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function uniswapV2SwapTokensForExactTokens(SwapTokensForExactTokensParams calldata params)
+    function uniswapV2SwapTokensForExactTokens(UniswapV2SwapTokensForExactTokensParams calldata params)
         external
         override
         onlyGardenOwner
@@ -67,7 +67,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered and executes swap.
     ///      ETH is sent as msg.value.
-    function uniswapV2SwapExactETHForTokens(SwapExactETHForTokensParams calldata params)
+    function uniswapV2SwapExactETHForTokens(UniswapV2SwapExactETHForTokensParams calldata params)
         external
         payable
         override
@@ -82,7 +82,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function uniswapV2SwapTokensForExactETH(SwapTokensForExactETHParams calldata params)
+    function uniswapV2SwapTokensForExactETH(UniswapV2SwapTokensForExactETHParams calldata params)
         external
         override
         onlyGardenOwner
@@ -96,7 +96,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations.
-    function uniswapV2SwapExactTokensForETH(SwapExactTokensForETHParams calldata params)
+    function uniswapV2SwapExactTokensForETH(UniswapV2SwapExactTokensForETHParams calldata params)
         external
         override
         onlyGardenOwner
@@ -110,7 +110,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @param params Swap parameters including amounts, path, and deadline
     /// @dev Validates all pools in the path are registered and executes swap.
     ///      ETH is sent as msg.value.
-    function uniswapV2SwapETHForExactTokens(SwapETHForExactTokensParams calldata params)
+    function uniswapV2SwapETHForExactTokens(UniswapV2SwapETHForExactTokensParams calldata params)
         external
         payable
         override
@@ -126,7 +126,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations. Suitable for tokens with transfer fees.
     function uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(
-        SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params
+        UniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params
     ) external override onlyGardenOwner ifIndexNotConnected {
         _uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(params);
     }
@@ -136,7 +136,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @dev Validates all pools in the path are registered and executes swap.
     ///      ETH is sent as msg.value. Suitable for tokens with transfer fees.
     function uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(
-        SwapExactETHForTokensSupportingFeeOnTransferTokensParams calldata params
+        UniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokensParams calldata params
     ) external payable override onlyGardenOwner ifIndexNotConnected {
         _uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(params);
     }
@@ -146,7 +146,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     /// @dev Validates all pools in the path are registered, handles token approvals, and executes swap.
     ///      Uses SafeERC20 for secure token operations. Suitable for tokens with transfer fees.
     function uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(
-        SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params
+        UniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params
     ) external override onlyGardenOwner ifIndexNotConnected {
         _uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(params);
     }

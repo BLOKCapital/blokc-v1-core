@@ -28,7 +28,7 @@ interface IUniswapV2 {
     /// @param path Array of token addresses representing the swap path
     /// @param to Recipient address for the output tokens
     /// @param deadline Unix timestamp after which the swap is invalid
-    struct SwapExactTokensForTokensParams {
+    struct UniswapV2SwapExactTokensForTokensParams {
         uint256 amountIn;
         uint256 amountOutMin;
         address[] path;
@@ -42,7 +42,7 @@ interface IUniswapV2 {
     /// @param path Array of token addresses representing the swap path
     /// @param to Recipient address for the output tokens
     /// @param deadline Unix timestamp after which the swap is invalid
-    struct SwapTokensForExactTokensParams {
+    struct UniswapV2SwapTokensForExactTokensParams {
         uint256 amountOut;
         uint256 amountInMax;
         address[] path;
@@ -55,7 +55,7 @@ interface IUniswapV2 {
     /// @param path Array of token addresses representing the swap path
     /// @param to Recipient address for the output tokens
     /// @param deadline Unix timestamp after which the swap is invalid
-    struct SwapExactETHForTokensParams {
+    struct UniswapV2SwapExactETHForTokensParams {
         uint256 amountOutMin;
         address[] path;
         address to;
@@ -68,7 +68,7 @@ interface IUniswapV2 {
     /// @param path Array of token addresses representing the swap path
     /// @param to Recipient address for the ETH
     /// @param deadline Unix timestamp after which the swap is invalid
-    struct SwapTokensForExactETHParams {
+    struct UniswapV2SwapTokensForExactETHParams {
         uint256 amountOut;
         uint256 amountInMax;
         address[] path;
@@ -82,7 +82,7 @@ interface IUniswapV2 {
     /// @param path Array of token addresses representing the swap path
     /// @param to Recipient address for the ETH
     /// @param deadline Unix timestamp after which the swap is invalid
-    struct SwapExactTokensForETHParams {
+    struct UniswapV2SwapExactTokensForETHParams {
         uint256 amountIn;
         uint256 amountOutMin;
         address[] path;
@@ -95,7 +95,7 @@ interface IUniswapV2 {
     /// @param path Array of token addresses representing the swap path
     /// @param to Recipient address for the output tokens
     /// @param deadline Unix timestamp after which the swap is invalid
-    struct SwapETHForExactTokensParams {
+    struct UniswapV2SwapETHForExactTokensParams {
         uint256 amountOut;
         address[] path;
         address to;
@@ -108,7 +108,7 @@ interface IUniswapV2 {
     /// @param path Array of token addresses representing the swap path
     /// @param to Recipient address for the output tokens
     /// @param deadline Unix timestamp after which the swap is invalid
-    struct SwapExactTokensForTokensSupportingFeeOnTransferTokensParams {
+    struct UniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokensParams {
         uint256 amountIn;
         uint256 amountOutMin;
         address[] path;
@@ -121,7 +121,7 @@ interface IUniswapV2 {
     /// @param path Array of token addresses representing the swap path
     /// @param to Recipient address for the output tokens
     /// @param deadline Unix timestamp after which the swap is invalid
-    struct SwapExactETHForTokensSupportingFeeOnTransferTokensParams {
+    struct UniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokensParams {
         uint256 amountOutMin;
         address[] path;
         address to;
@@ -134,7 +134,7 @@ interface IUniswapV2 {
     /// @param path Array of token addresses representing the swap path
     /// @param to Recipient address for the ETH
     /// @param deadline Unix timestamp after which the swap is invalid
-    struct SwapExactTokensForETHSupportingFeeOnTransferTokensParams {
+    struct UniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokensParams {
         uint256 amountIn;
         uint256 amountOutMin;
         address[] path;
@@ -150,7 +150,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function uniswapV2SwapExactTokensForTokens(SwapExactTokensForTokensParams calldata params)
+    function uniswapV2SwapExactTokensForTokens(UniswapV2SwapExactTokensForTokensParams calldata params)
         external
         returns (uint256[] memory amounts);
 
@@ -158,7 +158,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function uniswapV2SwapTokensForExactTokens(SwapTokensForExactTokensParams calldata params)
+    function uniswapV2SwapTokensForExactTokens(UniswapV2SwapTokensForExactTokensParams calldata params)
         external
         returns (uint256[] memory amounts);
 
@@ -166,7 +166,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function uniswapV2SwapExactETHForTokens(SwapExactETHForTokensParams calldata params)
+    function uniswapV2SwapExactETHForTokens(UniswapV2SwapExactETHForTokensParams calldata params)
         external
         payable
         returns (uint256[] memory amounts);
@@ -175,7 +175,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function uniswapV2SwapTokensForExactETH(SwapTokensForExactETHParams calldata params)
+    function uniswapV2SwapTokensForExactETH(UniswapV2SwapTokensForExactETHParams calldata params)
         external
         returns (uint256[] memory amounts);
 
@@ -183,7 +183,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function uniswapV2SwapExactTokensForETH(SwapExactTokensForETHParams calldata params)
+    function uniswapV2SwapExactTokensForETH(UniswapV2SwapExactTokensForETHParams calldata params)
         external
         returns (uint256[] memory amounts);
 
@@ -191,7 +191,7 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
-    function uniswapV2SwapETHForExactTokens(SwapETHForExactTokensParams calldata params)
+    function uniswapV2SwapETHForExactTokens(UniswapV2SwapETHForExactTokensParams calldata params)
         external
         payable
         returns (uint256[] memory amounts);
@@ -200,21 +200,21 @@ interface IUniswapV2 {
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     function uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(
-        SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params
+        UniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params
     ) external;
 
     /// @notice Swaps an exact amount of ETH for as many output tokens as possible, supporting fee-on-transfer tokens
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     function uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(
-        SwapExactETHForTokensSupportingFeeOnTransferTokensParams calldata params
+        UniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokensParams calldata params
     ) external payable;
 
     /// @notice Swaps an exact amount of tokens for as much ETH as possible, supporting fee-on-transfer tokens
     /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     function uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(
-        SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params
+        UniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params
     ) external;
 
     // ========================================================================
