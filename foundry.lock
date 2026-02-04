@@ -14,6 +14,9 @@
   "lib/openzeppelin-contracts-upgradeable": {
     "rev": "e44ec06a0ea0b49c0159acd94fa5157554a9a470"
   },
+  "lib/pendle-core-v2-public": {
+    "rev": "4469a1df4dc524138f8322357a7096498e2de4ee"
+  },
   "lib/prb-test": {
     "rev": "cd07166bdd12c7c4a899cb53951653b53939a644"
   },
