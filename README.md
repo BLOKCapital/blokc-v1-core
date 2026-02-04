@@ -137,13 +137,13 @@ Public interfaces for external consumers live under `src/interfaces/` and are in
 Example:
 
 ```solidity
-import { IPoolRegistry } from "src/interfaces/IPoolRegistry.sol";
+import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 
 contract MyStrategy {
-    IPoolRegistry public immutable poolRegistry;
+    ILiquidityPoolRegistry public immutable liquidityPoolRegistry;
 
-    constructor(IPoolRegistry _poolRegistry) {
-        poolRegistry = _poolRegistry;
+    constructor(ILiquidityPoolRegistry _liquidityPoolRegistry) {
+        liquidityPoolRegistry = _liquidityPoolRegistry;
     }
 }
 ```

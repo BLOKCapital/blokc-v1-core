@@ -34,6 +34,7 @@ interface IUniswapV3 {
         uint256 deadline;
         address tokenIn;
         address tokenOut;
+        uint8 swapFee;
     }
 
     /// @notice Encodes a token + pool fee entry for multi-hop paths
@@ -41,7 +42,7 @@ interface IUniswapV3 {
     /// @param fee Fee tier (uint24) used by the following pool
     struct TokenWithFee {
         address token;
-        uint24 fee;
+        uint8 fee;
     }
 
     /// @notice Parameters for a multi-hop exact-input swap
@@ -69,6 +70,7 @@ interface IUniswapV3 {
         uint256 deadline;
         address tokenIn;
         address tokenOut;
+        uint8 swapFee;
     }
 
     /// @notice Parameters for a multi-hop exact-output swap
@@ -97,27 +99,27 @@ interface IUniswapV3 {
 
     /// @notice Executes a single-hop exact-input swap on Uniswap V3
     /// @dev Swaps an exact amount of input token for output token using a single pool.
-    ///      Pool must be registered in the PoolRegistry. All operations are restricted
+    ///      Pool must be registered in the LiquidityPoolRegistry. All operations are restricted
     ///      to the diamond owner.
     /// @param params Swap parameters including tokens, amounts, fees, and deadline
     function uniswapV3ExactInputSingle(UniswapV3ExactInputSingleParams calldata params) external;
 
     /// @notice Executes a multi-hop exact-input swap on Uniswap V3
     /// @dev Swaps an exact amount of input token across multiple pools in a path.
-    ///      All pools in the path must be registered in the PoolRegistry.
+    ///      All pools in the path must be registered in the LiquidityPoolRegistry.
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
     function uniswapV3ExactInput(UniswapV3ExactInputParams calldata params) external;
 
     /// @notice Executes a single-hop exact-output swap on Uniswap V3
     /// @dev Swaps an exact amount of output token for input token using a single pool.
-    ///      Pool must be registered in the PoolRegistry. All operations are restricted
+    ///      Pool must be registered in the LiquidityPoolRegistry. All operations are restricted
     ///      to the diamond owner.
     /// @param params Swap parameters including tokens, amounts, fees, and deadline
     function uniswapV3ExactOutputSingle(UniswapV3ExactOutputSingleParams calldata params) external;
 
     /// @notice Executes a multi-hop exact-output swap on Uniswap V3
     /// @dev Swaps an exact amount of output token across multiple pools in a path.
-    ///      All pools in the path must be registered in the PoolRegistry.
+    ///      All pools in the path must be registered in the LiquidityPoolRegistry.
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
     function uniswapV3ExactOutput(UniswapV3ExactOutputParams calldata params) external;
 

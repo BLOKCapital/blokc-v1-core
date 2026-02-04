@@ -17,7 +17,7 @@ pragma solidity ^0.8.24;
 
 import { ICamelotV2 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/ICamelotV2.sol";
 import { ICamelotRouterV2 } from "src/interfaces/ICamelotRouterV2.sol";
-import { IPoolRegistry } from "src/interfaces/IPoolRegistry.sol";
+import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -186,7 +186,7 @@ abstract contract CamelotV2Base {
                 revert CamelotV2Facet_InvalidPoolAddress();
             }
 
-            if (!IPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+            if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
                 revert CamelotV2Facet_UnregisteredPool();
             }
         }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.31;
 
-import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
+import { LiquidityPoolRegistry } from "src/liquidityPoolRegistry/LiquidityPoolRegistry.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 import { DiamondCutFacet } from "src/garden/facets/baseFacets/cut/DiamondCutFacet.sol";
@@ -17,7 +17,7 @@ import { SBTRegistry } from "src/GardenSBT/CollectionRegistry/SBTRegistry.sol";
 contract Deploy is BaseScript {
     FacetRegistry internal facetRegistry;
 
-    PoolRegistry internal poolRegistry;
+    LiquidityPoolRegistry internal liquidityPoolRegistry;
 
     GardenFactory internal gardenFactory;
 
@@ -25,7 +25,7 @@ contract Deploy is BaseScript {
 
     function run() public broadcaster {
         setUp();
-        
+
         // Register default facets
         DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
         bytes4[] memory cutSelectors = new bytes4[](1);

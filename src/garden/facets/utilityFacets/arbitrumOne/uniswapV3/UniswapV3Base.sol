@@ -24,10 +24,11 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 // Uniswap V3 Contracts
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 // Local Interfaces
 import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/IUniswapV3.sol";
-import { IPoolRegistry } from "src/interfaces/IPoolRegistry.sol";
+import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 
 // Local Libraries
 import { TickMath } from "src/garden/libraries/TickMath.sol";
@@ -42,7 +43,7 @@ error UniswapV3Facet_InsufficientBalance();
 /// @notice Thrown when token approval fails
 error UniswapV3Facet_ApprovalFailed();
 
-/// @notice Thrown when pool is not registered in the PoolRegistry
+/// @notice Thrown when pool is not registered in the LiquidityPoolRegistry
 error UniswapV3Facet_UnregisteredPool();
 
 /// @notice Thrown when swap deadline has already passed
@@ -85,6 +86,8 @@ abstract contract UniswapV3Base {
     address internal constant UNISWAP_V3_ROUTER_ADDRESS = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
     /// @notice Pool Registry address on Arbitrum One
     address internal constant POOL_REGISTRY_ADDRESS = 0xBa7898DbE9C2be340197e1fffe85FC5a3B977744;
+    /// @notice Uniswap V3 Factory address on Arbitrum One
+    address internal constant UNISWAP_FACTORY_ADDRESS = 0xBa7898DbE9C2be340197e1fffe85FC5a3B977744;
 
     // ========================================================================
     // Events
@@ -110,9 +113,8 @@ abstract contract UniswapV3Base {
         ISwapRouter router = ISwapRouter(UNISWAP_V3_ROUTER_ADDRESS);
         IERC20 tokenIn = IERC20(params.tokenIn);
 
-        address pool = _validatePool(params.tokenIn, params.tokenOut);
+        _validatePool(params.tokenIn, params.tokenOut, params.swapFee);
 
-        uint24 fee = IUniswapV3Pool(pool).fee();
         // Approve the input tokens for the swap
         tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountIn);
 
@@ -125,7 +127,7 @@ abstract contract UniswapV3Base {
             amountIn: params.amountIn,
             amountOutMinimum: params.amountOutMinimum,
             sqrtPriceLimitX96: 0,
-            fee: fee
+            fee: params.swapFee
         });
 
         // Execute the swap
@@ -177,9 +179,7 @@ abstract contract UniswapV3Base {
     function _uniswapV3ExactOutputSingle(IUniswapV3.UniswapV3ExactOutputSingleParams memory params) internal {
         ISwapRouter router = ISwapRouter(UNISWAP_V3_ROUTER_ADDRESS);
 
-        address pool = _validatePool(params.tokenIn, params.tokenOut);
-
-        uint24 fee = IUniswapV3Pool(pool).fee();
+        _validatePool(params.tokenIn, params.tokenOut, params.swapFee);
 
         IERC20 tokenIn = IERC20(params.tokenIn);
 
@@ -190,7 +190,7 @@ abstract contract UniswapV3Base {
         ISwapRouter.ExactOutputSingleParams memory swapParams = ISwapRouter.ExactOutputSingleParams({
             tokenIn: params.tokenIn,
             tokenOut: params.tokenOut,
-            fee: fee,
+            fee: params.swapFee,
             recipient: address(this),
             deadline: params.deadline,
             amountOut: params.amountOut,
@@ -312,10 +312,11 @@ abstract contract UniswapV3Base {
     /// @dev Validates a pool registration by checking if the pool exists and is registered
     /// @param tokenIn The input token address
     /// @param tokenOut The output token address
-    function _validatePool(address tokenIn, address tokenOut) internal view returns (address pool) {
-        bytes32 poolId = keccak256(abi.encode(tokenIn, tokenOut));
-        pool = IPoolRegistry(POOL_REGISTRY_ADDRESS).poolAddressById(poolId);
-        if (pool == address(0) || !IPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+    /// @param swapFee The fee tier of the pool
+    function _validatePool(address tokenIn, address tokenOut, uint8 swapFee) internal view {
+        address pool = IUniswapV3Factory(UNISWAP_FACTORY_ADDRESS).getPool(tokenIn, tokenOut, swapFee);
+
+        if (pool == address(0) || !ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
             revert UniswapV3Facet_UnregisteredPool();
         }
     }
@@ -326,13 +327,13 @@ abstract contract UniswapV3Base {
         for (uint256 i = 1; i < pathWithFees.length; ++i) {
             address tokenPrev = pathWithFees[i - 1].token;
             address tokenCurr = pathWithFees[i].token;
-            uint24 fee = pathWithFees[i].fee;
+            uint8 fee = pathWithFees[i].fee;
 
             if (tokenCurr == address(0)) {
                 revert UniswapV3Facet_InvalidTokenAddress();
             }
 
-            _validatePool(tokenPrev, tokenCurr);
+            _validatePool(tokenPrev, tokenCurr, fee);
         }
     }
 

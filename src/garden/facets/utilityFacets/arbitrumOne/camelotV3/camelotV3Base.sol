@@ -17,7 +17,7 @@ pragma solidity ^0.8.31;
 
 import { ICamelotRouterV3 } from "src/interfaces/ICamelotRouterV3.sol";
 import { ICamelotV3 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/ICamelotV3.sol";
-import { IPoolRegistry } from "src/interfaces/IPoolRegistry.sol";
+import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -203,7 +203,7 @@ abstract contract CamelotV3Base {
         }
 
         // Check if the pool is registered
-        if (!IPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
             revert CamelotV3Facet_UnregisteredPool();
         }
     }

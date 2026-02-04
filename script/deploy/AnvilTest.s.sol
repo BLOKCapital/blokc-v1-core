@@ -4,7 +4,7 @@ pragma solidity >=0.8.31;
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
-import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
+import { LiquidityPoolRegistry } from "src/liquidityPoolRegistry/LiquidityPoolRegistry.sol";
 import { GardenFactory } from "src/factory/GardenFactory.sol";
 import { ProtocolStatus } from "src/protocolStatus/ProtocolStatus.sol";
 import { SBTRegistry } from "src/GardenSBT/CollectionRegistry/SBTRegistry.sol";
@@ -26,7 +26,7 @@ import { IERC165 } from "src/interfaces/IERC165.sol";
 contract AnvilTest is BaseScript {
     FacetRegistry internal facetRegistry;
 
-    PoolRegistry internal poolRegistry;
+    LiquidityPoolRegistry internal liquidityPoolRegistry;
 
     GardenFactory internal gardenFactory;
 
