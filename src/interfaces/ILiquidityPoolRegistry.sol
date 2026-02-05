@@ -3,9 +3,9 @@ pragma solidity >=0.8.31;
 
 /*###############################################################################
 
-    @titleiLiquidityPoolRegistry
+    @title ILiquidityPoolRegistry
     @author BLOK Capital DAO
-    @notice Interface for theLiquidityPoolRegistry contract - supports multiple pools per token pair
+    @notice Interface for the LiquidityPoolRegistry contract
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -99,7 +99,7 @@ interface ILiquidityPoolRegistry {
 
     /// @notice Checks if a pool is active
     /// @param poolAddress The address of the pool to check
-    /// @return True if the pool is active
+    /// @return True if the pool is active (false if unregistered)
     function isPoolActive(address poolAddress) external view returns (bool);
 
     // ========================================================================
@@ -142,7 +142,7 @@ interface ILiquidityPoolRegistry {
     function getPoolsByDex(bytes32 dexId) external view returns (address[] memory pools);
 
     // ========================================================================
-    // Pool Queries - By Fee Tier (for V3-style pools)
+    // Pool Queries - By Fee Tier
     // ========================================================================
 
     /// @notice Get pool for a token pair with specific fee tier

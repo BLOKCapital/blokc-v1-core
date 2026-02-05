@@ -46,18 +46,25 @@ error LiquidityPoolRegistry_EmptyDexId();
 /// @notice Thrown when tokens are the same
 error LiquidityPoolRegistry_IdenticalTokens();
 
-/// @notice Thrown when no pools found for pair
-error LiquidityPoolRegistry_NoPoolsForPair();
+/// @notice Thrown when (pairId, dexId, fee) already maps to another pool
+error LiquidityPoolRegistry_DuplicatePoolKey();
 
-/// @notice Thrown when quote token is zero
-error LiquidityPoolRegistry_QuoteTokenIsZero();
+/// @notice Thrown when pool address has no contract code
+error LiquidityPoolRegistry_NotContract();
 
-/// @notice Thrown when base token is zero
-error LiquidityPoolRegistry_BaseTokenIsZero();
+/// @notice Thrown when pair name exceeds maximum length
+error LiquidityPoolRegistry_PairNameTooLong();
 
 contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.Bytes32Set;
+
+    // ========================================================================
+    // Constants
+    // ========================================================================
+
+    /// @notice Maximum allowed length for pairName (bytes)
+    uint256 internal constant MAX_PAIR_NAME_LENGTH = 128;
 
     // ========================================================================
     // State Variables
@@ -120,6 +127,7 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
 
     /// @inheritdoc ILiquidityPoolRegistry
     function getPool(address poolAddress) external view returns (PoolInfo memory) {
+        if (!_allPools.contains(poolAddress)) revert LiquidityPoolRegistry_PoolDoesNotExist(poolAddress);
         return _poolInfo[poolAddress];
     }
 
@@ -129,6 +137,7 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     }
 
     /// @inheritdoc ILiquidityPoolRegistry
+    /// @dev Returns false for unregistered pool addresses (default storage).
     function isPoolActive(address poolAddress) external view returns (bool) {
         return _poolInfo[poolAddress].active;
     }
@@ -145,25 +154,7 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
 
     /// @inheritdoc ILiquidityPoolRegistry
     function getActivePoolsForPair(address tokenA, address tokenB) external view returns (address[] memory pools) {
-        bytes32 pairId = _computePairId(tokenA, tokenB);
-        address[] memory allPools = _pairPools[pairId].values();
-
-        // Count active pools
-        uint256 activeCount = 0;
-        for (uint256 i = 0; i < allPools.length; i++) {
-            if (_poolInfo[allPools[i]].active) {
-                activeCount++;
-            }
-        }
-
-        // Build result array
-        pools = new address[](activeCount);
-        uint256 idx = 0;
-        for (uint256 i = 0; i < allPools.length; i++) {
-            if (_poolInfo[allPools[i]].active) {
-                pools[idx++] = allPools[i];
-            }
-        }
+        return _getActivePoolsForPair(tokenA, tokenB);
     }
 
     // ========================================================================
@@ -180,25 +171,7 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         view
         returns (address[] memory pools)
     {
-        bytes32 pairId = _computePairId(tokenA, tokenB);
-        address[] memory pairPoolsList = _pairPools[pairId].values();
-
-        // Count matching pools
-        uint256 count = 0;
-        for (uint256 i = 0; i < pairPoolsList.length; i++) {
-            if (_poolInfo[pairPoolsList[i]].dexId == dexId) {
-                count++;
-            }
-        }
-
-        // Build result array
-        pools = new address[](count);
-        uint256 idx = 0;
-        for (uint256 i = 0; i < pairPoolsList.length; i++) {
-            if (_poolInfo[pairPoolsList[i]].dexId == dexId) {
-                pools[idx++] = pairPoolsList[i];
-            }
-        }
+        return _getPoolsForPairOnDex(tokenA, tokenB, dexId);
     }
 
     /// @inheritdoc ILiquidityPoolRegistry
@@ -236,29 +209,7 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         view
         returns (address[] memory pools, uint24[] memory fees)
     {
-        bytes32 pairId = _computePairId(tokenA, tokenB);
-        address[] memory pairPoolsList = _pairPools[pairId].values();
-
-        // Count matching pools
-        uint256 count = 0;
-        for (uint256 i = 0; i < pairPoolsList.length; i++) {
-            if (_poolInfo[pairPoolsList[i]].dexId == dexId) {
-                count++;
-            }
-        }
-
-        // Build result arrays
-        pools = new address[](count);
-        fees = new uint24[](count);
-        uint256 idx = 0;
-        for (uint256 i = 0; i < pairPoolsList.length; i++) {
-            PoolInfo memory info = _poolInfo[pairPoolsList[i]];
-            if (info.dexId == dexId) {
-                pools[idx] = pairPoolsList[i];
-                fees[idx] = info.fee;
-                idx++;
-            }
-        }
+        return _getPoolsWithFees(tokenA, tokenB, dexId);
     }
 
     // ========================================================================
@@ -298,6 +249,8 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     // Internal Functions
     // ========================================================================
 
+    /// @dev Registers a pool, reverts on invalid parameters, duplicate pool, duplicate key, or non-contract.
+    /// @param params Pool address, token pair, dexId, pairName, and fee.
     function _addPool(AddPoolParams calldata params) internal {
         // Validation
         if (params.poolAddress == address(0)) revert LiquidityPoolRegistry_ZeroAddress();
@@ -305,11 +258,18 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         if (params.tokenA == params.tokenB) revert LiquidityPoolRegistry_IdenticalTokens();
         if (params.dexId == bytes32(0)) revert LiquidityPoolRegistry_EmptyDexId();
         if (bytes(params.pairName).length == 0) revert LiquidityPoolRegistry_EmptyPairName();
+        if (bytes(params.pairName).length > MAX_PAIR_NAME_LENGTH) revert LiquidityPoolRegistry_PairNameTooLong();
+        if (params.poolAddress.code.length == 0) revert LiquidityPoolRegistry_NotContract();
         if (_allPools.contains(params.poolAddress)) revert LiquidityPoolRegistry_PoolAlreadyExists(params.poolAddress);
 
         // Sort tokens for canonical pair ID
         (address token0, address token1) = _sortTokens(params.tokenA, params.tokenB);
         bytes32 pairId = keccak256(abi.encode(token0, token1));
+
+        // Enforce one pool per (pairId, dexId, fee)
+        bytes32 key = _computePoolKey(pairId, params.dexId, params.fee);
+        address existing = _poolByKey[key];
+        if (existing != address(0)) revert LiquidityPoolRegistry_DuplicatePoolKey();
 
         // Store pool info
         _poolInfo[params.poolAddress] = PoolInfo({
@@ -329,13 +289,14 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         _dexPools[params.dexId].add(params.poolAddress);
         _allPairIds.add(pairId);
 
-        // Add to quick lookup
-        bytes32 key = _computePoolKey(pairId, params.dexId, params.fee);
+        // Add to quick lookup (key already computed above)
         _poolByKey[key] = params.poolAddress;
 
         emit PoolAdded(params.poolAddress, pairId, params.dexId, token0, token1, params.fee);
     }
 
+    /// @dev Removes a pool from all sets and deletes its info and key lookup.
+    /// @param poolAddress Pool to remove.
     function _removePool(address poolAddress) internal {
         if (!_allPools.contains(poolAddress)) {
             revert LiquidityPoolRegistry_PoolDoesNotExist(poolAddress);
@@ -363,15 +324,107 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         emit PoolRemoved(poolAddress, info.pairId);
     }
 
+    /// @dev Helper function to get all active pools for a token pair.
+    function _getActivePoolsForPair(address tokenA, address tokenB) internal view returns (address[] memory pools) {
+        bytes32 pairId = _computePairId(tokenA, tokenB);
+        address[] memory allPools = _pairPools[pairId].values();
+
+        // Count active pools
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < allPools.length; i++) {
+            if (_poolInfo[allPools[i]].active) {
+                activeCount++;
+            }
+        }
+
+        // Build result array
+        pools = new address[](activeCount);
+        uint256 index = 0;
+        for (uint256 i = 0; i < allPools.length; i++) {
+            if (_poolInfo[allPools[i]].active) {
+                pools[index++] = allPools[i];
+            }
+        }
+    }
+
+    /// @dev Helper function to get all pools for a token pair on a specific DEX.
+    function _getPoolsForPairOnDex(
+        address tokenA,
+        address tokenB,
+        bytes32 dexId
+    )
+        internal
+        view
+        returns (address[] memory pools)
+    {
+        bytes32 pairId = _computePairId(tokenA, tokenB);
+        address[] memory pairPoolsList = _pairPools[pairId].values();
+
+        // Count matching pools
+        uint256 count = 0;
+        for (uint256 i = 0; i < pairPoolsList.length; i++) {
+            if (_poolInfo[pairPoolsList[i]].dexId == dexId) {
+                count++;
+            }
+        }
+
+        // Build result array
+        pools = new address[](count);
+        uint256 index = 0;
+        for (uint256 i = 0; i < pairPoolsList.length; i++) {
+            if (_poolInfo[pairPoolsList[i]].dexId == dexId) {
+                pools[index++] = pairPoolsList[i];
+            }
+        }
+    }
+
+    /// @dev Helper function to get all pools for a token pair on a specific DEX, grouped by fee tier.
+    function _getPoolsWithFees(
+        address tokenA,
+        address tokenB,
+        bytes32 dexId
+    )
+        internal
+        view
+        returns (address[] memory pools, uint24[] memory fees)
+    {
+        bytes32 pairId = _computePairId(tokenA, tokenB);
+        address[] memory pairPoolsList = _pairPools[pairId].values();
+
+        // Count matching pools
+        uint256 count = 0;
+        for (uint256 i = 0; i < pairPoolsList.length; i++) {
+            if (_poolInfo[pairPoolsList[i]].dexId == dexId) {
+                count++;
+            }
+        }
+
+        // Build result arrays
+        pools = new address[](count);
+        fees = new uint24[](count);
+        uint256 index = 0;
+        for (uint256 i = 0; i < pairPoolsList.length; i++) {
+            PoolInfo memory info = _poolInfo[pairPoolsList[i]];
+            if (info.dexId == dexId) {
+                pools[index] = pairPoolsList[i];
+                fees[index] = info.fee;
+                index++;
+            }
+        }
+    }
+
+    /// @dev Returns (token0, token1) with token0 < token1 for canonical ordering.
     function _sortTokens(address tokenA, address tokenB) internal pure returns (address token0, address token1) {
         (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
     }
 
+    /// @dev Returns keccak256(abi.encode(token0, token1)) with token0 < token1.
     function _computePairId(address tokenA, address tokenB) internal pure returns (bytes32) {
         (address token0, address token1) = _sortTokens(tokenA, tokenB);
         return keccak256(abi.encode(token0, token1));
     }
 
+    /// @dev Returns keccak256(abi.encode(pairId, dexId, fee)) for _poolByKey lookup.
     function _computePoolKey(bytes32 pairId, bytes32 dexId, uint24 fee) internal pure returns (bytes32) {
         return keccak256(abi.encode(pairId, dexId, fee));
     }
