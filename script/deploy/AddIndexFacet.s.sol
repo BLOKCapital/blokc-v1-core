@@ -30,7 +30,9 @@ contract AddIndexFacet is BaseScript {
             functionSelectors: indexFacetSelectors
         });
 
-        FacetRegistry(FACET_REGISTRY).upgradeFacetRegistry(facetCuts);
+        // TODO: Update moduleId to match the appropriate module for IndexFacet
+        bytes32 moduleId = keccak256("DEX");
+        FacetRegistry(FACET_REGISTRY).upgradeModule(moduleId, facetCuts);
         console2.log("IndexFacet registered in FacetRegistry at:", FACET_REGISTRY);
 
         (,,, bytes32 hashData) = UpgradeFacet(GARDEN_ADDRESS).upgradeDetails();

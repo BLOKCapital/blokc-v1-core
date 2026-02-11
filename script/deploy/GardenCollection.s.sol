@@ -38,7 +38,9 @@ contract RewardCollection is BaseScript {
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: rewardCollectionFacetSelectors
         });
-        FacetRegistry(facetRegistry).upgradeFacetRegistry(facetCuts);
+        // TODO: Update moduleId to match the appropriate module
+        bytes32 moduleId = keccak256("YIELD");
+        FacetRegistry(facetRegistry).upgradeModule(moduleId, facetCuts);
 
         address garden = 0x372BfF4709A905975AE0266b7BF493aD367B3a50;
 

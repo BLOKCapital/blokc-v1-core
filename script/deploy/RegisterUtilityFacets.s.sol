@@ -80,7 +80,9 @@ contract RegisterUtilityFacets is BaseScript {
             functionSelectors: rewardCollectionFacetSelectors
         });
 
-        FacetRegistry(FACET_REGISTRY).upgradeFacetRegistry(facetCuts);
+        // TODO: Update moduleId to match the appropriate module
+        bytes32 moduleId = keccak256("DEX");
+        FacetRegistry(FACET_REGISTRY).upgradeModule(moduleId, facetCuts);
         console2.log("Utility facets registered");
     }
 }
