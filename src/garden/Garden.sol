@@ -24,6 +24,7 @@ import { OwnershipStorage } from "src/garden/facets/baseFacets/ownership/Ownersh
 import { DiamondCutStorage } from "src/garden/facets/baseFacets/cut/DiamondCutStorage.sol";
 import { DiamondCutBase } from "src/garden/facets/baseFacets/cut/DiamondCutBase.sol";
 import { DiamondLoupeStorage } from "src/garden/facets/baseFacets/loupe/DiamondLoupeStorage.sol";
+import { UpgradeStorage } from "src/garden/facets/baseFacets/upgrade/UpgradeStorage.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 // Local Interfaces
@@ -107,6 +108,9 @@ contract Garden is DiamondCutBase {
         
         // Apply initial diamond cuts (validates against registry)
         _applyDiamondCut(_diamondCut, address(0), "");
+
+        // Sync diamond version with registry so upgrade flow doesn't re-apply base facets
+        UpgradeStorage.layout().diamondVersion = IFacetRegistry(_facetRegistry).getCurrentVersion();
 
         DiamondLoupeStorage.Layout storage ls = DiamondLoupeStorage.layout();
         ls.supportedInterfaces[type(IERC165).interfaceId] = true;

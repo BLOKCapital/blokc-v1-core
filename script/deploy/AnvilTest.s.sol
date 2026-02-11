@@ -147,7 +147,9 @@ contract AnvilTest is BaseScript {
             functionSelectors: indexFacetSelectors
         });
 
-        FacetRegistry(address(facetRegistry)).upgradeFacetRegistry(facetCuts);
+        // TODO: Update moduleId to match the appropriate module
+        bytes32 moduleId = keccak256("DEX");
+        FacetRegistry(address(facetRegistry)).upgradeModule(moduleId, facetCuts);
         console2.log("Utility facets registered");
 
         // --- Deploy ProtocolStatus ---
