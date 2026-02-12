@@ -3,18 +3,10 @@ pragma solidity >=0.8.31;
 
 /*###############################################################################
 
-    @title GardenFactory
-    @author BLOK Capital DAO
-    @notice Factory contract that deploys new garden (Diamond) contracts using CREATE2.
-    @dev This contract uses the Transparent Proxy pattern and is upgradeable.
-         It uses OpenZeppelin's upgradeable contracts library for security and reliability.
-         Each user can deploy up to 10 gardens, identified by indices 1-10.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -61,6 +53,14 @@ error GardenFactory_ProtocolIsInactive();
 /// @notice Thrown when the sbt registry is not set
 error GardenFactory_SBTRegistryNotSet();
 
+/**
+ * @title GardenFactory
+ * @author BLOK Capital DAO
+ * @notice Factory contract that deploys new garden (Diamond) contracts using CREATE2.
+ * @dev Each user can deploy up to 10 gardens, with deterministic addresses based on the user, index, and factory
+ * address.
+ * The factory also keeps track of all deployed gardens and their associations with users.
+ */
 contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -143,11 +143,14 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     ///      retrieved from the facet registry.
     /// @param index The per-user garden index (must be between 1 and 10, inclusive)
     /// @param collection The SBT collection address to mint from
+    /// @param tokenId The token ID of the SBT to mint
+    /// @param gardenType The type of garden to create (used for future extensibility,
     /// @return gardenAddress The address of the newly deployed garden contract
     function createGarden(
         uint256 index,
         address collection,
-        uint256 tokenId
+        uint256 tokenId,
+        bytes32 gardenType
     )
         external
         nonReentrant

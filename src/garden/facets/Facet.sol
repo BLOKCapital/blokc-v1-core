@@ -48,16 +48,19 @@ abstract contract Facet is ReentrancyGuard {
     }
 
     /// @notice Checks if the caller is the garden owner
-    /// @dev Checks if the caller is the garden owner
+    /// @dev Also allows Diamond self-calls (msg.sender == address(this)) to support
+    ///      internal facet composability (e.g. IndexFacet calling DEX facets during rebalance)
     function _onlyGardenOwner() internal view {
-        if (msg.sender != OwnershipStorage.layout().owner) {
+        if (msg.sender != OwnershipStorage.layout().owner && msg.sender != address(this)) {
             revert Garden_UnauthorizedCaller();
         }
     }
 
     /// @notice Checks if the garden is not connected to an index
-    /// @dev Checks if the garden is not connected to an index
+    /// @dev Skips the check for Diamond self-calls to support internal facet composability
+    ///      (e.g. IndexFacet calling DEX facets during rebalance)
     function _ifIndexNotConnected() internal view {
+        if (msg.sender == address(this)) return;
         LibDiamond.Layout storage ld = LibDiamond.layout();
         if (ld.isConnectedToIndex) {
             revert Garden_CannotCallIfConnectedToIndex();
