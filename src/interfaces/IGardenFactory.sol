@@ -20,11 +20,13 @@ interface IGardenFactory {
     /// @param  index The per-user garden index (1..10) selected by the user.
     /// @param  collection The address of the collection to mint from.
     /// @param  tokenId The token id to mint.
+    /// @param  gardenType The type of the garden, used to determine which facets to include in the initial cut.
     /// @return garden The address of the newly deployed garden proxy.
     function createGarden(
         uint256 index,
         address collection,
-        uint256 tokenId
+        uint256 tokenId,
+        bytes32 gardenType
     )
         external
         returns (address garden);

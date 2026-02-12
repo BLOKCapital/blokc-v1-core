@@ -95,7 +95,10 @@ interface IFacetRegistry {
         bytes32 moduleId,
         uint256 startVersion,
         uint256 endVersion
-    ) external view returns (IDiamondCut.FacetCut[] memory facetCuts);
+    )
+        external
+        view
+        returns (IDiamondCut.FacetCut[] memory facetCuts);
 
     /// @notice Returns the current version of a module
     /// @param moduleId The module to query
@@ -110,6 +113,11 @@ interface IFacetRegistry {
     /// @param facetAddress The facet address to query
     /// @return moduleId The module the facet belongs to
     function getFacetModule(address facetAddress) external view returns (bytes32 moduleId);
+
+    /// @notice Returns the module that supports a given function selector
+    /// @param selector The function selector to query
+    /// @return moduleId The module that supports the selector
+    function getModuleIdBySelector(bytes4 selector) external view returns (bytes32);
 
     /// @notice Checks if a module is registered
     /// @param moduleId The module to check
@@ -146,7 +154,10 @@ interface IFacetRegistry {
     /// @dev BASE_MODULE facets are always prepended. Used by the factory to deploy gardens.
     /// @param gardenTypeId The garden type to query
     /// @return facetCuts Array of FacetCut structs (all with Add action)
-    function getGardenTypeFacetCuts(bytes32 gardenTypeId) external view returns (IDiamondCut.FacetCut[] memory facetCuts);
+    function getGardenTypeFacetCuts(bytes32 gardenTypeId)
+        external
+        view
+        returns (IDiamondCut.FacetCut[] memory facetCuts);
 
     /// @notice Returns aggregated facets for a garden type (base facets + allowed modules)
     /// @dev BASE_MODULE facets are always prepended implicitly.
@@ -187,7 +198,10 @@ interface IFacetRegistry {
     function getFacetCutsByVersionRange(
         uint256 _startVersion,
         uint256 _endVersion
-    ) external view returns (IDiamondCut.FacetCut[] memory facetCuts);
+    )
+        external
+        view
+        returns (IDiamondCut.FacetCut[] memory facetCuts);
 
     /// @notice Returns if a facet registered or not
     /// @param facet The address of the facet

@@ -438,6 +438,14 @@ contract FacetRegistry is IFacetRegistry, Ownable {
         return _moduleExists[moduleId];
     }
 
+    function getModuleIdBySelector(bytes4 selector) external view returns (bytes32) {
+        address facetAddress = _selectorToFacetAndPosition[selector].facetAddress;
+        if (facetAddress == address(0)) {
+            revert FacetRegistry_SelectorNotRegistered(selector);
+        }
+        return _facetToModule[facetAddress];
+    }
+
     // ========================================================================
     //                     EXTERNAL GARDEN TYPE VIEWS
     // ========================================================================
