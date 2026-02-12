@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT License
 pragma solidity >=0.8.31;
 
+import { LibStorageSlot } from "../../libraries/LibStorageSlot.sol";
+
 /*###############################################################################
 
     @title IndexStorage
@@ -21,7 +23,6 @@ pragma solidity >=0.8.31;
 library IndexStorage {
     /// @notice Fixed storage slot for index-related persistent state
     /// @dev Uses keccak256 hash to generate unique storage position
-    bytes32 internal constant INDEX_STORAGE_POSITION = keccak256("index.storage");
 
     // ========================================================================
     // Token Addresses (Arbitrum One Mainnet)
@@ -83,9 +84,10 @@ library IndexStorage {
     }
 
     /// @notice Returns a pointer to the index storage layout
+    /// @dev Storage slot is derived from keccak256(bytes(type(IndexStorage).name))
     /// @return l Storage pointer to Layout struct
     function layout() internal pure returns (Layout storage l) {
-        bytes32 position = INDEX_STORAGE_POSITION;
+        bytes32 position = LibStorageSlot.deriveStorageSlot(type(IndexStorage).name);
 
         assembly {
             l.slot := position

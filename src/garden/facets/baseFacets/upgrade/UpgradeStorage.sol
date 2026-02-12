@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT License
 pragma solidity >=0.8.31;
 
+import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
+
 /*###############################################################################
 
     @title UpgradeStorage
@@ -17,9 +19,6 @@ pragma solidity >=0.8.31;
 ################################################################################*/
 
 library UpgradeStorage {
-    /// @notice Fixed storage slot for ownable layout (unique label reduces collision risk).
-    bytes32 internal constant UPGRADE_STORAGE_SLOT_POSITION = keccak256("garden.upgrade.storage");
-
     /// @notice Layout for the UpgradeStorage
     /// @dev The struct stores the diamond version
     struct Layout {
@@ -27,9 +26,10 @@ library UpgradeStorage {
     }
 
     /// @notice Returns the storage pointer to the Upgrade layout
+    /// @dev Storage slot is derived from keccak256(bytes(type(UpgradeStorage).name))
     /// @return l Storage reference to Layout
     function layout() internal pure returns (Layout storage l) {
-        bytes32 position = UPGRADE_STORAGE_SLOT_POSITION;
+        bytes32 position = LibStorageSlot.deriveStorageSlot(type(UpgradeStorage).name);
 
         assembly {
             l.slot := position

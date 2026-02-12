@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
+import { LibStorageSlot } from "./LibStorageSlot.sol";
+
 /*###############################################################################
 
     @title LibDiamond
@@ -10,8 +12,6 @@ pragma solidity ^0.8.31;
 ################################################################################*/
 
 library LibDiamond {
-    bytes32 internal constant DIAMOND_STORAGE_POSITION = keccak256("diamond.storage");
-
     struct Layout {
         //facet registry address
         address facetRegistry;
@@ -21,8 +21,9 @@ library LibDiamond {
         bool isConnectedToIndex;
     }
 
+    /// @dev Storage slot is derived from keccak256(bytes(type(LibDiamond).name))
     function layout() internal pure returns (Layout storage l) {
-        bytes32 position = DIAMOND_STORAGE_POSITION;
+        bytes32 position = LibStorageSlot.deriveStorageSlot(type(LibDiamond).name);
         assembly {
             l.slot := position
         }

@@ -1,0 +1,53 @@
+{
+  "description": "Registry of deployed storage library names per module. Used to guard against library renames that would silently destroy storage slot offsets in deployed Gardens. Modules with empty storage_libraries arrays contain only stateless facets. Module versions are tracked on-chain via FacetRegistry.getModuleVersion(moduleId).",
+  "modules": {
+    "AAVE_V3": {
+      "storage_libraries": []
+    },
+    "BASE": {
+      "storage_libraries": [
+        "DiamondCutStorage",
+        "DiamondLoupeStorage",
+        "LibDiamond",
+        "OwnershipStorage",
+        "UpgradeStorage"
+      ]
+    },
+    "CAMELOT_V2": {
+      "storage_libraries": []
+    },
+    "CAMELOT_V3": {
+      "storage_libraries": []
+    },
+    "CCTP": {
+      "storage_libraries": []
+    },
+    "GMX_V2": {
+      "storage_libraries": [
+        "GmxV2Storage"
+      ]
+    },
+    "INDEX": {
+      "storage_libraries": [
+        "IndexStorage"
+      ]
+    },
+    "PENDLE_V2": {
+      "storage_libraries": []
+    },
+    "REWARD_COLLECTION": {
+      "storage_libraries": [
+        "RewardCollectionStorage"
+      ]
+    },
+    "UNISWAP_V2": {
+      "storage_libraries": []
+    },
+    "UNISWAP_V3": {
+      "storage_libraries": []
+    },
+    "WITHDRAW": {
+      "storage_libraries": []
+    }
+  }
+}
