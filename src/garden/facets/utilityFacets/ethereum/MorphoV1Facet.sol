@@ -12,72 +12,75 @@ pragma solidity ^0.8.31;
  *##############################################################################*/
 
 import { MarketParams } from "@morphoBlue/src/interfaces/IMorpho.sol";
-import { MorphoBase } from "src/garden/facets/utilityFacets/ethereum/MorphoBase.sol";
+import { IMorphoV1 } from "src/garden/facets/utilityFacets/ethereum/IMorphoV1.sol";
+import { MorphoV1Base } from "src/garden/facets/utilityFacets/ethereum/MorphoV1Base.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
-contract MorphoFacet is MorphoBase, Facet {
+contract MorphoV1Facet is IMorphoV1, MorphoV1Base, Facet {
     // ========================================================================
     // External Functions (State-Changing)
     // ========================================================================
 
-    /// @notice Supply to a Morpho Blue market
-    function supply(
+    /// @inheritdoc IMorphoV1
+    function supplyToMorphoV1(
         MarketParams memory marketParams,
         uint256 assets,
         uint256 shares,
         address onBehalf,
         bytes calldata data
-    ) external onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
-        return _supplyMorpho(marketParams, assets, shares, onBehalf, data);
+    ) external override onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
+        return _supplyToMorphoV1Internal(marketParams, assets, shares, onBehalf, data);
     }
 
-    /// @notice Withdraw from a Morpho Blue market
-    function withdraw(
+    /// @inheritdoc IMorphoV1
+    function withdrawFromMorphoV1(
         MarketParams memory marketParams,
         uint256 assets,
         uint256 shares,
         address onBehalf,
         address receiver
-    ) external onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
-        return _withdrawMorpho(marketParams, assets, shares, onBehalf, receiver);
+    ) external override onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
+        return _withdrawFromMorphoV1Internal(marketParams, assets, shares, onBehalf, receiver);
     }
 
-    /// @notice Borrow from a Morpho Blue market
-    function borrow(
+    /// @inheritdoc IMorphoV1
+    function borrowFromMorphoV1(
         MarketParams memory marketParams,
         uint256 assets,
         uint256 shares,
         address onBehalf,
         address receiver
-    ) external onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
-        return _borrowMorpho(marketParams, assets, shares, onBehalf, receiver);
+    ) external override onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
+        return _borrowFromMorphoV1Internal(marketParams, assets, shares, onBehalf, receiver);
     }
 
-    /// @notice Repay a Morpho Blue position
-    function repay(
+    /// @inheritdoc IMorphoV1
+    function repayToMorphoV1(
         MarketParams memory marketParams,
         uint256 assets,
         uint256 shares,
         address onBehalf
-    ) external onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
-        return _repayMorpho(marketParams, assets, shares, onBehalf);
+    ) external override onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
+        return _repayToMorphoV1Internal(marketParams, assets, shares, onBehalf);
     }
 
-    /// @notice Accrue interest on a Morpho Blue market
-    function accrueInterest(MarketParams memory marketParams)
+    /// @inheritdoc IMorphoV1
+    function accrueInterestMorphoV1(MarketParams memory marketParams)
         external
+        override
         onlyGardenOwner
         ifIndexNotConnected
     {
-        _accrueInterestMorpho(marketParams);
+        _accrueInterestMorphoV1Internal(marketParams);
     }
 
-    /// @notice Create a new Morpho Blue market
-    function createMarket(MarketParams memory marketParams)
+    /// @inheritdoc IMorphoV1
+    function createMarketForMorphoV1(MarketParams memory marketParams)
         external
+        override
         onlyGardenOwner
         ifIndexNotConnected
     {
-        _createMarketMorpho(marketParams);
+        _createMarketForMorphoV1Internal(marketParams);
     }
 }

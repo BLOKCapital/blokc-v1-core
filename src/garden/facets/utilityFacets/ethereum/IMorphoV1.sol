@@ -3,7 +3,7 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
  *
- *    @title IMorphoBlue
+ *    @title IMorphoV1
  *    @author BLOK Capital DAO
  *    @notice Interface for Morpho Blue protocol integration
  *    @dev Minimal interface used by the Morpho facet to interact with Morpho Blue
@@ -18,9 +18,9 @@ pragma solidity ^0.8.31;
 
 import { MarketParams } from "@morphoBlue/src/interfaces/IMorpho.sol";
 
-interface IMorphoBlue {
-    /// @notice Supply to a Morpho Blue market
-    function supply(
+interface IMorphoV1 {
+    /// @notice Supply to a Morpho Blue v1 market
+    function supplyToMorphoV1(
         MarketParams memory marketParams,
         uint256 assets,
         uint256 shares,
@@ -28,8 +28,8 @@ interface IMorphoBlue {
         bytes calldata data
     ) external returns (uint256, uint256);
 
-    /// @notice Withdraw from a Morpho Blue market
-    function withdraw(
+    /// @notice Withdraw from a Morpho Blue v1 market
+    function withdrawFromMorphoV1(
         MarketParams memory marketParams,
         uint256 assets,
         uint256 shares,
@@ -37,8 +37,8 @@ interface IMorphoBlue {
         address receiver
     ) external returns (uint256, uint256);
 
-    /// @notice Borrow from a Morpho Blue market
-    function borrow(
+    /// @notice Borrow from a Morpho Blue v1 market
+    function borrowFromMorphoV1(
         MarketParams memory marketParams,
         uint256 assets,
         uint256 shares,
@@ -46,19 +46,19 @@ interface IMorphoBlue {
         address receiver
     ) external returns (uint256, uint256);
 
-    /// @notice Repay a Morpho Blue position
-    function repay(
+    /// @notice Repay a Morpho Blue v1 position
+    function repayToMorphoV1(
         MarketParams memory marketParams,
         uint256 assets,
         uint256 shares,
         address onBehalf
     ) external returns (uint256, uint256);
 
-    /// @notice Accrue interest on a Morpho Blue market
-    function accrueInterest(MarketParams memory marketParams) external;
+    /// @notice Accrue interest on a Morpho Blue v1 market
+    function accrueInterestMorphoV1(MarketParams memory marketParams) external;
 
-    /// @notice Create a new Morpho Blue market
-    function createMarket(MarketParams memory marketParams) external;
+    /// @notice Create a new Morpho Blue v1 market
+    function createMarketForMorphoV1(MarketParams memory marketParams) external;
 }
 
 
