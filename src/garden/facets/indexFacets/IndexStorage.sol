@@ -3,24 +3,25 @@ pragma solidity >=0.8.31;
 
 /*###############################################################################
 
-    @title IndexStorage
-    @author BLOK Capital DAO
-    @notice Storage layout and constants for Index-related facets
-    @dev Uses diamond storage pattern with a fixed storage slot to ensure
-         compatibility across diamond upgrades. Contains Arbitrum One mainnet
-         addresses for tokens, oracles, and registries.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+import { PendingIntent } from "src/garden/facets/indexFacets/IIndex.sol";
+
+/**
+ * @title IndexStorage
+ * @author BLOK Capital DAO
+ * @notice Storage layout and constants for Index-related facets
+ * @dev Uses diamond storage pattern with a fixed storage slot to ensure
+ *      compatibility across diamond upgrades. Contains Arbitrum One mainnet
+ *      addresses for tokens, oracles, and registries.
+ */
 library IndexStorage {
     /// @notice Fixed storage slot for index-related persistent state
-    /// @dev Uses keccak256 hash to generate unique storage position
     bytes32 internal constant INDEX_STORAGE_POSITION = keccak256("index.storage");
 
     // ========================================================================
@@ -68,18 +69,33 @@ library IndexStorage {
     /// @notice Maximum slippage tolerance in basis points (5% = 500 bps)
     uint256 internal constant MAX_SLIPPAGE_BPS = 500;
 
+    /// @notice Balance threshold in basis points (1% = 100 bps)
+    uint256 internal constant BALANCE_THRESHOLD_BPS = 100;
+
     /// @notice Swap deadline in seconds (5 minutes)
     uint256 internal constant SWAP_DEADLINE_SECONDS = 300;
 
+    /// @notice Time interval after which a pending rebalance intent expires (5 minutes)
+    uint256 internal constant PENDING_INTENT_INTERVAL = 5 minutes;
+
+    uint256 internal constant REBALANCE_INTERVAL = 1 hours;
+
     /// @notice Maximum number of assets allowed in an index
     uint256 internal constant MAX_ASSETS = 30;
+
+    bytes32 internal constant DEX_MODULE_ID = keccak256("DEX");
 
     /// @notice Storage layout for index-related state
     /// @param indexAddress Address of the connected Index contract
     /// @param lastRebalanceTimestamp Block timestamp of last rebalance
     struct Layout {
         address indexAddress;
+        // Timestamps
         uint256 lastRebalanceTimestamp;
+        uint256 lastIntentTimestamp;
+
+        // Pending rebalance state
+        PendingIntent pendingIntent;
     }
 
     /// @notice Returns a pointer to the index storage layout

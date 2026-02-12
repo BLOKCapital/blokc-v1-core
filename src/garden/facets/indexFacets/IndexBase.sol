@@ -1,76 +1,73 @@
 //SPDX-License-Identifier: MIT License
 pragma solidity ^0.8.31;
 
+/*###############################################################################
+
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
+    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
+    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
+    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
+
+################################################################################*/
+
 import { IndexFactory } from "src/indices/IndexFactory.sol";
 import { Index } from "src/indices/Index.sol";
-import { UniswapV3Base } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Base.sol";
 import { IndexStorage } from "src/garden/facets/indexFacets/IndexStorage.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
-import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/IUniswapV3.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { IndexMath } from "src/indices/libraries/IndexMath.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
+import { IIndex, SwapCall, PendingIntent } from "src/garden/facets/indexFacets/IIndex.sol";
+import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 
 // ============================================================================
 // Errors
 // ============================================================================
 
-/// @notice Thrown when asset address is invalid or zero
-/// @param assetAddress The invalid asset address
-error IndexFacet_InvalidAssetAddress(address assetAddress);
+/// @notice Thrown when garden is not connected to an index
+error IndexFacet_NotConnectedToIndex();
 
-/// @notice Thrown when a mathematical addition causes overflow
-/// @param value1 The first value that caused the overflow
-/// @param value2 The second value that caused the overflow
-error IndexFacet_MathOverflowedAdd(uint256 value1, uint256 value2);
+/// @notice Thrown when garden is already connected to an index
+error IndexFacet_AlreadyConnectedToIndex();
 
-/// @notice Thrown when attempting to rebalance without a connected index
-error IndexFacet_NoIndexConnected();
-
-/// @notice Thrown when asset information is invalid or incomplete
-error IndexFacet_InvalidAssetInfo();
-
-/// @notice Thrown when attempting to connect to an unregistered index
-/// @param indexAddress The unregistered index address
+/// @notice Thrown when index is not registered
 error IndexFacet_IndexNotRegistered(address indexAddress);
 
-/// @notice Thrown when insufficient balance for operation
-error IndexFacet_InsufficientBalance();
+/// @notice Thrown when pending intent interval hasn't passed
+error IndexFacet_IntentIntervalNotPassed();
 
-abstract contract IndexBase is UniswapV3Base {
-    // ========================================================================
-    // Events
-    // ========================================================================
+/// @notice Thrown when rebalance interval hasn't passed
+error IndexFacet_RebalanceIntervalNotPassed();
 
-    /// @notice Emitted when garden successfully connects to an index
-    /// @param indexAddress Address of the connected index
-    event IndexConnected(address indexed indexAddress);
+/// @notice Thrown when no pending intent exists
+error IndexFacet_NoPendingIntent();
 
-    /// @notice Emitted when garden disconnects from its index
-    /// @param indexAddress Address of the disconnected index
-    event IndexDisconnected(address indexed indexAddress);
+/// @notice Thrown when balance is outside threshold after rebalance
+error IndexFacet_BalanceOutsideThreshold(string symbol, uint256 current, uint256 target);
 
-    /// @notice Emitted when rebalance operation begins
-    /// @param timestamp Block timestamp when rebalance started
-    /// @param garden Address of the garden initiating the rebalance
-    /// @param indexAddress Address of the index being tracked
-    event RebalanceStarted(uint256 timestamp, address garden, address indexed indexAddress);
+/// @notice Thrown when oracle data is stale or invalid
+error IndexFacet_InvalidOracleData();
 
-    /// @notice Emitted when rebalance operation completes
-    /// @param timestamp Block timestamp when rebalance completed
-    /// @param totalValue Total portfolio value in USD
-    event RebalanceCompleted(uint256 timestamp, uint256 totalValue);
+/// @notice Thrown when a swap call fails
+error IndexFacet_SwapCallFailed(uint256 index, bytes reason);
 
-    /// @notice Emitted when tokens are swapped during rebalance
-    /// @param tokenIn Address of token being sold
-    /// @param tokenOut Address of token being bought
-    /// @param amountIn Amount of tokenIn sold
-    /// @param amountOut Amount of tokenOut received
-    event AssetSwapped(address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut);
+/// @notice Thrown when swap selector is not whitelisted
+error IndexFacet_SelectorNotWhitelisted(bytes4 selector);
 
+/// @notice Thrown when swap call returns no data (selector not found)
+error IndexFacet_SelectorNotFound(bytes4 selector);
+
+/**
+ * @title IndexBase
+ * @author BLOK Capital DAO
+ * @notice Base contract for Index Facet, containing shared logic and internal functions for managing index connections
+ * and rebalancing.
+ * Handles interactions with the Index contract, retrieves target weights, and calculates rebalance actions.
+ * The external functions are defined in the IndexFacet contract, which calls these internal functions to perform the
+ * operations.
+ */
+abstract contract IndexBase {
     function _connectToIndex(address indexAddress) internal {
         if (!IndexFactory(IndexStorage.INDEX_FACTORY_ADDRESS).isIndexRegistered(indexAddress)) {
             revert IndexFacet_IndexNotRegistered(indexAddress);
@@ -80,8 +77,7 @@ abstract contract IndexBase is UniswapV3Base {
         // Store the connected index address
         IndexStorage.layout().indexAddress = indexAddress;
         LibDiamond.layout().isConnectedToIndex = true;
-        _rebalance();
-        emit IndexConnected(indexAddress);
+        emit IIndex.IndexConnected(indexAddress);
     }
 
     function _disconnectFromIndex() internal {
@@ -91,20 +87,236 @@ abstract contract IndexBase is UniswapV3Base {
         // Clear the connected index address
         IndexStorage.layout().indexAddress = address(0);
         LibDiamond.layout().isConnectedToIndex = false;
-        emit IndexDisconnected(indexAddress);
+        emit IIndex.IndexDisconnected(indexAddress);
     }
 
-    function _rebalance() internal {
-        address indexAddress = IndexStorage.layout().indexAddress;
-        if (indexAddress == address(0)) revert IndexFacet_NoIndexConnected();
+    function _rebalanceIntent() internal {
+        IndexStorage.Layout storage s = IndexStorage.layout();
 
-        // Get assets and weights from the index
-        (string[] memory symbols, uint256[] memory weights) = Index(indexAddress).getWeights();
+        // Check connected
+        if (s.indexAddress == address(0)) {
+            revert IndexFacet_NotConnectedToIndex();
+        }
+
+        // Check intent interval
+        if (block.timestamp < s.lastIntentTimestamp + IndexStorage.PENDING_INTENT_INTERVAL) {
+            revert IndexFacet_IntentIntervalNotPassed();
+        }
+
+        // Check rebalance interval
+        if (block.timestamp < s.lastRebalanceTimestamp + IndexStorage.REBALANCE_INTERVAL) {
+            revert IndexFacet_RebalanceIntervalNotPassed();
+        }
+
+        // Get target weights from index
+        (string[] memory symbols, uint256[] memory weights) = Index(s.indexAddress).getWeights();
+
+        (
+            uint256[] memory currentValues,
+            uint256[] memory targetValues,
+            address[] memory tokenAddresses,
+            uint256 totalValueUsd
+        ) = _calculateRebalanceValues(symbols, weights);
+
+        // Store pending intent
+        s.pendingIntent.active = true;
+        s.pendingIntent.totalValueUsd = totalValueUsd;
+        s.pendingIntent.symbols = symbols;
+        s.pendingIntent.currentValues = currentValues;
+        s.pendingIntent.targetValues = targetValues;
+        s.pendingIntent.tokenAddresses = tokenAddresses;
+        s.lastIntentTimestamp = block.timestamp;
+
+        emit IIndex.RebalanceIntentCreated(address(this), s.indexAddress, symbols, currentValues, targetValues, totalValueUsd);
     }
 
-    /// @notice Internal function to check if garden is connected to an index
-    /// @return True if connected to an index, false otherwise
+    /// @notice Execute rebalance by calling DEX facets directly
+    /// @dev CRE provides swap calls that target DEX facet functions on this Diamond.
+    ///      Each SwapCall contains:
+    ///      selector: The 4-byte function selector
+    ///      data: ABI-encoded function arguments
+    /// @param swapCalls Array of swap calls to execute
+    function _rebalance(SwapCall[] calldata swapCalls) internal {
+        IndexStorage.Layout storage s = IndexStorage.layout();
+
+        // Check connected
+        if (s.indexAddress == address(0)) {
+            revert IndexFacet_NotConnectedToIndex();
+        }
+
+        // Check pending intent
+        if (!s.pendingIntent.active) {
+            revert IndexFacet_NoPendingIntent();
+        }
+
+        // Check rebalance interval
+        if (block.timestamp < s.lastRebalanceTimestamp + IndexStorage.REBALANCE_INTERVAL) {
+            revert IndexFacet_RebalanceIntervalNotPassed();
+        }
+
+        // Execute each swap call on the Diamond's DEX facets
+        _executeSwapCalls(swapCalls);
+
+        // Verify final balances match targets within threshold
+        _verifyBalancesMatchTargets();
+
+        // Clear pending state and update timestamp
+        s.pendingIntent.active = false;
+        s.lastRebalanceTimestamp = block.timestamp;
+
+        emit IIndex.RebalanceCompleted(address(this), s.indexAddress, block.timestamp);
+    }
+
+    /// @notice Execute swap calls by delegating to DEX facets
+    /// @dev Uses address(this).call() to invoke facet functions on the same Diamond.
+    ///      Only selectors belonging to the DEX module (ModuleIds.DEX) are allowed.
+    ///      The registry stores which module owns each selector; we allow only the DEX module.
+    /// @param swapCalls Array of swap calls to execute
+    function _executeSwapCalls(SwapCall[] calldata swapCalls) internal {
+        for (uint256 i = 0; i < swapCalls.length; i++) {
+            bytes4 selector = swapCalls[i].selector;
+
+            if (!_isDexFunction(selector)) revert IndexFacet_SelectorNotWhitelisted(selector);
+
+            bytes memory callData = abi.encodePacked(selector, swapCalls[i].data);
+
+            (bool success, bytes memory returnData) = address(this).call(callData);
+
+            if (!success) {
+                if (returnData.length == 0) {
+                    revert IndexFacet_SelectorNotFound(selector);
+                }
+                revert IndexFacet_SwapCallFailed(i, returnData);
+            }
+        }
+    }
+
+    function _isDexFunction(bytes4 selector) internal view returns (bool) {
+        IFacetRegistry registry = IFacetRegistry(LibDiamond.layout().facetRegistry);
+        bytes32 moduleId = registry.getModuleIdBySelector(selector);
+        return moduleId == IndexStorage.DEX_MODULE_ID;
+    }
+
+    // ========================================================================
+    // Internal Functions - Calculations
+    // ========================================================================
+
+    function _calculateRebalanceValues(
+        string[] memory symbols,
+        uint256[] memory weights
+    )
+        internal
+        view
+        returns (
+            uint256[] memory currentValues,
+            uint256[] memory targetValues,
+            address[] memory tokenAddresses,
+            uint256 totalValueUsd
+        )
+    {
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
+
+        currentValues = new uint256[](symbols.length);
+        targetValues = new uint256[](symbols.length);
+        tokenAddresses = new address[](symbols.length);
+        totalValueUsd = 0;
+
+        // Calculate current values
+        for (uint256 i = 0; i < symbols.length; i++) {
+            address token = componentRegistry.getComponentAddress(symbols[i]);
+            address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(symbols[i]);
+
+            tokenAddresses[i] = token;
+
+            uint256 balance = IERC20(token).balanceOf(address(this));
+            uint256 price = _getPrice(priceFeed);
+            uint8 decimals = IERC20Metadata(token).decimals();
+
+            // Value in USD with 8 decimals (Chainlink standard)
+            currentValues[i] = (balance * price) / (10 ** decimals);
+            totalValueUsd += currentValues[i];
+        }
+
+        // Calculate target values based on weights
+        for (uint256 i = 0; i < symbols.length; i++) {
+            targetValues[i] = (totalValueUsd * weights[i]) / IndexStorage.PRECISION;
+        }
+    }
+
+    function _verifyBalancesMatchTargets() internal view {
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
+
+        for (uint256 i = 0; i < s.pendingIntent.symbols.length; i++) {
+            string memory symbol = s.pendingIntent.symbols[i];
+            address token = componentRegistry.getComponentAddress(symbol);
+            address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(symbol);
+
+            uint256 balance = IERC20(token).balanceOf(address(this));
+            uint256 price = _getPrice(priceFeed);
+            uint8 decimals = IERC20Metadata(token).decimals();
+
+            uint256 currentValue = (balance * price) / (10 ** decimals);
+            uint256 targetValue = s.pendingIntent.targetValues[i];
+
+            // Calculate threshold
+            uint256 threshold = (targetValue * IndexStorage.BALANCE_THRESHOLD_BPS) / 10_000;
+
+            // Verify within threshold (use abs diff to avoid underflow)
+            uint256 diff = currentValue > targetValue ? currentValue - targetValue : targetValue - currentValue;
+            if (diff > threshold) {
+                revert IndexFacet_BalanceOutsideThreshold(symbol, currentValue, targetValue);
+            }
+        }
+    }
+
+    function _getPrice(address priceFeed) internal view returns (uint256) {
+        (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) =
+            AggregatorV3Interface(priceFeed).latestRoundData();
+
+        // Validate oracle data
+        if (price <= 0) revert IndexFacet_InvalidOracleData();
+        if (updatedAt == 0) revert IndexFacet_InvalidOracleData();
+        if (answeredInRound < roundId) revert IndexFacet_InvalidOracleData();
+        if (block.timestamp - updatedAt > 1 hours) revert IndexFacet_InvalidOracleData();
+
+        return uint256(price);
+    }
+
+    // ========================================================================
+    // Internal Functions - View
+    // ========================================================================
+
     function _isConnectedToIndex() internal view returns (bool) {
         return LibDiamond.layout().isConnectedToIndex;
+    }
+
+    function _getConnectedIndex() internal view returns (address) {
+        return IndexStorage.layout().indexAddress;
+    }
+
+    function _hasPendingIntent() internal view returns (bool) {
+        return IndexStorage.layout().pendingIntent.active;
+    }
+
+    function _getPendingIntent()
+        internal
+        view
+        returns (
+            bool active,
+            uint256 totalValueUsd,
+            string[] memory symbols,
+            uint256[] memory currentValues,
+            uint256[] memory targetValues
+        )
+    {
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        return (
+            s.pendingIntent.active,
+            s.pendingIntent.totalValueUsd,
+            s.pendingIntent.symbols,
+            s.pendingIntent.currentValues,
+            s.pendingIntent.targetValues
+        );
     }
 }
