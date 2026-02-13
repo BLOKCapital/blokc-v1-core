@@ -127,7 +127,9 @@ abstract contract IndexBase {
         s.pendingIntent.tokenAddresses = tokenAddresses;
         s.lastIntentTimestamp = block.timestamp;
 
-        emit IIndex.RebalanceIntentCreated(address(this), s.indexAddress, symbols, currentValues, targetValues, totalValueUsd);
+        emit IIndex.RebalanceIntentCreated(
+            address(this), s.indexAddress, symbols, currentValues, targetValues, totalValueUsd
+        );
     }
 
     /// @notice Execute rebalance by calling DEX facets directly
@@ -164,7 +166,9 @@ abstract contract IndexBase {
         s.pendingIntent.active = false;
         s.lastRebalanceTimestamp = block.timestamp;
 
-        emit IIndex.RebalanceCompleted(address(this), s.indexAddress, block.timestamp);
+        uint256 nextRebalanceTimestamp = block.timestamp + IndexStorage.REBALANCE_INTERVAL;
+
+        emit IIndex.RebalanceCompleted(address(this), s.indexAddress, block.timestamp, nextRebalanceTimestamp);
     }
 
     /// @notice Execute swap calls by delegating to DEX facets

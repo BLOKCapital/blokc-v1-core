@@ -63,7 +63,9 @@ interface IIndex {
     );
 
     /// @notice Emitted when rebalance is completed
-    event RebalanceCompleted(address indexed garden, address indexed indexAddress, uint256 timestamp);
+    event RebalanceCompleted(
+        address indexed garden, address indexed indexAddress, uint256 timestamp, uint256 nextRebalanceTimestamp
+    );
 
     // ========================================================================
     // Functions

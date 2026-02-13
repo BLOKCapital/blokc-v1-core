@@ -48,10 +48,9 @@ contract Deploy is BaseScript {
         console2.log("OwnershipFacet deployed at:", address(ownershipFacet));
 
         UpgradeFacet upgradeFacet = new UpgradeFacet{ salt: salt }();
-        bytes4[] memory upgradeSelectors = new bytes4[](3);
+        bytes4[] memory upgradeSelectors = new bytes4[](2);
         upgradeSelectors[0] = upgradeFacet.upgrade.selector;
-        upgradeSelectors[1] = upgradeFacet.getCurrentVersion.selector;
-        upgradeSelectors[2] = upgradeFacet.upgradeDetails.selector;
+        upgradeSelectors[1] = upgradeFacet.upgradeDetails.selector;
         console2.log("UpgradeFacet deployed at:", address(upgradeFacet));
 
         address[4] memory baseFacets =
