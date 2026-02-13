@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.31;
+pragma solidity ^0.8.31;
 
 /*###############################################################################
 
@@ -371,6 +371,15 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     }
 
     // ========================================================================
+    //                         RENOUNCE OWNERSHIP
+    // ========================================================================
+
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert FacetRegistry_CannotRenounceOwnership();
+    }
+
+    // ========================================================================
     //                       EXTERNAL MODULE VIEWS
     // ========================================================================
 
@@ -438,6 +447,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
         return _moduleExists[moduleId];
     }
 
+    /// @inheritdoc IFacetRegistry
     function getModuleIdBySelector(bytes4 selector) external view returns (bytes32) {
         address facetAddress = _selectorToFacetAndPosition[selector].facetAddress;
         if (facetAddress == address(0)) {
@@ -533,7 +543,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
             address facetAddress = baseFacetAddresses[i];
             facets_[i].facetAddress = facetAddress;
             facets_[i].functionSelectors = _facetFunctionSelectors[facetAddress].functionSelectors;
-            i++;
+            index++;
         }
 
         for (uint256 i = 0; i < modules.length; i++) {
@@ -626,6 +636,30 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     /// @inheritdoc IFacetRegistry
     function getCurrentVersion() external view returns (uint256) {
         return _currentVersion;
+    }
+
+    /// @inheritdoc IFacetRegistry
+    function validateSelector(
+        bytes4 selector,
+        bytes32 gardenType
+    )
+        external
+        view
+        returns (address registeredFacet, bool moduleAllowed)
+    {
+        registeredFacet = _selectorToFacetAndPosition[selector].facetAddress;
+        if (registeredFacet == address(0)) {
+            return (address(0), false);
+        }
+
+        bytes32 moduleId = _facetToModule[registeredFacet];
+        if (moduleId == BASE_MODULE) {
+            moduleAllowed = true;
+        } else if (gardenType != bytes32(0) && _gardenTypeExists[gardenType]) {
+            moduleAllowed = _gardenTypeModuleIndex[gardenType][moduleId] != 0;
+        } else {
+            moduleAllowed = true;
+        }
     }
 
     // ========================================================================

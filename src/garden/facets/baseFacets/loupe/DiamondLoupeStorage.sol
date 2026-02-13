@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT License
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
 
 import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 

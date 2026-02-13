@@ -6,7 +6,9 @@ pragma solidity ^0.8.31;
     @title UpgradeBase
     @author BLOK Capital DAO
     @notice Base contract for UpgradeFacet
-    @dev This base contract allows upgrading the diamond to match the latest state of the FacetRegistry
+    @dev This base contract allows upgrading the diamond to match the latest state of the FacetRegistry.
+         Upgrades are per-module: iterates over all modules allowed for the garden's type
+         and applies facet cuts for modules that have newer versions in the registry.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -27,8 +29,7 @@ import { DiamondCutBase } from "src/garden/facets/baseFacets/cut/DiamondCutBase.
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 /// @notice Thrown when attempting to upgrade but already at the latest version
-/// @param registryVersion The registry version that is already applied
-error UpgradeFacet_AlreadyAtLatestVersion(uint256 registryVersion);
+error UpgradeFacet_AlreadyAtLatestVersion();
 
 /// @notice Thrown when the computed hash does not match the provided hash data
 error UpgradeFacet_HashMismatch();
@@ -39,63 +40,122 @@ error UpgradeFacet_NoFacetCutsRequired();
 /// @notice Thrown when a facet is not found
 error UpgradeFacet_FacetNotFound();
 
+/// @notice Thrown when no module upgrades are available
+error UpgradeFacet_NoModuleUpgradesAvailable();
+
 abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
     /// @notice Emitted when the diamond is upgraded
     /// @param facetCuts The facet cuts applied in the upgrade
-    /// @param diamondVersion The previous diamond version
-    /// @param diamondVersion The new diamond version
-    /// @param registryVersion The current registry version
-    event GardenUpgraded(
-        IDiamondCut.FacetCut[] facetCuts, uint256 indexed diamondVersion, uint256 indexed registryVersion
-    );
+    event GardenUpgraded(IDiamondCut.FacetCut[] facetCuts);
 
-    /// @notice Retrieves the upgrade details
-    /// @return facetCuts The facet cuts required for the upgrade
-    /// @return diamondVersion The current diamond version
-    /// @return registryVersion The current registry version
-    /// @return hashData The hash data for the upgrade
-    function _upgradeDetails()
-        internal
-        view
-        returns (
-            IDiamondCut.FacetCut[] memory facetCuts,
-            uint256 diamondVersion,
-            uint256 registryVersion,
-            bytes32 hashData
-        )
-    {
-        IFacetRegistry facetRegistry = IFacetRegistry(LibDiamond.layout().facetRegistry);
-        diamondVersion = UpgradeStorage.layout().diamondVersion;
-        registryVersion = facetRegistry.getCurrentVersion();
-        if (diamondVersion >= registryVersion) {
-            revert UpgradeFacet_AlreadyAtLatestVersion(registryVersion);
+    /// @notice Retrieves the upgrade details by checking all modules allowed for this garden's type
+    /// @return facetCuts The aggregated facet cuts from all modules that need upgrading
+    /// @return hashData The hash for verification
+    function _upgradeDetails() internal view returns (IDiamondCut.FacetCut[] memory facetCuts, bytes32 hashData) {
+        LibDiamond.Layout storage ld = LibDiamond.layout();
+        IFacetRegistry registry = IFacetRegistry(ld.facetRegistry);
+        UpgradeStorage.Layout storage us = UpgradeStorage.layout();
+
+        facetCuts = _collectModuleUpgrades(registry, ld.gardenType, us);
+
+        if (facetCuts.length == 0) {
+            revert UpgradeFacet_NoModuleUpgradesAvailable();
         }
-        facetCuts = facetRegistry.getFacetCutsByVersionRange(diamondVersion + 1, registryVersion);
-        hashData = keccak256(abi.encode(facetCuts, diamondVersion, registryVersion));
+
+        hashData = keccak256(abi.encode(facetCuts, ld.gardenType));
     }
 
-    /// @notice Upgrades the diamond to the latest version
-    /// @param _hashData The hash data for the upgrade
+    /// @notice Upgrades the diamond by applying per-module facet cuts
+    /// @param _hashData The hash for verification (from upgradeDetails)
     function _upgrade(bytes32 _hashData) internal {
-        IFacetRegistry facetRegistry = IFacetRegistry(LibDiamond.layout().facetRegistry);
-        uint256 diamondVersion = UpgradeStorage.layout().diamondVersion;
-        uint256 registryVersion = facetRegistry.getCurrentVersion();
-        if (diamondVersion >= registryVersion) {
-            revert UpgradeFacet_AlreadyAtLatestVersion(registryVersion);
+        LibDiamond.Layout storage ld = LibDiamond.layout();
+        IFacetRegistry registry = IFacetRegistry(ld.facetRegistry);
+        UpgradeStorage.Layout storage us = UpgradeStorage.layout();
+
+        IDiamondCut.FacetCut[] memory facetCuts = _collectModuleUpgrades(registry, ld.gardenType, us);
+
+        if (facetCuts.length == 0) {
+            revert UpgradeFacet_NoModuleUpgradesAvailable();
         }
-        IDiamondCut.FacetCut[] memory facetCuts =
-            facetRegistry.getFacetCutsByVersionRange(diamondVersion + 1, registryVersion);
-        if (_hashData != keccak256(abi.encode(facetCuts, diamondVersion, registryVersion))) {
+
+        if (_hashData != keccak256(abi.encode(facetCuts, ld.gardenType))) {
             revert UpgradeFacet_HashMismatch();
         }
+
         _applyDiamondCut(facetCuts, address(0), "");
-        UpgradeStorage.layout().diamondVersion = registryVersion;
-        emit GardenUpgraded(facetCuts, diamondVersion, registryVersion);
+        _syncModuleVersions(registry, ld.gardenType, us);
+
+        emit GardenUpgraded(facetCuts);
     }
 
-    /// @notice Retrieves the current diamond version
-    /// @return The current diamond version
-    function _getCurrentVersion() internal view returns (uint256) {
-        return UpgradeStorage.layout().diamondVersion;
+    /// @notice Collects facet cuts from all modules that have newer versions
+    /// @dev Iterates only gardenType modules (BASE_MODULE is immutable and never needs upgrades)
+    /// @param registry The FacetRegistry to query
+    /// @param gardenType The garden type identifier
+    /// @param us The UpgradeStorage layout
+    /// @return facetCuts Aggregated facet cuts from all modules needing upgrade
+    function _collectModuleUpgrades(
+        IFacetRegistry registry,
+        bytes32 gardenType,
+        UpgradeStorage.Layout storage us
+    )
+        internal
+        view
+        returns (IDiamondCut.FacetCut[] memory facetCuts)
+    {
+        bytes32[] memory typeModules = registry.getGardenTypeModules(gardenType);
+
+        // First pass: count total cuts needed
+        uint256 totalCuts = 0;
+        for (uint256 i = 0; i < typeModules.length; i++) {
+            bytes32 moduleId = typeModules[i];
+            uint256 storedVersion = us.moduleVersions[moduleId];
+            uint256 currentVersion = registry.getModuleVersion(moduleId);
+            if (currentVersion > storedVersion) {
+                totalCuts += currentVersion - storedVersion;
+            }
+        }
+
+        // Second pass: collect cuts
+        facetCuts = new IDiamondCut.FacetCut[](totalCuts);
+        uint256 index = 0;
+        for (uint256 i = 0; i < typeModules.length; i++) {
+            bytes32 moduleId = typeModules[i];
+            uint256 storedVersion = us.moduleVersions[moduleId];
+            uint256 currentVersion = registry.getModuleVersion(moduleId);
+            if (currentVersion > storedVersion) {
+                IDiamondCut.FacetCut[] memory moduleCuts =
+                    registry.getModuleFacetCutsByVersionRange(moduleId, storedVersion + 1, currentVersion);
+                for (uint256 j = 0; j < moduleCuts.length; j++) {
+                    facetCuts[index++] = moduleCuts[j];
+                }
+            }
+        }
+    }
+
+    /// @notice Syncs per-module versions to current registry versions
+    /// @dev BASE_MODULE is immutable and never changes, so we don't sync it
+    /// @param registry The FacetRegistry to query
+    /// @param gardenType The garden type identifier
+    /// @param us The UpgradeStorage layout
+    function _syncModuleVersions(
+        IFacetRegistry registry,
+        bytes32 gardenType,
+        UpgradeStorage.Layout storage us
+    )
+        internal
+    {
+        bytes32[] memory typeModules = registry.getGardenTypeModules(gardenType);
+        for (uint256 i = 0; i < typeModules.length; i++) {
+            us.moduleVersions[typeModules[i]] = registry.getModuleVersion(typeModules[i]);
+        }
+    }
+
+    /// @notice Returns the current version of a module installed in garden
+    /// @param moduleId The module to query
+    /// @return version The current module version
+    function _getModuleVersion(bytes32 moduleId) internal view returns (uint256 version) {
+        UpgradeStorage.Layout storage us = UpgradeStorage.layout();
+        version = us.moduleVersions[moduleId];
     }
 }

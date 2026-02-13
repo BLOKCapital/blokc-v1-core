@@ -37,6 +37,12 @@ interface IDiamondCut {
         bytes4[] functionSelectors;
     }
 
+    /// @notice EIP-2535 standard event emitted when diamond cut is performed
+    /// @param _diamondCut The facet cuts applied
+    /// @param _init The initialization contract address
+    /// @param _calldata The initialization calldata
+    event DiamondCut(FacetCut[] _diamondCut, address _init, bytes _calldata);
+
     /// @notice Add/replace/remove any number of functions and optionally execute
     ///         a function with delegatecall
     /// @param _diamondCut Contains the facet addresses and function selectors

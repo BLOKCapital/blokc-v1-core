@@ -19,6 +19,8 @@ library LibDiamond {
         address protocolStatus;
         // whether the diamond is connected to an index
         bool isConnectedToIndex;
+        // the garden type identifier (determines which modules are allowed)
+        bytes32 gardenType;
     }
 
     /// @dev Storage slot is derived from keccak256(bytes(type(LibDiamond).name))

@@ -2,12 +2,12 @@
 pragma solidity ^0.8.31;
 
 import { Script } from "forge-std/Script.sol";
-import {BaseScript} from "script/Base.s.sol";
-import {IndexFacet} from "src/garden/facets/indexFacets/IndexFacet.sol";
-import {FacetRegistry} from "src/facetRegistry/FacetRegistry.sol";
-import {IDiamondCut} from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
-import {UpgradeFacet} from "src/garden/facets/baseFacets/upgrade/UpgradeFacet.sol";
-import {console2} from "forge-std/console2.sol";
+import { BaseScript } from "script/Base.s.sol";
+import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
+import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
+import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
+import { UpgradeFacet } from "src/garden/facets/baseFacets/upgrade/UpgradeFacet.sol";
+import { console2 } from "forge-std/console2.sol";
 
 contract AddIndexFacet is BaseScript {
     function run() public broadcaster {
@@ -35,7 +35,7 @@ contract AddIndexFacet is BaseScript {
         FacetRegistry(FACET_REGISTRY).upgradeModule(moduleId, facetCuts);
         console2.log("IndexFacet registered in FacetRegistry at:", FACET_REGISTRY);
 
-        (,,, bytes32 hashData) = UpgradeFacet(GARDEN_ADDRESS).upgradeDetails();
+        (, bytes32 hashData) = UpgradeFacet(GARDEN_ADDRESS).upgradeDetails();
         console2.logBytes32(hashData);
         UpgradeFacet(GARDEN_ADDRESS).upgrade(hashData);
         console2.log("IndexFacet added to Garden");
