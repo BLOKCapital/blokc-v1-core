@@ -1,14 +1,11 @@
-// SPDX-License-Identifier: MIT License
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.31;
-
-import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 
 /*###############################################################################
 
-    @title OwnableStorage
+    @title IPoolRegistry
     @author BLOK Capital DAO
-    @notice Storage for the OwnershipFacet
-    @dev This storage is used to store the ownership of the contract
+    @notice Interface for the Pool Registry contract
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -18,22 +15,14 @@ import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 
 ################################################################################*/
 
-library OwnershipStorage {
-    /// @notice Layout for the OwnershipStorage
-    /// @dev The struct stores the address of the owner
-    struct Layout {
-        /// @notice Address of the owner. When zero, no owner is set (renounced).
-        address owner;
-    }
+interface IPoolRegistry {
+    /// @notice Returns the pool address associated with a given pool ID
+    /// @param poolId The unique identifier for the pool
+    /// @return pool The address of the pool
+    function poolAddressById(bytes32 poolId) external view returns (address pool);
 
-    /// @notice Returns the storage pointer to the Ownership layout
-    /// @dev Storage slot is derived from keccak256(bytes(type(OwnershipStorage).name))
-    /// @return l Storage reference to Layout
-    function layout() internal pure returns (Layout storage l) {
-        bytes32 position = LibStorageSlot.deriveStorageSlot(type(OwnershipStorage).name);
-
-        assembly {
-            l.slot := position
-        }
-    }
+    /// @notice Checks if a pool is registered in the registry
+    /// @param poolAddress The address of the pool to check
+    /// @return True if the pool is registered
+    function isPoolRegistered(address poolAddress) external view returns (bool);
 }

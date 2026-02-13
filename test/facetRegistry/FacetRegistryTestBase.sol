@@ -193,4 +193,81 @@ abstract contract FacetRegistryTestBase is Test {
         bytes32[] memory empty = new bytes32[](0);
         registry.addGardenType(gardenTypeId, empty);
     }
+
+    // ── Storage Slot Collision Guard ─────────────────────────────────────
+
+    /**
+     * @notice Verifies there are no storage slot collisions in src/.
+     * @dev Uses FFI to run test/check_storage_slot_collisions.sh which greps
+     *      for all type(X).name declarations and checks for duplicates.
+     */
+    function test_noStorageSlotCollisions() public {
+        string[] memory cmd = new string[](2);
+        cmd[0] = "test/check_storage_slot_collisions.sh";
+        cmd[1] = "src/";
+
+        bytes memory result = vm.ffi(cmd);
+
+        assertEq(
+            result.length,
+            0,
+            string.concat(
+                "STORAGE SLOT COLLISION DETECTED! Duplicate library names across files: ",
+                string(result),
+                " - Each storage library must have a unique name to prevent slot collisions."
+            )
+        );
+    }
+
+    /**
+     * @notice Demonstrates the guard catches a duplicate type(X).name declaration.
+     * @dev Scans src/ AND test/mock/ which contains a MockDuplicateStorage.sol
+     *      that re-declares library GmxV2Storage — producing the same slot.
+     */
+    function test_catchesDuplicateStorageSlotCollision() public {
+        string[] memory cmd = new string[](3);
+        cmd[0] = "test/check_storage_slot_collisions.sh";
+        cmd[1] = "src/";
+        cmd[2] = "test/mock/";
+
+        bytes memory result = vm.ffi(cmd);
+
+        assertTrue(
+            result.length > 0,
+            "Expected collision guard to catch the duplicate GmxV2Storage declaration in test/mock/"
+        );
+
+        assertEq(
+            string(result),
+            "GmxV2Storage",
+            "Expected the collision to be specifically GmxV2Storage"
+        );
+    }
+
+    // ── Deployed Storage Library Rename Guard ────────────────────────────
+
+    /**
+     * @notice Verifies that no deployed storage library has been renamed.
+     * @dev Reads storage-registry.json (the offchain registry of deployed library names)
+     *      and checks that every registered name still exists as a type(X).name declaration
+     *      in src/. If a library was renamed, its old name disappears from the codebase,
+     *      but its slot (keccak256 of the old name) is still live in deployed Gardens.
+     */
+    function test_deployedStorageLibrariesNotRenamed() public {
+        string[] memory cmd = new string[](1);
+        cmd[0] = "test/check_storage_registry.sh";
+
+        bytes memory result = vm.ffi(cmd);
+
+        assertEq(
+            result.length,
+            0,
+            string.concat(
+                "DEPLOYED STORAGE LIBRARY RENAMED! The following libraries exist in storage-registry.json ",
+                "but no longer have a type(X).name declaration in src/: ",
+                string(result),
+                " - Renaming a deployed library destroys its storage slot. Revert the rename or migrate storage."
+            )
+        );
+    }
 }

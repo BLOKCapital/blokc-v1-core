@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
+import { LibStorageSlot } from "../../../../libraries/LibStorageSlot.sol";
+
 /*###############################################################################
 
     @title GmxV2Storage
@@ -18,9 +20,6 @@ pragma solidity ^0.8.31;
 ################################################################################*/
 
 library GmxV2Storage {
-    /// @notice Fixed storage slot for GMX V2 persistent state
-    bytes32 internal constant GMXV2_STORAGE_POSITION = keccak256("gmx.v2.storage");
-
     /// @notice Position information for tracking shorts
     struct PositionInfo {
         bytes32 positionKey; // Unique position identifier from GMX
@@ -58,9 +57,10 @@ library GmxV2Storage {
     }
 
     /// @notice Returns a pointer to the GMX V2 storage layout
+    /// @dev Storage slot is derived from keccak256(bytes(type(GmxV2Storage).name))
     /// @return l Storage pointer to the GmxV2Storage struct
     function layout() internal pure returns (Layout storage l) {
-        bytes32 position = GMXV2_STORAGE_POSITION;
+        bytes32 position = LibStorageSlot.deriveStorageSlot(type(GmxV2Storage).name);
         assembly {
             l.slot := position
         }

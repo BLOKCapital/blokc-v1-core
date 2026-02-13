@@ -197,6 +197,27 @@ RPC_URL=https://...
 
 ---
 
+### Module Upgrade Rules
+
+Before adding, removing, or upgrading facets in the Facet Registry, review the rules below. For the full guide see [`docs/MODULE_UPGRADE_GUIDE.md`](docs/MODULE_UPGRADE_GUIDE.md).
+
+| Rule | Enforced by |
+|---|---|
+| Each storage library must have a **unique name** | `test_noStorageSlotCollisions` (automated) |
+| **Never rename** a deployed storage library | `test_deployedStorageLibrariesNotRenamed` (automated) |
+| Use `LibStorageSlot.deriveStorageSlot()` for all slot derivation | Code review |
+| Facets must **not** inherit from stateful contracts | Code review |
+| Storage struct fields are **append-only** (never reorder or remove) | Code review |
+| Run `./scripts/update-module-registry.sh` after deploying a module | Developer workflow |
+
+Key files:
+
+- `storage-registry.json` — offchain registry of deployed storage library names per module
+- `src/garden/libraries/LibStorageSlot.sol` — centralised slot derivation helper
+- `scripts/sync-storage-registry.sh` — rebuild the registry from the codebase
+- `scripts/update-module-registry.sh` — update a single module's registry entry
+
+
 ### Development Workflow
 
 - Write / modify contracts under `src/`.
