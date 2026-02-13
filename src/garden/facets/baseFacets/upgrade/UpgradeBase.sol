@@ -151,10 +151,11 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
         }
     }
 
-    /// @notice Returns the current version of a module
+    /// @notice Returns the current version of a module installed in garden
     /// @param moduleId The module to query
     /// @return version The current module version
-    function _getModuleVersion(IFacetRegistry registry, bytes32 moduleId) internal view returns (uint256 version) {
-        version = registry.getModuleVersion(moduleId);
+    function _getModuleVersion(bytes32 moduleId) internal view returns (uint256 version) {
+        UpgradeStorage.Layout storage us = UpgradeStorage.layout();
+        version = us.moduleVersions[moduleId];
     }
 }

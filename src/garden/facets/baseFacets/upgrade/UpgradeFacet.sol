@@ -26,14 +26,18 @@ import { UpgradeBase } from "src/garden/facets/baseFacets/upgrade/UpgradeBase.so
 import { Facet } from "src/garden/facets/Facet.sol";
 
 contract UpgradeFacet is IUpgrade, UpgradeBase, Facet {
-    /// @notice Retrieves the upgrade details: facet cuts, registry version, and hash for verification
+    /// @inheritdoc IUpgrade
     function upgradeDetails() external view returns (IDiamondCut.FacetCut[] memory facetCuts, bytes32 hashData) {
         (facetCuts, hashData) = _upgradeDetails();
     }
 
-    /// @notice Upgrades the diamond to the latest version
-    /// @param _hashData The hash of the upgrade details from upgradeDetails() for verification
+    /// @inheritdoc IUpgrade
     function upgrade(bytes32 _hashData) external onlyGardenOwner ifIndexNotConnected nonReentrant {
         _upgrade(_hashData);
+    }
+
+    /// @inheritdoc IUpgrade
+    function getModuleVersion(bytes32 moduleId) external view returns (uint256 version) {
+        version = _getModuleVersion(moduleId);
     }
 }

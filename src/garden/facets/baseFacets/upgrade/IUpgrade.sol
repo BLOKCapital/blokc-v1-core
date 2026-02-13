@@ -29,4 +29,9 @@ interface IUpgrade {
     /// @notice Upgrades the diamond to the latest version
     /// @param _hashData The hash of the upgrade details from upgradeDetails() for verification
     function upgrade(bytes32 _hashData) external;
+
+    /// @notice Returns the current version of a module installed in garden
+    /// @param moduleId The module to query
+    /// @return version The current module version
+    function getModuleVersion(bytes32 moduleId) external view returns (uint256 version);
 }
