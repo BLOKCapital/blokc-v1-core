@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.31;
+pragma solidity ^0.8.31;
 
 /*###############################################################################
 
@@ -52,6 +52,10 @@ error GardenFactory_ProtocolIsInactive();
 
 /// @notice Thrown when the sbt registry is not set
 error GardenFactory_SBTRegistryNotSet();
+
+/// @notice Thrown when the garden type is not registered
+/// @param gardenType The unregistered garden type
+error GardenFactory_GardenTypeNotRegistered(bytes32 gardenType);
 
 /**
  * @title GardenFactory
@@ -139,12 +143,12 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
 
     /// @notice Creates a new garden (Diamond) contract for the caller
     /// @dev The garden is deployed using CREATE2 with a deterministic address based on the owner, index, and factory.
-    ///      Each user can deploy up to 10 gardens (indices 1-10). The garden is initialized with base facets
-    ///      retrieved from the facet registry.
+    ///      Each user can deploy up to 10 gardens (indices 1-10). The garden is initialized with facets
+    ///      for the specified garden type (BASE module + allowed modules) from the facet registry.
     /// @param index The per-user garden index (must be between 1 and 10, inclusive)
     /// @param collection The SBT collection address to mint from
     /// @param tokenId The token ID of the SBT to mint
-    /// @param gardenType The type of garden to create (used for future extensibility,
+    /// @param gardenType The type of garden to create (determines which modules/facets are included)
     /// @return gardenAddress The address of the newly deployed garden contract
     function createGarden(
         uint256 index,
@@ -173,32 +177,21 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
             revert GardenFactory_IndexAlreadyUsed(owner, index);
         }
 
-        // Get base facets from registry
+        // Validate garden type is registered and get facet cuts for this type
         IFacetRegistry registry = IFacetRegistry(_facetRegistry);
-        address[4] memory baseFacets = registry.getBaseFacets();
-
-        // Validate all base facets are registered
-        for (uint256 i = 0; i < baseFacets.length; i++) {
-            if (baseFacets[i] == address(0)) {
-                revert GardenFactory_DefaultFacetNotRegistered();
-            }
+        if (!registry.isGardenTypeRegistered(gardenType)) {
+            revert GardenFactory_GardenTypeNotRegistered(gardenType);
         }
 
-        // Build diamond cut structure with all base facets
-        IDiamondCut.FacetCut[] memory diamondCut = new IDiamondCut.FacetCut[](baseFacets.length);
-        for (uint256 i = 0; i < baseFacets.length; i++) {
-            diamondCut[i] = IDiamondCut.FacetCut({
-                facetAddress: baseFacets[i],
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: registry.getFacetFunctionSelectors(baseFacets[i])
-            });
-        }
+        // Get all facet cuts for this garden type (BASE + allowed modules)
+        IDiamondCut.FacetCut[] memory diamondCut = registry.getGardenTypeFacetCuts(gardenType);
 
         // Generate deterministic salt for CREATE2 deployment
         bytes32 salt = keccak256(abi.encode(owner, index, address(this)));
 
-        // Deploy the Diamond contract using CREATE2
-        Garden garden = new Garden{ salt: salt }(diamondCut, owner, _facetRegistry, _protocolStatus);
+        // Deploy the Diamond contract using CREATE2 with garden type
+        Garden garden =
+            new Garden{ salt: salt }(diamondCut, owner, _facetRegistry, _protocolStatus, gardenType);
 
         gardenAddress = address(garden);
 

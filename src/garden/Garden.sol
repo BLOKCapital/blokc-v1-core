@@ -70,21 +70,35 @@ error Garden_UpgradesDisabled();
 /// @notice Thrown when protocol is inactive
 error Garden_ProtocolIsInactive();
 
+/// @notice Thrown when the garden type is not registered
+error Garden_GardenTypeNotRegistered();
+
+/// @notice Thrown when a selector's module is not allowed for the garden's type
+/// @param selector The function selector whose module is not allowed
+error Garden_ModuleNotAllowed(bytes4 selector);
+
 contract Garden is DiamondCutBase {
     // ========================================================================
     // Constructor
     // ========================================================================
 
+    /// @notice The BASE module identifier (matches FacetRegistry.BASE_MODULE)
+    bytes32 private constant BASE_MODULE = keccak256("BASE");
+
     /// @notice Constructs the Diamond contract with initial facets and configuration
-    /// @dev Validates all critical addresses are non-zero and initializes the diamond with base facets.
-    ///      The facet registry validation during diamondCut ensures only registered facets can be added.
+    /// @dev Validates all critical addresses are non-zero and initializes the diamond with
+    ///      facets for the specified garden type. Module versions are synced at deployment.
     /// @param _diamondCut Array of facet cuts to apply during initialization
     /// @param _contractOwner Address that will own the diamond contract
+    /// @param _facetRegistry Address of the FacetRegistry contract
+    /// @param _protocolStatus Address of the ProtocolStatus contract
+    /// @param _gardenType The garden type identifier (determines allowed modules)
     constructor(
         IDiamondCut.FacetCut[] memory _diamondCut,
         address _contractOwner,
         address _facetRegistry,
-        address _protocolStatus
+        address _protocolStatus,
+        bytes32 _gardenType
     )
         payable {
         // Validate critical addresses
@@ -98,19 +112,32 @@ contract Garden is DiamondCutBase {
             revert Garden_ProtocolStatusNotSet();
         }
 
+        IFacetRegistry registry = IFacetRegistry(_facetRegistry);
+
+        // Validate garden type is registered
+        if (!registry.isGardenTypeRegistered(_gardenType)) {
+            revert Garden_GardenTypeNotRegistered();
+        }
+
         // Set contract owner
         OwnershipStorage.layout().owner = _contractOwner;
 
         LibDiamond.Layout storage ld = LibDiamond.layout();
-        // Initialize diamond storage with registry addresses
+        // Initialize diamond storage with registry addresses and garden type
         ld.facetRegistry = _facetRegistry;
         ld.protocolStatus = _protocolStatus;
-        
-        // Apply initial diamond cuts (validates against registry)
+        ld.gardenType = _gardenType;
+
+        // Apply initial diamond cuts (validates against registry + module membership)
         _applyDiamondCut(_diamondCut, address(0), "");
 
-        // Sync diamond version with registry so upgrade flow doesn't re-apply base facets
-        UpgradeStorage.layout().diamondVersion = IFacetRegistry(_facetRegistry).getCurrentVersion();
+        // Sync per-module versions so upgrade flow doesn't re-apply initial modules
+        UpgradeStorage.Layout storage us = UpgradeStorage.layout();
+        us.moduleVersions[BASE_MODULE] = registry.getModuleVersion(BASE_MODULE);
+        bytes32[] memory typeModules = registry.getGardenTypeModules(_gardenType);
+        for (uint256 i = 0; i < typeModules.length; i++) {
+            us.moduleVersions[typeModules[i]] = registry.getModuleVersion(typeModules[i]);
+        }
 
         DiamondLoupeStorage.Layout storage ls = DiamondLoupeStorage.layout();
         ls.supportedInterfaces[type(IERC165).interfaceId] = true;
@@ -140,11 +167,11 @@ contract Garden is DiamondCutBase {
     fallback() external payable {
         LibDiamond.Layout storage ld = LibDiamond.layout();
 
-        IProtocolStatus protocolStatus = IProtocolStatus(ld.protocolStatus);
-        if (protocolStatus.getProtocolStatus() == IProtocolStatus.State.INACTIVE) {
+        IProtocolStatus.State status = IProtocolStatus(ld.protocolStatus).getProtocolStatus();
+        if (status == IProtocolStatus.State.INACTIVE) {
             revert Garden_ProtocolIsInactive();
         }
-        if (protocolStatus.getProtocolStatus() == IProtocolStatus.State.UPGRADES_DISABLED) {
+        if (status == IProtocolStatus.State.UPGRADES_DISABLED) {
             if (msg.sig == IUpgrade.upgrade.selector) {
                 revert Garden_UpgradesDisabled();
             }
@@ -156,23 +183,29 @@ contract Garden is DiamondCutBase {
         // Load facet address for the called function selector
         address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
 
-        // Load facet registry
-        IFacetRegistry facetRegistry = IFacetRegistry(ld.facetRegistry);
+        // Single external call: validate selector registration, facet mapping, and module allowance
+        (address registeredFacet, bool moduleAllowed) =
+            IFacetRegistry(ld.facetRegistry).validateSelector(msg.sig, ld.gardenType);
 
         // Validate selector exists in diamond (fast fail for non-existent selectors)
         if (facet == address(0)) {
-            if (facetRegistry.isSelectorRegistered(msg.sig)) {
+            if (registeredFacet != address(0)) {
                 revert Garden_SelectorNotInGarden(msg.sig);
             } else {
                 revert Garden_InvalidCall(msg.sig);
             }
         } else {
-            if (!facetRegistry.isSelectorRegistered(msg.sig)) {
+            if (registeredFacet == address(0)) {
                 revert Garden_SelectorRemoved(msg.sig);
             }
-            if (!facetRegistry.isSelectorRegisteredWithFacet(facet, msg.sig)) {
+            if (registeredFacet != facet) {
                 revert Garden_SelectorMoved(msg.sig);
             }
+        }
+
+        // Defense-in-depth: validate the selector's module is allowed for this garden type
+        if (ld.gardenType != bytes32(0) && !moduleAllowed) {
+            revert Garden_ModuleNotAllowed(msg.sig);
         }
 
         // Execute external function from facet using delegatecall and return any value

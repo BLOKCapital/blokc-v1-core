@@ -147,10 +147,16 @@ contract AnvilTest is BaseScript {
             functionSelectors: indexFacetSelectors
         });
 
-        // TODO: Update moduleId to match the appropriate module
         bytes32 moduleId = keccak256("DEX");
+        FacetRegistry(address(facetRegistry)).registerModule(moduleId);
         FacetRegistry(address(facetRegistry)).upgradeModule(moduleId, facetCuts);
         console2.log("Utility facets registered");
+
+        bytes32 defaultGardenType = keccak256("default");
+        bytes32[] memory allowedModules = new bytes32[](1);
+        allowedModules[0] = moduleId;
+        FacetRegistry(address(facetRegistry)).addGardenType(defaultGardenType, allowedModules);
+        console2.log("Garden type 'default' added");
 
         // --- Deploy ProtocolStatus ---
         // For local testing: Use a placeholder ENS registry address (ENS won't resolve on Anvil)
@@ -178,10 +184,11 @@ contract AnvilTest is BaseScript {
         );
         console2.log("GardenFactory deployed at:", address(gardenFactory));
 
-        address gardenAddress = GardenFactory(address(gardenFactory)).createGarden(1, address(0), 0);
+        address gardenAddress =
+            GardenFactory(address(gardenFactory)).createGarden(1, address(0), 0, keccak256("default"));
         console2.log("Garden deployed at:", gardenAddress);
 
-        (,,, bytes32 hashData) = UpgradeFacet(gardenAddress).upgradeDetails();
+        (, bytes32 hashData) = UpgradeFacet(gardenAddress).upgradeDetails();
         console2.logBytes32(hashData);
         UpgradeFacet(gardenAddress).upgrade(hashData);
 

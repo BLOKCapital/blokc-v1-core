@@ -98,7 +98,11 @@ contract Deploy is BaseScript {
         gardenFactory = new GardenFactory{ salt: salt }(
             deployer, address(facetRegistry), address(protocolStatus), address(sbtRegistry)
         );
-
         console2.log("GardenFactory deployed at:", address(gardenFactory));
+
+        // Register default garden type (base facets only) so createGarden(..., keccak256("default")) can be used
+        bytes32[] memory emptyModules = new bytes32[](0);
+        facetRegistry.addGardenType(keccak256("default"), emptyModules);
+        console2.log("Garden type 'default' registered");
     }
 }

@@ -23,15 +23,12 @@ import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 import { DiamondCutBase } from "src/garden/facets/baseFacets/cut/DiamondCutBase.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
-error DiamondCutFacet_ExternalCallsDisabled();
+/// @notice Thrown when diamondCut is called
+error DiamondCutFacet_DiamondCutNotAllowed();
 
 contract DiamondCutFacet is IDiamondCut, DiamondCutBase, Facet {
-    /// @notice Adds, replaces, or removes any number of functions and optionally executes a function with delegatecall
-    /// @param _diamondCut Array of facet cuts to apply. Each cut specifies a facet address, action
-    /// (Add/Replace/Remove), and function selectors
-    /// @param _init The address of the contract or facet to execute _calldata (optional, can be address(0))
-    /// @param _calldata A function call, including function selector and arguments. _calldata is executed with
-    /// delegatecall on _init (optional, can be empty)
+    /// @notice Intentionally blocked to prevent ambiguity in upgrade flows
+    /// @dev This function is not allowed to be called
     function diamondCut(
         FacetCut[] memory _diamondCut,
         address _init,
@@ -40,7 +37,8 @@ contract DiamondCutFacet is IDiamondCut, DiamondCutBase, Facet {
         external
         override
         onlyGardenOwner
+        ifIndexNotConnected
     {
-        revert DiamondCutFacet_ExternalCallsDisabled();
+        revert DiamondCutFacet_DiamondCutNotAllowed();
     }
 }

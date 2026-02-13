@@ -44,7 +44,7 @@ contract RewardCollection is BaseScript {
 
         address garden = 0x372BfF4709A905975AE0266b7BF493aD367B3a50;
 
-        (,,, bytes32 hashData) = UpgradeFacet(garden).upgradeDetails();
+        (, bytes32 hashData) = UpgradeFacet(garden).upgradeDetails();
         console2.logBytes32(hashData);
         UpgradeFacet(garden).upgrade(hashData);
     }

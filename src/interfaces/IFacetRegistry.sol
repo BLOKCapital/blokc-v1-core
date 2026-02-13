@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT License
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
 
 /*###############################################################################
 
@@ -18,9 +18,9 @@ pragma solidity >=0.8.31;
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 interface IFacetRegistry {
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
     //                              STRUCTS
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
 
     struct Facet {
         address facetAddress;
@@ -37,9 +37,9 @@ interface IFacetRegistry {
         uint256 facetAddressPosition; // position of facetAddress in facetAddresses array
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
     //                         MODULE FUNCTIONS
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
 
     /// @notice Registers a new empty module
     /// @param moduleId The bytes32 identifier for the module
@@ -50,9 +50,9 @@ interface IFacetRegistry {
     /// @param facetCuts Array of facet cuts to apply within this module
     function upgradeModule(bytes32 moduleId, IDiamondCut.FacetCut[] memory facetCuts) external;
 
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
     //                       GARDEN TYPE FUNCTIONS
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
 
     /// @notice Creates a new garden type with an initial set of allowed non-base modules
     /// @dev BASE_MODULE is always implicitly included. Reverts if BASE_MODULE is in allowedModules.
@@ -72,9 +72,9 @@ interface IFacetRegistry {
     /// @param moduleId The module to remove
     function removeAllowedModule(bytes32 gardenTypeId, bytes32 moduleId) external;
 
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
     //                        MODULE VIEW FUNCTIONS
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
 
     /// @notice Returns all facets with their selectors for a specific module
     /// @param moduleId The module to query
@@ -124,9 +124,9 @@ interface IFacetRegistry {
     /// @return True if the module is registered
     function isModuleRegistered(bytes32 moduleId) external view returns (bool);
 
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
     //                     GARDEN TYPE VIEW FUNCTIONS
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
 
     /// @notice Returns the non-base allowed modules for a garden type
     /// @dev BASE_MODULE is always implicitly included and is not returned here
@@ -165,9 +165,9 @@ interface IFacetRegistry {
     /// @return facets_ Array of Facet structs
     function getGardenTypeFacets(bytes32 gardenTypeId) external view returns (Facet[] memory facets_);
 
-    // ═══════════════════════════════════════════════════════════════════════
-    //                   GLOBAL VIEW FUNCTIONS (backward compat)
-    // ═══════════════════════════════════════════════════════════════════════
+    // ========================================================================
+    //                   GLOBAL VIEW FUNCTIONS
+    // ========================================================================
 
     /// @notice Returns all facets and their selectors
     /// @return facets_ Array of Facet structs containing facet addresses and their function selectors
@@ -222,4 +222,19 @@ interface IFacetRegistry {
     /// @notice Returns the current version of the registry
     /// @return version The current version number
     function getCurrentVersion() external view returns (uint256 version);
+
+    /// @notice Validates a selector in a single call for the Garden fallback
+    /// @dev Consolidates isSelectorRegistered, isSelectorRegisteredWithFacet,
+    ///      getModuleIdBySelector, and isModuleAllowedForGardenType into one call
+    /// @param selector The function selector to validate
+    /// @param gardenType The garden type to check module allowance against
+    /// @return registeredFacet The facet address the selector is registered with (address(0) if not registered)
+    /// @return moduleAllowed Whether the selector's module is allowed for the given garden type
+    function validateSelector(
+        bytes4 selector,
+        bytes32 gardenType
+    )
+        external
+        view
+        returns (address registeredFacet, bool moduleAllowed);
 }

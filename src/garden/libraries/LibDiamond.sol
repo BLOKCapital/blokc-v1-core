@@ -19,6 +19,8 @@ library LibDiamond {
         address protocolStatus;
         // whether the diamond is connected to an index
         bool isConnectedToIndex;
+        // the garden type identifier (determines which modules are allowed)
+        bytes32 gardenType;
     }
 
     function layout() internal pure returns (Layout storage l) {

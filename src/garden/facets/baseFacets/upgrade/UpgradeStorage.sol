@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT License
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
 
 /*###############################################################################
 
@@ -21,9 +21,10 @@ library UpgradeStorage {
     bytes32 internal constant UPGRADE_STORAGE_SLOT_POSITION = keccak256("garden.upgrade.storage");
 
     /// @notice Layout for the UpgradeStorage
-    /// @dev The struct stores the diamond version
+    /// @dev Tracks per-module versions only. Upgrade logic is driven by module versions;
+    ///      the garden installs only modules allowed for its type
     struct Layout {
-        uint256 diamondVersion;
+        mapping(bytes32 => uint256) moduleVersions;
     }
 
     /// @notice Returns the storage pointer to the Upgrade layout
