@@ -43,6 +43,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         external
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
@@ -57,6 +58,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         external
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
@@ -72,6 +74,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         payable
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
@@ -86,6 +89,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         external
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
@@ -100,6 +104,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         external
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
@@ -115,6 +120,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         payable
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
@@ -127,7 +133,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     ///      Uses SafeERC20 for secure token operations. Suitable for tokens with transfer fees.
     function uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(
         UniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params
-    ) external override onlyGardenOwner ifIndexNotConnected {
+    ) external override onlyGardenOwner nonReentrant ifIndexNotConnected {
         _uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(params);
     }
 
@@ -137,7 +143,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     ///      ETH is sent as msg.value. Suitable for tokens with transfer fees.
     function uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(
         UniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokensParams calldata params
-    ) external payable override onlyGardenOwner ifIndexNotConnected {
+    ) external payable override onlyGardenOwner nonReentrant ifIndexNotConnected {
         _uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(params);
     }
 
@@ -147,7 +153,7 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     ///      Uses SafeERC20 for secure token operations. Suitable for tokens with transfer fees.
     function uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(
         UniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params
-    ) external override onlyGardenOwner ifIndexNotConnected {
+    ) external override onlyGardenOwner nonReentrant ifIndexNotConnected {
         _uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(params);
     }
 

@@ -126,11 +126,11 @@ abstract contract UniswapV2Base {
         IERC20 tokenIn = IERC20(params.path[0]);
 
         // Approve router to spend tokens
-        tokenIn.approve(UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
+        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
 
         // Execute swap
         amounts = router.swapExactTokensForTokens(
-            params.amountIn, params.amountOutMin, params.path, params.to, params.deadline
+            params.amountIn, params.amountOutMin, params.path, address(this), params.deadline
         );
 
         // Get the amount of output tokens received
@@ -168,7 +168,7 @@ abstract contract UniswapV2Base {
 
         // Execute swap
         amounts = router.swapTokensForExactTokens(
-            params.amountOut, params.amountInMax, params.path, params.to, params.deadline
+            params.amountOut, params.amountInMax, params.path, address(this), params.deadline
         );
 
         emit UniswapV2FacetTokensSwapped(
@@ -196,7 +196,7 @@ abstract contract UniswapV2Base {
 
         // Execute swap with ETH value
         amounts = router.swapExactETHForTokens{ value: msg.value }(
-            params.amountOutMin, params.path, params.to, params.deadline
+            params.amountOutMin, params.path, address(this), params.deadline
         );
 
         emit UniswapV2FacetTokensSwapped(
@@ -230,7 +230,7 @@ abstract contract UniswapV2Base {
 
         // Execute swap
         amounts = router.swapTokensForExactETH(
-            params.amountOut, params.amountInMax, params.path, params.to, params.deadline
+            params.amountOut, params.amountInMax, params.path, address(this), params.deadline
         );
 
         emit UniswapV2FacetTokensSwapped(
@@ -264,7 +264,7 @@ abstract contract UniswapV2Base {
 
         // Execute swap
         amounts = router.swapExactTokensForETH(
-            params.amountIn, params.amountOutMin, params.path, params.to, params.deadline
+            params.amountIn, params.amountOutMin, params.path, address(this), params.deadline
         );
 
         emit UniswapV2FacetTokensSwapped(
@@ -293,7 +293,7 @@ abstract contract UniswapV2Base {
 
         // Execute swap with ETH value
         amounts = router.swapETHForExactTokens{ value: msg.value }(
-            params.amountOut, params.path, params.to, params.deadline
+            params.amountOut, params.path, address(this), params.deadline
         );
 
         emit UniswapV2FacetTokensSwapped(
@@ -324,7 +324,7 @@ abstract contract UniswapV2Base {
 
         // Execute swap
         router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            params.amountIn, params.amountOutMin, params.path, params.to, params.deadline
+            params.amountIn, params.amountOutMin, params.path, address(this), params.deadline
         );
 
         emit UniswapV2FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], params.amountIn, 0);
@@ -351,7 +351,7 @@ abstract contract UniswapV2Base {
 
         // Execute swap with ETH value
         router.swapExactETHForTokensSupportingFeeOnTransferTokens{ value: msg.value }(
-            params.amountOutMin, params.path, params.to, params.deadline
+            params.amountOutMin, params.path, address(this), params.deadline
         );
 
         emit UniswapV2FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], msg.value, 0);
@@ -384,7 +384,7 @@ abstract contract UniswapV2Base {
 
         // Execute swap
         router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            params.amountIn, params.amountOutMin, params.path, params.to, params.deadline
+            params.amountIn, params.amountOutMin, params.path, address(this), params.deadline
         );
 
         emit UniswapV2FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], params.amountIn, 0);

@@ -25,14 +25,16 @@ contract CamelotV2Facet is ICamelotV2, CamelotV2Base, Facet {
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
         external
         override
+        onlyGardenOwner
+        nonReentrant
+        ifIndexNotConnected
     {
-        _camelotV2ExactInputSingle(amountIn, amountOutMin, path, to, referrer, deadline);
+        _camelotV2ExactInputSingle(amountIn, amountOutMin, path, referrer, deadline);
     }
 
     /// @inheritdoc ICamelotV2
@@ -40,14 +42,16 @@ contract CamelotV2Facet is ICamelotV2, CamelotV2Base, Facet {
         uint256 amountInMax,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
         external
         override
+        onlyGardenOwner
+        nonReentrant
+        ifIndexNotConnected
     {
-        _camelotV2ExactInput(amountInMax, amountOutMin, path, to, referrer, deadline);
+        _camelotV2ExactInput(amountInMax, amountOutMin, path, referrer, deadline);
     }
 
     /// @inheritdoc ICamelotV2
@@ -55,13 +59,15 @@ contract CamelotV2Facet is ICamelotV2, CamelotV2Base, Facet {
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
         external
         override
+        onlyGardenOwner
+        nonReentrant
+        ifIndexNotConnected
     {
-        _camelotV2ExactOutputSingle(amountIn, amountOutMin, path, to, referrer, deadline);
+        _camelotV2ExactOutputSingle(amountIn, amountOutMin, path, referrer, deadline);
     }
 }

@@ -131,14 +131,6 @@ contract Garden is DiamondCutBase {
         // Apply initial diamond cuts (validates against registry + module membership)
         _applyDiamondCut(_diamondCut, address(0), "");
 
-        // Sync per-module versions so upgrade flow doesn't re-apply initial modules
-        UpgradeStorage.Layout storage us = UpgradeStorage.layout();
-        us.moduleVersions[BASE_MODULE] = registry.getModuleVersion(BASE_MODULE);
-        bytes32[] memory typeModules = registry.getGardenTypeModules(_gardenType);
-        for (uint256 i = 0; i < typeModules.length; i++) {
-            us.moduleVersions[typeModules[i]] = registry.getModuleVersion(typeModules[i]);
-        }
-
         DiamondLoupeStorage.Layout storage ls = DiamondLoupeStorage.layout();
         ls.supportedInterfaces[type(IERC165).interfaceId] = true;
         ls.supportedInterfaces[type(IDiamondCut).interfaceId] = true;

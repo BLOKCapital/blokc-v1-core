@@ -20,14 +20,12 @@ interface ICamelotV2 {
     /// @param amountIn Amount of input token to swap
     /// @param amountOutMin Minimum acceptable output amount (slippage protection)
     /// @param path Array of addresses describing the path
-    /// @param to Address to receive the output tokens
     /// @param referrer Address of the referrer
     /// @param deadline Unix timestamp after which the swap is invalid
     function camelotV2ExactInputSingle(
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
@@ -37,14 +35,12 @@ interface ICamelotV2 {
     /// @param amountInMax Maximum acceptable input amount (slippage protection)
     /// @param amountOutMin Minimum acceptable output amount (slippage protection)
     /// @param path Array of addresses describing the path
-    /// @param to Address to receive the output tokens
     /// @param referrer Address of the referrer
     /// @param deadline Unix timestamp after which the swap is invalid
     function camelotV2ExactInput(
         uint256 amountInMax,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
@@ -54,14 +50,12 @@ interface ICamelotV2 {
     /// @param amountIn Amount of input token to swap
     /// @param amountOutMin Minimum acceptable output amount (slippage protection)
     /// @param path Array of addresses describing the path
-    /// @param to Address to receive the input tokens
     /// @param referrer Address of the referrer
     /// @param deadline Unix timestamp after which the swap is invalid
     function camelotV2ExactOutputSingle(
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )

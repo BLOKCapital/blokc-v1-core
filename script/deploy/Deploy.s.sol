@@ -48,9 +48,10 @@ contract Deploy is BaseScript {
         console2.log("OwnershipFacet deployed at:", address(ownershipFacet));
 
         UpgradeFacet upgradeFacet = new UpgradeFacet{ salt: salt }();
-        bytes4[] memory upgradeSelectors = new bytes4[](2);
+        bytes4[] memory upgradeSelectors = new bytes4[](3);
         upgradeSelectors[0] = upgradeFacet.upgrade.selector;
         upgradeSelectors[1] = upgradeFacet.upgradeDetails.selector;
+        upgradeSelectors[2] = upgradeFacet.getModuleVersion.selector;
         console2.log("UpgradeFacet deployed at:", address(upgradeFacet));
 
         address[4] memory baseFacets =
@@ -98,10 +99,5 @@ contract Deploy is BaseScript {
             deployer, address(facetRegistry), address(protocolStatus), address(sbtRegistry)
         );
         console2.log("GardenFactory deployed at:", address(gardenFactory));
-
-        // Register default garden type (base facets only) so createGarden(..., keccak256("default")) can be used
-        bytes32[] memory emptyModules = new bytes32[](0);
-        facetRegistry.addGardenType(keccak256("default"), emptyModules);
-        console2.log("Garden type 'default' registered");
     }
 }
