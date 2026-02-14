@@ -42,6 +42,7 @@ contract GmxV2Facet is Facet, GmxV2Base {
         override
         onlyGardenOwner
         nonReentrant
+        ifIndexNotConnected
         returns (bytes32 positionKey)
     {
         return _openShort(params);
@@ -50,7 +51,7 @@ contract GmxV2Facet is Facet, GmxV2Base {
     /// @notice Closes an existing short position
     /// @param params Parameters for closing the position
     /// @dev Only callable by diamond owner. Requires execution fee sent as msg.value
-    function closeShort(CloseShortParams calldata params) external payable override onlyGardenOwner nonReentrant {
+    function closeShort(CloseShortParams calldata params) external payable override onlyGardenOwner nonReentrant ifIndexNotConnected {
         _closeShort(params);
     }
 
@@ -66,6 +67,7 @@ contract GmxV2Facet is Facet, GmxV2Base {
         override
         onlyGardenOwner
         nonReentrant
+        ifIndexNotConnected
     {
         _addCollateral(positionKey, collateralAmount);
     }

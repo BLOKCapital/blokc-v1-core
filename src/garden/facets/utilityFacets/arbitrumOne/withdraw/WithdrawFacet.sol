@@ -49,7 +49,7 @@ contract WithdrawFacet is WithdrawBase, Facet {
     /// @param amount The amount of USDC to withdraw (in USDC decimals, usually 6)
     /// @dev Validates amount is non-zero, owner is valid, and contract has
     ///      sufficient balance. Uses SafeERC20 for secure transfer.
-    function withdrawUsdc(uint256 amount) external override onlyGardenOwner ifIndexNotConnected {
+    function withdrawUsdc(uint256 amount) external override onlyGardenOwner nonReentrant ifIndexNotConnected {
         _withdrawUsdc(amount);
     }
 }

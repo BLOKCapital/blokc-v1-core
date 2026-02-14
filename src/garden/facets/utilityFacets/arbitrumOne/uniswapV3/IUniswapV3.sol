@@ -34,7 +34,7 @@ interface IUniswapV3 {
         uint256 deadline;
         address tokenIn;
         address tokenOut;
-        uint8 swapFee;
+        uint24 swapFee;
     }
 
     /// @notice Encodes a token + pool fee entry for multi-hop paths
@@ -42,7 +42,7 @@ interface IUniswapV3 {
     /// @param fee Fee tier (uint24) used by the following pool
     struct TokenWithFee {
         address token;
-        uint8 fee;
+        uint24 fee;
     }
 
     /// @notice Parameters for a multi-hop exact-input swap
@@ -70,7 +70,7 @@ interface IUniswapV3 {
         uint256 deadline;
         address tokenIn;
         address tokenOut;
-        uint8 swapFee;
+        uint24 swapFee;
     }
 
     /// @notice Parameters for a multi-hop exact-output swap

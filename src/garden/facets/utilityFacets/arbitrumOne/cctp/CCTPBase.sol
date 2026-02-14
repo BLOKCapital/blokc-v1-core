@@ -92,17 +92,10 @@ abstract contract CCTPBase is ICCTP {
 
         IERC20 usdc = IERC20(USDC);
 
-        // Transfer USDC from caller (msg.sender) to this contract
-        // Note: The caller must have approved this facet to spend their USDC
-        // In this case, msg.sender is the diamond owner, so they approve the diamond
-        // The diamond then calls this function, so the approval is for the diamond address
-        uint256 balanceBefore = usdc.balanceOf(address(this));
-        usdc.safeTransferFrom(msg.sender, address(this), amount);
-        uint256 balanceAfter = usdc.balanceOf(address(this));
-
-        // Verify transfer succeeded (defense in depth)
-        if (balanceAfter - balanceBefore < amount) {
-            revert CCTPFacet_TransferFailed();
+        // Verify the diamond has sufficient USDC balance
+        uint256 balance = usdc.balanceOf(address(this));
+        if (balance < amount) {
+            revert CCTPFacet_InsufficientBalance();
         }
 
         // Approve TokenMessenger to burn the tokens
