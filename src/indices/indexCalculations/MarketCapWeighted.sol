@@ -64,7 +64,7 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @return weights Array of weights scaled to 1e18 (100% = 1e18)
     /// @dev For each component: weight = (component market cap) / (total market cap)
     ///      Uses Chainlink price feeds and circulating supply data
-    function getWeights(string[] memory symbols) external view override returns (uint256[] memory weights) {
+    function getWeights(string[] memory symbols) external  override returns (uint256[] memory weights) {
         weights = new uint256[](symbols.length);
         uint256 totalMarketCap = _getTotalMarketCap(symbols);
         if (totalMarketCap == 0) revert MarketCapWeighted_InvalidTotalMarketCap();
@@ -78,7 +78,7 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @param symbols Array of component symbols
     /// @return totalMarketCap Sum of all component market caps
     /// @dev Uses safe math to prevent overflow
-    function _getTotalMarketCap(string[] memory symbols) internal view returns (uint256 totalMarketCap) {
+    function _getTotalMarketCap(string[] memory symbols) internal  returns (uint256 totalMarketCap) {
         for (uint256 i = 0; i < symbols.length; i++) {
             (bool success, uint256 result) = Math.tryAdd(totalMarketCap, _getComponentMarketCap(symbols[i]));
             if (!success) {
@@ -92,7 +92,7 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @param symbol Component symbol
     /// @return componentMarketCap Market cap = (circulating supply) * (price)
     /// @dev Uses Chainlink price feed and CirculatingSupply contract
-    function _getComponentMarketCap(string memory symbol) internal view returns (uint256 componentMarketCap) {
+    function _getComponentMarketCap(string memory symbol) internal  returns (uint256 componentMarketCap) {
         (uint256 componentPrice, uint256 componentPriceDecimals) = _getComponentPrice(symbol);
         uint256 componentCirculatingSupply = CIRCULATING_SUPPLY.getSupply(symbol);
         componentMarketCap =
@@ -106,16 +106,12 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @dev Validates oracle data for freshness and completeness
     function _getComponentPrice(string memory symbol)
         internal
-        view
+        
         returns (uint256 componentPrice, uint8 componentPriceDecimals)
     {
         AggregatorV3Interface priceFeed =
             AggregatorV3Interface(INDEX_COMPONENT_REGISTRY.getComponentSymbolToPriceFeedAddress(symbol));
-        (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) = priceFeed.latestRoundData();
-
-        IndexMath.validateOracleData(roundId, price, updatedAt, answeredInRound);
-
-        componentPrice = uint256(price);
+        componentPrice = INDEX_COMPONENT_REGISTRY.fetchPrice(address(priceFeed),symbol);
         componentPriceDecimals = priceFeed.decimals();
     }
 }

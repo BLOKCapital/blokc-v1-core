@@ -325,18 +325,18 @@ library IndexMath {
     /// @param price Price value from oracle
     /// @param updatedAt Timestamp when data was last updated
     /// @param answeredInRound Round ID in which the answer was computed
-    function validateOracleData(uint80 roundId, int256 price, uint256 updatedAt, uint80 answeredInRound) internal view {
-        // Check price is positive
-        if (price <= 0) revert IndexMath_InvalidPrice();
+    // function validateOracleData(uint80 roundId, int256 price, uint256 updatedAt, uint80 answeredInRound) internal view {
+    //     // Check price is positive
+    //     if (price <= 0) revert IndexMath_InvalidPrice();
 
-        // Check data is fresh (updated within threshold)
-        if (block.timestamp - updatedAt > CHAINLINK_STALENESS_THRESHOLD) {
-            revert IndexMath_StaleOraclePrice(updatedAt, block.timestamp);
-        }
+    //     // Check data is fresh (updated within threshold)
+    //     if (block.timestamp - updatedAt > CHAINLINK_STALENESS_THRESHOLD) {
+    //         revert IndexMath_StaleOraclePrice(updatedAt, block.timestamp);
+    //     }
 
-        // Check round is complete
-        if (answeredInRound < roundId) {
-            revert IndexMath_IncompleteOracleRound(roundId, answeredInRound);
-        }
-    }
+    //     // Check round is complete
+    //     if (answeredInRound < roundId) {
+    //         revert IndexMath_IncompleteOracleRound(roundId, answeredInRound);
+    //     }
+    // }
 }
