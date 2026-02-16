@@ -11,24 +11,15 @@ contract CreateGarden is BaseScript {
     function run() public broadcaster {
         setUp();
 
-        address factoryAddress = 0x15720E9ebC78956c54842C58fAD7B5c6aFdBA1d6;
-        address gardenAddress = GardenFactory(factoryAddress).createGarden(3, address(0), 0, keccak256("INDEX"));
+        address factoryAddress = 0xd3098a203CC21b2A17dBc01D62A34838e104a3bC;
+        address gardenAddress = GardenFactory(factoryAddress).createGarden(1, address(0), 0, keccak256("YIELD"));
         console2.log("Garden deployed at:", gardenAddress);
 
-        // Try to upgrade if upgrades are available
-        try UpgradeFacet(gardenAddress).upgradeDetails() returns (
-            IDiamondCut.FacetCut[] memory facetCuts, bytes32 hashData
-        ) {
-            if (facetCuts.length > 0) {
-                console2.log("Upgrades available, applying upgrade...");
-                console2.logBytes32(hashData);
-                UpgradeFacet(gardenAddress).upgrade(hashData);
-                console2.log("Upgrade applied successfully");
-            } else {
-                console2.log("No upgrades available - garden is already at latest version");
-            }
-        } catch {
-            console2.log("No upgrades available - garden is already at latest version");
-        }
+        // Install utility modules via upgrade (required after BASE-only deployment)
+        (IDiamondCut.FacetCut[] memory facetCuts, bytes32 hashData) = UpgradeFacet(gardenAddress).upgradeDetails();
+        console2.log("Installing utility modules...");
+        console2.logBytes32(hashData);
+        UpgradeFacet(gardenAddress).upgrade(hashData);
+        console2.log("Utility modules installed successfully");
     }
 }

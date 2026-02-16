@@ -23,9 +23,6 @@ import { PendingIntent } from "src/garden/facets/indexFacets/IIndex.sol";
  *      addresses for tokens, oracles, and registries.
  */
 library IndexStorage {
-    /// @notice Fixed storage slot for index-related persistent state
-    /// @dev Uses keccak256 hash to generate unique storage position
-
     // ========================================================================
     // Token Addresses (Arbitrum One Mainnet)
     // ========================================================================

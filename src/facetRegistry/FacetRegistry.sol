@@ -484,6 +484,19 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     }
 
     /// @inheritdoc IFacetRegistry
+    function getBaseFacetCuts() external view returns (IDiamondCut.FacetCut[] memory facetCuts) {
+        address[] storage baseFacetAddresses = _moduleFacetAddresses[BASE_MODULE];
+        facetCuts = new IDiamondCut.FacetCut[](baseFacetAddresses.length);
+        for (uint256 i = 0; i < baseFacetAddresses.length; i++) {
+            facetCuts[i] = IDiamondCut.FacetCut({
+                facetAddress: baseFacetAddresses[i],
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: _facetFunctionSelectors[baseFacetAddresses[i]].functionSelectors
+            });
+        }
+    }
+
+    /// @inheritdoc IFacetRegistry
     function getGardenTypeFacetCuts(bytes32 gardenTypeId)
         external
         view

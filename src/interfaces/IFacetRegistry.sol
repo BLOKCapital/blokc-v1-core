@@ -150,6 +150,12 @@ interface IFacetRegistry {
     /// @return True if the garden type is registered
     function isGardenTypeRegistered(bytes32 gardenTypeId) external view returns (bool);
 
+    /// @notice Returns Add FacetCuts for only the BASE module facets
+    /// @dev Used by the factory to deploy gardens with only BASE facets.
+    ///      Utility modules are installed later via upgrade().
+    /// @return facetCuts Array of FacetCut structs (all with Add action) for BASE module only
+    function getBaseFacetCuts() external view returns (IDiamondCut.FacetCut[] memory facetCuts);
+
     /// @notice Returns aggregated Add FacetCuts for a garden type (base facets + allowed modules)
     /// @dev BASE_MODULE facets are always prepended. Used by the factory to deploy gardens.
     /// @param gardenTypeId The garden type to query
