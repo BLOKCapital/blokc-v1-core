@@ -284,11 +284,17 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         assertEq(icr.isComponentRegistered("BTC"), false);
         assertEq(icr.isComponentRegistered("ETH"), false);
 
-        assertEq(icr.getComponentAddress("BTC"), address(0));
-        assertEq(icr.getComponentAddress("ETH"), address(0));
+        vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);
+        icr.getComponentAddress("BTC");
 
-        assertEq(icr.getComponentSymbolToPriceFeedAddress("BTC"), address(0));
-        assertEq(icr.getComponentSymbolToPriceFeedAddress("ETH"), address(0));
+        vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);
+        icr.getComponentAddress("ETH");
+
+        vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);
+        icr.getComponentSymbolToPriceFeedAddress("BTC");
+
+        vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);
+        icr.getComponentSymbolToPriceFeedAddress("ETH");
 
         IndexComponentRegistry.OracleRecord memory btcRecord = icr.getOracleRecord("BTC");
         assertEq(btcRecord.price, 0);

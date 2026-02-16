@@ -77,14 +77,14 @@ contract AaveV3Facet is AaveV3Base, Facet {
     /// @notice Lends tokens to an Aave pool
     /// @param tokenIn The ERC20 token address to supply
     /// @param amountIn Amount of token to supply
-    function lendAaveV3(address tokenIn, uint256 amountIn) external onlyGardenOwner ifIndexNotConnected {
+    function lendAaveV3(address tokenIn, uint256 amountIn) external onlyGardenOwner nonReentrant ifIndexNotConnected {
         _lendAaveV3(tokenIn, amountIn);
     }
 
     /// @notice Withdraws tokens from an Aave pool
     /// @param tokenIn The underlying asset address (asset corresponding to the aToken)
     /// @param amountToWithdraw Amount of underlying to withdraw (in token decimals)
-    function withdrawAaveV3(address tokenIn, uint256 amountToWithdraw) external onlyGardenOwner ifIndexNotConnected {
+    function withdrawAaveV3(address tokenIn, uint256 amountToWithdraw) external onlyGardenOwner nonReentrant ifIndexNotConnected {
         _withdrawAaveV3(tokenIn, amountToWithdraw);
     }
 }

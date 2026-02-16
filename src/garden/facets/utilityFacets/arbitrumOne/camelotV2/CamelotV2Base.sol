@@ -50,14 +50,12 @@ abstract contract CamelotV2Base {
     /// @param amountIn The amount of input tokens to swap
     /// @param amountOutMin The minimum amount of output tokens to receive
     /// @param path The path of tokens to swap
-    /// @param to The address to receive the output tokens
     /// @param referrer The address of the referrer
     /// @param deadline The deadline for the swap
     function _camelotV2ExactInputSingle(
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
@@ -72,7 +70,9 @@ abstract contract CamelotV2Base {
 
         // Execute the swap
         ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
-            .swapExactTokensForTokensSupportingFeeOnTransferTokens(amountIn, amountOutMin, path, to, referrer, deadline);
+            .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountIn, amountOutMin, path, address(this), referrer, deadline
+            );
 
         // Get the amount of output tokens received
         uint256 amountOut = IERC20(path[path.length - 1]).balanceOf(address(this));
@@ -90,14 +90,12 @@ abstract contract CamelotV2Base {
     /// @param amountInMax The maximum amount of input tokens to swap
     /// @param amountOutMin The minimum amount of output tokens to receive
     /// @param path The path of tokens to swap
-    /// @param to The address to receive the output tokens
     /// @param referrer The address of the referrer
     /// @param deadline The deadline for the swap
     function _camelotV2ExactInput(
         uint256 amountInMax,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
@@ -112,7 +110,9 @@ abstract contract CamelotV2Base {
 
         // Execute the swap
         ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
-            .swapExactETHForTokensSupportingFeeOnTransferTokens(amountOutMin, path, to, referrer, deadline);
+            .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountInMax, amountOutMin, path, address(this), referrer, deadline
+            );
 
         // Get the amount of output tokens received
         uint256 amountOut = IERC20(path[path.length - 1]).balanceOf(address(this));
@@ -131,14 +131,12 @@ abstract contract CamelotV2Base {
     /// @param amountIn The amount of input tokens to swap
     /// @param amountOutMin The minimum amount of output tokens to receive
     /// @param path The path of tokens to swap
-    /// @param to The address to receive the input tokens
     /// @param referrer The address of the referrer
     /// @param deadline The deadline for the swap
     function _camelotV2ExactOutputSingle(
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
@@ -152,7 +150,9 @@ abstract contract CamelotV2Base {
 
         // Execute the swap
         ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
-            .swapExactTokensForETHSupportingFeeOnTransferTokens(amountIn, amountOutMin, path, to, referrer, deadline);
+            .swapExactTokensForETHSupportingFeeOnTransferTokens(
+                amountIn, amountOutMin, path, address(this), referrer, deadline
+            );
 
         // Get the amount of output tokens received
         uint256 amountOut = address(this).balance;

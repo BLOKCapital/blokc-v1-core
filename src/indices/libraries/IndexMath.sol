@@ -57,10 +57,10 @@ library IndexMath {
         if (priceInUsd == 0) revert IndexMath_InvalidPrice();
         if (usdValue == 0) return 0;
 
-        // Calculate: (usdValue * 10^tokenDecimals * 10^priceDecimals) / (price * 1e18)
-        uint256 numerator = usdValue * (10 ** uint256(tokenDecimals)) * (10 ** uint256(priceDecimals));
-
-        tokenAmount = Math.mulDiv(numerator, 1, priceInUsd * PRECISION, Math.Rounding.Floor);
+        // Calculate: (usdValue * 10^tokenDecimals * 10^priceDecimals) / (priceInUsd * 1e18)
+        // Chained Math.mulDiv to avoid intermediate overflow
+        uint256 intermediate = Math.mulDiv(usdValue, 10 ** uint256(tokenDecimals), priceInUsd, Math.Rounding.Floor);
+        tokenAmount = Math.mulDiv(intermediate, 10 ** uint256(priceDecimals), PRECISION, Math.Rounding.Floor);
 
         return tokenAmount;
     }
@@ -277,8 +277,12 @@ library IndexMath {
         if (amountIn == 0) return 0;
 
         // Calculate expected output: (amountIn * priceRatio * 10^decimalsOut) / 10^decimalsIn
+        // Chained Math.mulDiv to avoid intermediate overflow of priceRatio * 10^decimalsOut
         uint256 expectedOut = Math.mulDiv(
-            amountIn, priceRatio * (10 ** uint256(decimalsOut)), 10 ** uint256(decimalsIn), Math.Rounding.Floor
+            Math.mulDiv(amountIn, priceRatio, 10 ** uint256(decimalsIn), Math.Rounding.Floor),
+            10 ** uint256(decimalsOut),
+            1,
+            Math.Rounding.Floor
         );
 
         // Apply slippage tolerance

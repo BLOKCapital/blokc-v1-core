@@ -183,15 +183,13 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
             revert GardenFactory_GardenTypeNotRegistered(gardenType);
         }
 
-        // Get all facet cuts for this garden type (BASE + allowed modules)
-        IDiamondCut.FacetCut[] memory diamondCut = registry.getGardenTypeFacetCuts(gardenType);
+        IDiamondCut.FacetCut[] memory diamondCut = registry.getBaseFacetCuts();
 
         // Generate deterministic salt for CREATE2 deployment
         bytes32 salt = keccak256(abi.encode(owner, index, address(this)));
 
         // Deploy the Diamond contract using CREATE2 with garden type
-        Garden garden =
-            new Garden{ salt: salt }(diamondCut, owner, _facetRegistry, _protocolStatus, gardenType);
+        Garden garden = new Garden{ salt: salt }(diamondCut, owner, _facetRegistry, _protocolStatus, gardenType);
 
         gardenAddress = address(garden);
 

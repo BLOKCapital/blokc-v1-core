@@ -24,7 +24,6 @@ import { OwnershipStorage } from "src/garden/facets/baseFacets/ownership/Ownersh
 import { DiamondCutStorage } from "src/garden/facets/baseFacets/cut/DiamondCutStorage.sol";
 import { DiamondCutBase } from "src/garden/facets/baseFacets/cut/DiamondCutBase.sol";
 import { DiamondLoupeStorage } from "src/garden/facets/baseFacets/loupe/DiamondLoupeStorage.sol";
-import { UpgradeStorage } from "src/garden/facets/baseFacets/upgrade/UpgradeStorage.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 // Local Interfaces
@@ -128,16 +127,8 @@ contract Garden is DiamondCutBase {
         ld.protocolStatus = _protocolStatus;
         ld.gardenType = _gardenType;
 
-        // Apply initial diamond cuts (validates against registry + module membership)
+        // Apply initial diamond cuts (BASE facets only - utility modules installed via upgrade())
         _applyDiamondCut(_diamondCut, address(0), "");
-
-        // Sync per-module versions so upgrade flow doesn't re-apply initial modules
-        UpgradeStorage.Layout storage us = UpgradeStorage.layout();
-        us.moduleVersions[BASE_MODULE] = registry.getModuleVersion(BASE_MODULE);
-        bytes32[] memory typeModules = registry.getGardenTypeModules(_gardenType);
-        for (uint256 i = 0; i < typeModules.length; i++) {
-            us.moduleVersions[typeModules[i]] = registry.getModuleVersion(typeModules[i]);
-        }
 
         DiamondLoupeStorage.Layout storage ls = DiamondLoupeStorage.layout();
         ls.supportedInterfaces[type(IERC165).interfaceId] = true;

@@ -5,16 +5,21 @@ import { console2 } from "forge-std/console2.sol";
 import { GardenFactory } from "src/factory/GardenFactory.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { UpgradeFacet } from "src/garden/facets/baseFacets/upgrade/UpgradeFacet.sol";
+import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 contract CreateGarden is BaseScript {
     function run() public broadcaster {
         setUp();
 
-        address factoryAddress = 0x51Ab0Cc9898CD10EC5522e0D520Ae634d0165C62;
-        address gardenAddress = GardenFactory(factoryAddress).createGarden(3, address(0), 0, keccak256("default"));
-        (, bytes32 hashData) = UpgradeFacet(gardenAddress).upgradeDetails();
+        address factoryAddress = 0xd3098a203CC21b2A17dBc01D62A34838e104a3bC;
+        address gardenAddress = GardenFactory(factoryAddress).createGarden(1, address(0), 0, keccak256("YIELD"));
+        console2.log("Garden deployed at:", gardenAddress);
+
+        // Install utility modules via upgrade (required after BASE-only deployment)
+        (IDiamondCut.FacetCut[] memory facetCuts, bytes32 hashData) = UpgradeFacet(gardenAddress).upgradeDetails();
+        console2.log("Installing utility modules...");
         console2.logBytes32(hashData);
         UpgradeFacet(gardenAddress).upgrade(hashData);
-        console2.log("Garden deployed at:", gardenAddress);
+        console2.log("Utility modules installed successfully");
     }
 }

@@ -36,6 +36,7 @@ contract CCTPFacet is CCTPBase, Facet {
     )
         external
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
     {
         _sendUsdc(amount, destinationDomain, mintRecipient);
@@ -50,6 +51,7 @@ contract CCTPFacet is CCTPBase, Facet {
     )
         external
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
     {
         _redeemUsdc(message, attestation);

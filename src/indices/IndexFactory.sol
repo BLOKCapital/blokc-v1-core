@@ -79,6 +79,9 @@ error IndexFactory_GardenNotConnectedToIndex(address garden, address indexAddres
 /// @param maxComponents The maximum allowed components
 error IndexFactory_TooManyComponents(uint256 componentCount, uint256 maxComponents);
 
+/// @notice Thrown when attempting to create an index with an empty name
+error IndexFactory_InvalidIndexName();
+
 contract IndexFactory is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -208,7 +211,7 @@ contract IndexFactory is Ownable {
             revert IndexFactory_TooManyComponents(symbols.length, MAX_COMPONENTS_PER_INDEX);
         }
         if (bytes(name).length == 0) {
-            revert IndexFactory_InvalidIndexAddress(address(0));
+            revert IndexFactory_InvalidIndexName();
         }
 
         indexAddress = address(new Index(address(this), indexCalculationAddress, COMPONENT_REGISTRY, symbols));
