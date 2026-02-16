@@ -24,7 +24,6 @@ import { OwnershipStorage } from "src/garden/facets/baseFacets/ownership/Ownersh
 import { DiamondCutStorage } from "src/garden/facets/baseFacets/cut/DiamondCutStorage.sol";
 import { DiamondCutBase } from "src/garden/facets/baseFacets/cut/DiamondCutBase.sol";
 import { DiamondLoupeStorage } from "src/garden/facets/baseFacets/loupe/DiamondLoupeStorage.sol";
-import { UpgradeStorage } from "src/garden/facets/baseFacets/upgrade/UpgradeStorage.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 // Local Interfaces
@@ -128,7 +127,7 @@ contract Garden is DiamondCutBase {
         ld.protocolStatus = _protocolStatus;
         ld.gardenType = _gardenType;
 
-        // Apply initial diamond cuts (validates against registry + module membership)
+        // Apply initial diamond cuts (BASE facets only - utility modules installed via upgrade())
         _applyDiamondCut(_diamondCut, address(0), "");
 
         DiamondLoupeStorage.Layout storage ls = DiamondLoupeStorage.layout();
