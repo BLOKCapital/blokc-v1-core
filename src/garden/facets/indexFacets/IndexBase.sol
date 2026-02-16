@@ -20,6 +20,7 @@ import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol"
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 import { IIndex, SwapCall, PendingIntent } from "src/garden/facets/indexFacets/IIndex.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // ============================================================================
 // Errors
@@ -57,6 +58,12 @@ error IndexFacet_SelectorNotWhitelisted(bytes4 selector);
 
 /// @notice Thrown when swap call returns no data (selector not found)
 error IndexFacet_SelectorNotFound(bytes4 selector);
+
+/// @notice Thrown when the pending intent has expired
+error IndexFacet_IntentExpired();
+
+/// @notice Thrown when total garden value decreased beyond acceptable threshold
+error IndexFacet_ExcessiveValueLoss(uint256 valueBefore, uint256 valueAfter);
 
 /**
  * @title IndexBase
@@ -99,7 +106,7 @@ abstract contract IndexBase {
         }
 
         // Check intent interval
-        if (block.timestamp < s.lastIntentTimestamp + IndexStorage.PENDING_INTENT_INTERVAL) {
+        if (block.timestamp < s.lastIntentTimestamp + IndexStorage.INTENT_EXPIRY) {
             revert IndexFacet_IntentIntervalNotPassed();
         }
 
@@ -156,11 +163,26 @@ abstract contract IndexBase {
             revert IndexFacet_RebalanceIntervalNotPassed();
         }
 
+        if (block.timestamp > s.lastIntentTimestamp + IndexStorage.INTENT_EXPIRY) {
+            // Clear stale intent and revert
+            s.pendingIntent.active = false;
+            revert IndexFacet_IntentExpired();
+        }
+
+        uint256 valueBefore = _calculateTotalValue();
+
         // Execute each swap call on the Diamond's DEX facets
         _executeSwapCalls(swapCalls);
 
         // Verify final balances match targets within threshold
         _verifyBalancesMatchTargets();
+
+        uint256 valueAfter = _calculateTotalValue();
+        uint256 minAcceptableValue = (valueBefore * (10_000 - IndexStorage.MAX_VALUE_LOSS_BPS)) / 10_000;
+
+        if (valueAfter < minAcceptableValue) {
+            revert IndexFacet_ExcessiveValueLoss(valueBefore, valueAfter);
+        }
 
         // Clear pending state and update timestamp
         s.pendingIntent.active = false;
@@ -237,7 +259,7 @@ abstract contract IndexBase {
             uint8 decimals = IERC20Metadata(token).decimals();
 
             // Value in USD with 8 decimals (Chainlink standard)
-            currentValues[i] = (balance * price) / (10 ** decimals);
+            currentValues[i] = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
             totalValueUsd += currentValues[i];
         }
 
@@ -260,7 +282,7 @@ abstract contract IndexBase {
             uint256 price = _getPrice(priceFeed);
             uint8 decimals = IERC20Metadata(token).decimals();
 
-            uint256 currentValue = (balance * price) / (10 ** decimals);
+            uint256 currentValue = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
             uint256 targetValue = s.pendingIntent.targetValues[i];
 
             // Calculate threshold
@@ -285,6 +307,23 @@ abstract contract IndexBase {
         if (block.timestamp - updatedAt > 1 hours) revert IndexFacet_InvalidOracleData();
 
         return uint256(price);
+    }
+
+    /// @notice Calculate total garden value in USD using Chainlink oracles
+    function _calculateTotalValue() internal view returns (uint256 totalValueUsd) {
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
+
+        for (uint256 i = 0; i < s.pendingIntent.symbols.length; i++) {
+            address token = componentRegistry.getComponentAddress(s.pendingIntent.symbols[i]);
+            address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(s.pendingIntent.symbols[i]);
+
+            uint256 balance = IERC20(token).balanceOf(address(this));
+            uint256 price = _getPrice(priceFeed);
+            uint8 decimals = IERC20Metadata(token).decimals();
+
+            totalValueUsd += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
+        }
     }
 
     // ========================================================================

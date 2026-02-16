@@ -59,14 +59,14 @@ library IndexStorage {
     /// @notice Precision for calculations (1e18 = 100%)
     uint256 internal constant PRECISION = 1e18;
 
-    /// @notice Minimum USDC amount to trigger swap (100 USDC with 6 decimals)
+    /// @notice Minimum USDC amount to trigger swap
     uint256 internal constant MIN_SWAP_AMOUNT = 10 ** 4;
 
     /// @notice Minimum WETH value for rebalance operations (0.01 USD)
     uint256 internal constant MIN_REBALANCE_VALUE_USD = 0.01e8;
 
-    /// @notice Maximum slippage tolerance in basis points (5% = 500 bps)
-    uint256 internal constant MAX_SLIPPAGE_BPS = 500;
+    /// @notice Maximum slippage tolerance in basis points (1% = 100 bps)
+    uint256 internal constant MAX_SLIPPAGE_BPS = 100;
 
     /// @notice Balance threshold in basis points (1% = 100 bps)
     uint256 internal constant BALANCE_THRESHOLD_BPS = 100;
@@ -74,10 +74,13 @@ library IndexStorage {
     /// @notice Swap deadline in seconds (5 minutes)
     uint256 internal constant SWAP_DEADLINE_SECONDS = 300;
 
-    /// @notice Time interval after which a pending rebalance intent expires (5 minutes)
-    uint256 internal constant PENDING_INTENT_INTERVAL = 5 minutes;
-
     uint256 internal constant REBALANCE_INTERVAL = 1 hours;
+
+    /// @notice Maximum allowed total value loss during rebalance (0.5% = 50 bps)
+    uint256 internal constant MAX_VALUE_LOSS_BPS = 50;
+
+    /// @notice Intent expiry duration - intents become invalid after this period
+    uint256 internal constant INTENT_EXPIRY = 10 minutes;
 
     /// @notice Maximum number of assets allowed in an index
     uint256 internal constant MAX_ASSETS = 30;
