@@ -3,20 +3,18 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IUniswapV3
-    @author BLOK Capital DAO
-    @notice Interface for Uniswap V3 integration (swaps and TWAP queries)
-    @dev This interface provides functions for executing token swaps on Uniswap V3
-         and querying TWAP (Time-Weighted Average Price) prices from pools.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title IUniswapV3
+/// @author BLOK Capital DAO
+/// @notice Interface for Uniswap V3 integration (swaps and TWAP queries)
+/// @dev Provides functions for executing token swaps on Uniswap V3
+///      and querying TWAP (Time-Weighted Average Price) prices from pools.
 interface IUniswapV3 {
     // ========================================================================
     // Structs

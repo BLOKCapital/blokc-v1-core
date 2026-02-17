@@ -131,7 +131,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     bytes32 public constant BASE_MODULE = keccak256("BASE");
 
     // ========================================================================
-    //                         GLOBAL STORAGE
+    //                             GLOBAL STORAGE
     // ========================================================================
 
     /// @notice Current global version of the registry (increments with each modification)
@@ -153,7 +153,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     mapping(uint256 version => IDiamondCut.FacetCut facetCut) private _facetCutByVersion;
 
     // ========================================================================
-    //                         MODULE STORAGE
+    //                             MODULE STORAGE
     // ========================================================================
 
     /// @notice Array of all registered module IDs
@@ -162,7 +162,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     /// @notice Whether a module has been registered
     mapping(bytes32 => bool) private _moduleExists;
 
-    /// @notice Per-module version counter
+    /// @notice Per module version counter
     mapping(bytes32 => uint256) private _moduleVersion;
 
     /// @notice Facet addresses belonging to a module
@@ -171,7 +171,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     /// @notice 1-based index of a facet within a module's facet array, 0 means absent
     mapping(bytes32 => mapping(address => uint256)) private _moduleFacetIndex;
 
-    /// @notice Per-module facet cut history indexed by module version
+    /// @notice Per module facet cut history indexed by module version
     mapping(bytes32 => mapping(uint256 => IDiamondCut.FacetCut)) private _moduleFacetCutByVersion;
 
     /// @notice Which module a facet belongs to, each facet belongs to exactly one module
@@ -571,7 +571,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     }
 
     // ========================================================================
-    //                  EXTERNAL FACET VIEWS
+    //                        EXTERNAL FACET VIEWS
     // ========================================================================
 
     /// @inheritdoc IFacetRegistry
@@ -856,7 +856,7 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     }
 
     // ========================================================================
-    //                     INTERNAL CORE HELPERS
+    //                         INTERNAL CORE HELPERS
     // ========================================================================
 
     /// @notice Adds a base facet with its function selectors during construction

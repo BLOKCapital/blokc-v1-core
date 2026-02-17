@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.31;
+pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title IPoolRegistry
-    @author BLOK Capital DAO
-    @notice Interface for the Pool Registry contract
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title IPoolRegistry
+/// @author BLOK Capital DAO
+/// @notice Interface for a minimal pool registry that resolves pool addresses by identifier.
 interface IPoolRegistry {
     /// @notice Returns the pool address associated with a given pool ID
     /// @param poolId The unique identifier for the pool

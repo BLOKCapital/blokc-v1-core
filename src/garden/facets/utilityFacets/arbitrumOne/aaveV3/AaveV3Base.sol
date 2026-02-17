@@ -3,19 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title AaveV3Base
-    @author BLOK Capital DAO
-    @notice Base contract for AaveV3Facet exposing Aave integration functions
-            (lend / withdraw / reserve data lookup)
-    @dev This base contract provides common functionality for AaveV3Facet, including
-         lending and withdrawing tokens from Aave V3 pools. It uses SafeERC20 for
-         secure token transfers and approvals.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -49,9 +40,17 @@ error AaveV3Facet_InvalidATokenAddress();
 /// @notice Thrown when withdrawal amount exceeds aToken balance
 error AaveV3Facet_InsufficientATokenBalance();
 
+/**
+ * @title AaveV3Base
+ * @notice Base contract that implements internal functions for lending and withdrawing tokens from Aave V3 on Arbitrum
+ * One. This contract is intended to be inherited by an AaveV3Facet that exposes the lending and withdrawal functions
+ * with appropriate access control and user-facing error messages. It includes functions to get reserve data, lend
+ * tokens to Aave, and withdraw tokens from Aave, along with events for off-chain tracking of these operations.
+ */
 abstract contract AaveV3Base is IAaveV3 {
     using SafeERC20 for IERC20;
 
+    /// @notice The address of the Aave V3 Pool contract on Arbitrum One
     address private constant AAVE_V3_POOL_ADDRESS = 0x794a61358D6845594F94dc1DB02A252b5b4814aD;
 
     // ========================================================================

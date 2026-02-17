@@ -3,11 +3,6 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IDiamondLoupe
-    @author BLOK Capital DAO (based on EIP-2535 by Nick Mudge)
-    @notice Interface for the DiamondLoupeFacet
-    @dev This interface is used to query the diamond facets and their function selectors
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
@@ -16,6 +11,10 @@ pragma solidity ^0.8.31;
 
 ################################################################################*/
 
+/// @title IDiamondLoupe
+/// @author BLOK Capital DAO (based on EIP-2535 by Nick Mudge)
+/// @notice Interface for the DiamondLoupeFacet
+/// @dev This interface is used to query the diamond facets and their function selectors
 interface IDiamondLoupe {
     /// @notice A struct containing the facet address and its function selectors
     /// @param facetAddress The address of the facet

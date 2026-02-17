@@ -3,17 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title CCTPBase
-    @author BLOK Capital DAO
-    @notice Facet exposing Circle Cross-Chain Transfer Protocol (CCTP) functions
-    @dev This facet provides integration with Circle's CCTP for cross-chain USDC
-         transfers. All operations are protected by owner-only access control.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -27,10 +20,6 @@ import {
     IMessageTransmitterV2,
     ITokenMessengerV2
 } from "src/garden/facets/utilityFacets/arbitrumOne/cctp/ICCTP.sol";
-
-// ============================================================================
-// Errors
-// ============================================================================
 
 /// @notice Thrown when amount is zero
 error CCTPFacet_ZeroAmount();
@@ -50,12 +39,16 @@ error CCTPFacet_InsufficientBalance();
 /// @notice Thrown when token transfer from caller fails
 error CCTPFacet_TransferFailed();
 
+/**
+ * @title CCTPBase
+ * @notice Base contract that implements internal functions for sending and redeeming USDC through the Circle
+ * Cross-Chain Transfer Protocol (CCTP) on Arbitrum One. This contract is intended to be inherited by a CCTPFacet that
+ * exposes the sendUsdc and redeemUsdc functions with appropriate access control and user-facing error messages. It
+ * includes the core logic for interacting with the Circle TokenMessengerV2 and MessageTransmitterV2 contracts to
+ * perform cross-chain USDC transfers, along with events for off-chain tracking of these operations.
+ */
 abstract contract CCTPBase is ICCTP {
     using SafeERC20 for IERC20;
-
-    // ========================================================================
-    // Constants
-    // ========================================================================
 
     /// @notice Circle TokenMessengerV2 address on Arbitrum One
     address public constant TOKEN_MESSENGER_V2 = 0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
@@ -66,12 +59,8 @@ abstract contract CCTPBase is ICCTP {
     /// @notice USDC token address on Arbitrum One
     address public constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
-    // ========================================================================
-    // Events
-    // ========================================================================
-
     /// @notice Emitted when USDC is sent to another chain via CCTP
-    /// @param sender The address that initiated the send (msg.sender, not diamond)
+    /// @param sender The address that initiated the send
     /// @param amount The amount of USDC sent
     /// @param destinationDomain The Circle domain ID of the destination chain
     /// @param mintRecipient The recipient address on the destination chain (bytes32 encoded)

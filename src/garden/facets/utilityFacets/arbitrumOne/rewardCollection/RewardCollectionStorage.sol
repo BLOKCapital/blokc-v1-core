@@ -1,24 +1,12 @@
-// SPDX-License-Identifier: MIT License
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 import { LibStorageSlot } from "../../../../libraries/LibStorageSlot.sol";
 
-/*###############################################################################
-
-    @title GardenCollectionStorage
-    @author BLOK Capital DAO
-    @notice Storage for the Garden Collection Facet
-    @dev This storage is used to store Garden Collection token state including name, symbol,
-         owners, balances, and approvals
-
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
-    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
-    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
-    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
-
-################################################################################*/
-
+/// @title RewardCollectionStorage
+/// @author BLOK Capital DAO
+/// @notice Diamond storage library for the Garden reward collection ERC-721 state
+/// @dev Uses the diamond storage pattern with a slot derived from the library name
 library RewardCollectionStorage {
     string internal constant DEFAULT_NAME = "Reward Token";
     string internal constant DEFAULT_SYMBOL = "RT";

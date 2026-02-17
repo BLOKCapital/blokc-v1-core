@@ -1,20 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
-/*###############################################################################
-
-    @title GardenCollectionBase
-    @author BLOK Capital DAO
-    @notice Base contract for Garden Collection integration
-    @dev This contract provides the base functionality for Garden Collection which is a collection of rewards for the Garden
-
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
-    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
-    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
-    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
-################################################################################*/
-
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import { IERC721Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
@@ -30,8 +16,14 @@ import {
 /// @notice Thrown when a query is made for a nonexistent token
 error GardenCollectionBase_URIQueryForNonexistentToken();
 
+/// @notice Thrown when attempting to mint a token that already exists
+/// @param tokenId The ID of the token that already exists
 error GardenCollectionFacet_TokenAlreadyExists(uint256 tokenId);
 
+/// @title RewardCollectionBase
+/// @author BLOK Capital DAO
+/// @notice Base contract for the Garden reward collection ERC-721 integration
+/// @dev Provides internal helpers for ERC-721 state management within the Diamond proxy
 abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Errors {
     using Strings for uint256;
 
@@ -71,7 +63,7 @@ abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Error
 
     /// @notice Gets the URI of a token
     /// @param tokenId The ID of the token
-    /// @return The URI of the token
+    /// @return The URI of the token as a base64-encoded JSON data URI
     function _tokenURI(uint256 tokenId) internal view returns (string memory) {
         // Check if the token exists
         address owner = RewardCollectionStorage.layout().owners[tokenId];
@@ -104,6 +96,8 @@ abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Error
         return "";
     }
 
+    /// @notice Gets the total supply of minted tokens
+    /// @return The total supply of tokens
     function _totalSupply() internal view returns (uint256) {
         return RewardCollectionStorage.layout().totalSupply;
     }
@@ -139,8 +133,8 @@ abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Error
     // ========================================================================
 
     /// @notice Transfers a token from one address to another
-    /// @param from The address of the from address
-    /// @param to The address of the to address
+    /// @param from The address of the sender
+    /// @param to The address of the recipient
     /// @param tokenId The ID of the token
     function _transferFrom(address from, address to, uint256 tokenId) internal {
         if (to == address(0)) {
@@ -154,10 +148,10 @@ abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Error
     }
 
     /// @notice Safely transfers a token from one address to another
-    /// @param from The address of the from address
-    /// @param to The address of the to address
+    /// @param from The address of the sender
+    /// @param to The address of the recipient
     /// @param tokenId The ID of the token
-    /// @param data The data to send with the transfer
+    /// @param data Additional data to send with the transfer callback
     function _safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) internal {
         _transferFrom(from, to, tokenId);
         ERC721Utils.checkOnERC721Received(msg.sender, from, to, tokenId, data);
@@ -168,8 +162,8 @@ abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Error
     // ========================================================================
 
     /// @notice Mints a token to an address
-    /// @param to The address of the to address
-    /// @param tokenId The ID of the token
+    /// @param to The address of the recipient
+    /// @param tokenId The ID of the token to mint
     function _mint(address to, uint256 tokenId) internal {
         if (RewardCollectionStorage.layout().owners[tokenId] != address(0)) {
             revert GardenCollectionFacet_TokenAlreadyExists(tokenId);
@@ -185,7 +179,7 @@ abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Error
     }
 
     /// @notice Burns a token
-    /// @param tokenId The ID of the token
+    /// @param tokenId The ID of the token to burn
     function _burn(uint256 tokenId) internal {
         address previousOwner = _update(address(0), tokenId, address(0));
         if (previousOwner == address(0)) {
@@ -199,7 +193,7 @@ abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Error
     // ========================================================================
 
     /// @notice Approves an address for a token
-    /// @param to The address of the to address
+    /// @param to The address to approve
     /// @param tokenId The ID of the token
     /// @param auth The address of the authorizer
     function _approve(address to, uint256 tokenId, address auth) internal {
@@ -228,9 +222,9 @@ abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Error
     // ========================================================================
 
     /// @notice Updates the ownership of a token
-    /// @param to The address of the to address
+    /// @param to The address of the new owner (address(0) for burn)
     /// @param tokenId The ID of the token
-    /// @param auth The address of the authorizer
+    /// @param auth The address of the authorizer (address(0) to skip auth check)
     /// @return The previous owner of the token
     function _update(address to, uint256 tokenId, address auth) internal returns (address) {
         // Get the previous owner of the token

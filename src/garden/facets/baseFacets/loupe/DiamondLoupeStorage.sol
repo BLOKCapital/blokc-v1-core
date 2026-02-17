@@ -5,19 +5,17 @@ import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 
 /*###############################################################################
 
-    @title DiamondLoupeStorage
-    @author BLOK Capital DAO
-    @notice Storage for the DiamondLoupeFacet
-    @dev This storage is used to store the supported interfaces for the DiamondLoupeFacet
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title DiamondLoupeStorage
+/// @author BLOK Capital DAO
+/// @notice Storage for the DiamondLoupeFacet
+/// @dev Stores the supported interfaces mapping for ERC-165 interface detection
 library DiamondLoupeStorage {
     /// @notice Layout for the DiamondLoupeStorage
     /// @dev The map stores bytes4 -> bool for ERC-165 interface support

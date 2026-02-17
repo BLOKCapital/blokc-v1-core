@@ -1,21 +1,12 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title Facet
-    @author BLOK Capital DAO
-    @notice Abstract base contract providing common functionality for all facets
-    @dev All facets should inherit from this contract to access the following:
-         - Reentrancy protection using ReentrancyGuardUpgradeable
-         - Owner-only access control using onlyDiamondOwner modifier
-         - Diamond storage pattern to access ownership state
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -32,6 +23,13 @@ error Garden_CannotCallIfConnectedToIndex();
 /// @notice Thrown when a function is called while the garden is not an index garden
 error Garden_NotAnIndexGarden();
 
+/**
+ * @title Facet
+ * @notice Base contract for all facets in the garden diamond, providing common modifiers and access control logic.
+ * This contract includes modifiers to restrict access to the garden owner and to prevent certain functions from
+ * being called when the garden is connected to an index. It also allows for internal calls from the diamond itself
+ * to support composability between facets.
+ */
 abstract contract Facet is ReentrancyGuard {
     /// @notice Restricts function access to the diamond contract owner
     /// @dev Checks msg.sender against owner stored in OwnershipStorage

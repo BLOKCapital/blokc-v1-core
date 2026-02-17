@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 /*###############################################################################
@@ -14,10 +14,16 @@ import { Facet } from "src/garden/facets/Facet.sol";
 import { IIndex, SwapCall } from "src/garden/facets/indexFacets/IIndex.sol";
 import { IndexBase } from "src/garden/facets/indexFacets/IndexBase.sol";
 
-/// @notice Facet that allows gardens to connect to index contracts for automated rebalancing.
-///         Gardens can create rebalance intents, which are processed by the CRE to generate swap calls.
-///         The facet then executes these swap calls to rebalance the garden's portfolio according to the index's target
-///         allocations.
+/**
+ * @title IndexFacet
+ * @author BLOK Capital DAO
+ * @notice Facet that implements the IIndex interface to allow connecting to an Index contract, signaling rebalance
+ * intents, and executing rebalances through the Index. This facet provides external functions for garden owners to
+ * manage their connection to an Index and for anyone to trigger rebalances when there is an active intent. It inherits
+ * from
+ * IndexBase which contains the internal logic for interacting with the Index, while IndexFacet itself provides the
+ * external interface with appropriate access control and user-facing error messages.
+ */
 contract IndexFacet is IIndex, IndexBase, Facet {
     /// @inheritdoc IIndex
     function connectToIndex(address indexAddress) external nonReentrant onlyGardenOwner ifIndexNotConnected {

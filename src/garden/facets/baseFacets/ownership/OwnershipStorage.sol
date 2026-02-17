@@ -5,19 +5,17 @@ import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 
 /*###############################################################################
 
-    @title OwnableStorage
-    @author BLOK Capital DAO
-    @notice Storage for the OwnershipFacet
-    @dev This storage is used to store the ownership of the contract
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title OwnershipStorage
+/// @author BLOK Capital DAO
+/// @notice Storage for the OwnershipFacet
+/// @dev Stores the owner address for ERC-173 contract ownership
 library OwnershipStorage {
     /// @notice Layout for the OwnershipStorage
     /// @dev The struct stores the address of the owner

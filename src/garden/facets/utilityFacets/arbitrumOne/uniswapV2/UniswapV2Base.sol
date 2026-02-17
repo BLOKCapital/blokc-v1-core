@@ -3,17 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title UniswapV2Base
-    @author BLOK Capital DAO
-    @notice Base contract exposing Uniswap V2 swap and quote functions
-    @dev This base contract provides integration with Uniswap V2 for token swaps and
-         quote calculations.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -27,10 +20,6 @@ import { IUniswapV2Router02 } from "v2-periphery/interfaces/IUniswapV2Router02.s
 // Local Interfaces
 import { IUniswapV2 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/IUniswapV2.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
-
-// ============================================================================
-// Errors
-// ============================================================================
 
 /// @notice Thrown when contract has insufficient token balance
 error UniswapV2Facet_InsufficientBalance();
@@ -68,14 +57,14 @@ error UniswapV2Facet_InvalidTokenAddress();
 /// @notice Thrown when ETH value sent is insufficient
 error UniswapV2Facet_InsufficientETHValue();
 
-// ============================================================================
-// UniswapV2Base
-// ============================================================================
-
-/// @title UniswapV2Base
-/// @notice Base contract providing Uniswap V2 integration for swaps and quote queries
-/// @dev This base contract provides integration with Uniswap V2 for token swaps and
-///      quote calculations.
+/**
+ * @title UniswapV2Base
+ * @author BLOK Capital DAO
+ * @notice Base contract that implements internal functions for swapping tokens through the Uniswap V2 router on
+ * Arbitrum One. This contract is intended to be inherited by a UniswapV2Facet that exposes the swap functions with
+ * appropriate access control and user-facing error messages. It includes the core logic for interacting with the
+ * Uniswap V2 router to perform token swaps, along with events for off-chain tracking of these operations.
+ */
 abstract contract UniswapV2Base {
     using SafeERC20 for IERC20;
 
@@ -88,7 +77,7 @@ abstract contract UniswapV2Base {
     /// @notice Pool Registry address on Arbitrum One
     address internal constant POOL_REGISTRY_ADDRESS = 0xBa7898DbE9C2be340197e1fffe85FC5a3B977744;
 
-    /// @notice Uniswap V2 Factory address on Arbitrum one
+    /// @notice Uniswap V2 Factory address on Arbitrum One
     address internal constant UNISWAP_V2_FACTORY_ADDRESS = 0xf1D7CC64Fb4452F05c498126312eBE29f30Fbcf9;
 
     // ========================================================================
@@ -108,9 +97,9 @@ abstract contract UniswapV2Base {
     // Internal Swap Functions
     // ========================================================================
 
-    /// @notice Uniswap V2 base exact input token-to-token swap
+    /// @notice Executes an exact-input token-to-token swap via Uniswap V2
     /// @param params Swap parameters including amounts, path, and deadline
-    /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
+    /// @return amounts Array of input and output amounts for each step in the path
     function _uniswapV2SwapExactTokensForTokens(IUniswapV2.UniswapV2SwapExactTokensForTokensParams memory params)
         internal
         returns (uint256[] memory amounts)
@@ -146,9 +135,9 @@ abstract contract UniswapV2Base {
         );
     }
 
-    /// @notice Uniswap V2 base exact output token-to-token swap
+    /// @notice Executes an exact-output token-to-token swap via Uniswap V2
     /// @param params Swap parameters including amounts, path, and deadline
-    /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
+    /// @return amounts Array of input and output amounts for each step in the path
     function _uniswapV2SwapTokensForExactTokens(IUniswapV2.UniswapV2SwapTokensForExactTokensParams memory params)
         internal
         returns (uint256[] memory amounts)
@@ -176,9 +165,9 @@ abstract contract UniswapV2Base {
         );
     }
 
-    /// @notice Uniswap V2 base exact input ETH-to-token swap
+    /// @notice Executes an exact-input ETH-to-token swap via Uniswap V2
     /// @param params Swap parameters including amounts, path, and deadline
-    /// @dev Validates all pools in the path are registered and executes swap
+    /// @return amounts Array of input and output amounts for each step in the path
     function _uniswapV2SwapExactETHForTokens(IUniswapV2.UniswapV2SwapExactETHForTokensParams memory params)
         internal
         returns (uint256[] memory amounts)
@@ -204,9 +193,9 @@ abstract contract UniswapV2Base {
         );
     }
 
-    /// @notice Uniswap V2 base exact output token-to-ETH swap
+    /// @notice Executes an exact-output token-to-ETH swap via Uniswap V2
     /// @param params Swap parameters including amounts, path, and deadline
-    /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
+    /// @return amounts Array of input and output amounts for each step in the path
     function _uniswapV2SwapTokensForExactETH(IUniswapV2.UniswapV2SwapTokensForExactETHParams memory params)
         internal
         returns (uint256[] memory amounts)
@@ -238,9 +227,9 @@ abstract contract UniswapV2Base {
         );
     }
 
-    /// @notice Uniswap V2 base exact input token-to-ETH swap
+    /// @notice Executes an exact-input token-to-ETH swap via Uniswap V2
     /// @param params Swap parameters including amounts, path, and deadline
-    /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
+    /// @return amounts Array of input and output amounts for each step in the path
     function _uniswapV2SwapExactTokensForETH(IUniswapV2.UniswapV2SwapExactTokensForETHParams memory params)
         internal
         returns (uint256[] memory amounts)
@@ -272,9 +261,9 @@ abstract contract UniswapV2Base {
         );
     }
 
-    /// @notice Uniswap V2 base exact output ETH-to-token swap
+    /// @notice Executes an exact-output ETH-to-token swap via Uniswap V2
     /// @param params Swap parameters including amounts, path, and deadline
-    /// @dev Validates all pools in the path are registered and executes swap
+    /// @return amounts Array of input and output amounts for each step in the path
     function _uniswapV2SwapETHForExactTokens(IUniswapV2.UniswapV2SwapETHForExactTokensParams memory params)
         internal
         returns (uint256[] memory amounts)
@@ -301,9 +290,8 @@ abstract contract UniswapV2Base {
         );
     }
 
-    /// @notice Uniswap V2 base exact input token-to-token swap supporting fee-on-transfer tokens
+    /// @notice Executes an exact-input token-to-token swap supporting fee-on-transfer tokens via Uniswap V2
     /// @param params Swap parameters including amounts, path, and deadline
-    /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
     function _uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(
         IUniswapV2.UniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokensParams memory params
     )
@@ -330,9 +318,8 @@ abstract contract UniswapV2Base {
         emit UniswapV2FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], params.amountIn, 0);
     }
 
-    /// @notice Uniswap V2 base exact input ETH-to-token swap supporting fee-on-transfer tokens
+    /// @notice Executes an exact-input ETH-to-token swap supporting fee-on-transfer tokens via Uniswap V2
     /// @param params Swap parameters including amounts, path, and deadline
-    /// @dev Validates all pools in the path are registered and executes swap
     function _uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(
         IUniswapV2.UniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokensParams memory params
     )
@@ -357,9 +344,8 @@ abstract contract UniswapV2Base {
         emit UniswapV2FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], msg.value, 0);
     }
 
-    /// @notice Uniswap V2 base exact input token-to-ETH swap supporting fee-on-transfer tokens
+    /// @notice Executes an exact-input token-to-ETH swap supporting fee-on-transfer tokens via Uniswap V2
     /// @param params Swap parameters including amounts, path, and deadline
-    /// @dev Validates all pools in the path are registered, handles approvals, and executes swap
     function _uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(
         IUniswapV2.UniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokensParams memory params
     )
@@ -488,9 +474,8 @@ abstract contract UniswapV2Base {
     // Internal Helper Functions
     // ========================================================================
 
-    /// @notice Camelot V2 base validate pools
-    /// @param path The path of tokens to swap
-    /// @dev This function validates the pools for the given path
+    /// @notice Validates that all consecutive token pairs in a path have registered pools
+    /// @param path The array of token addresses forming the swap path
     function _validatePools(address[] memory path) internal view {
         for (uint256 i = 0; i < path.length - 1; i++) {
             (bool ok, bytes memory data) = UNISWAP_V2_FACTORY_ADDRESS.staticcall(

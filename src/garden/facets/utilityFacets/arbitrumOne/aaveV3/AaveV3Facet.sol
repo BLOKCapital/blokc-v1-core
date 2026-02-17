@@ -3,16 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title AaveV3Facet
-    @author BLOK Capital DAO
-    @notice Facet exposing Aave V3 integration functions (lend / withdraw / reserve data lookup)
-    @dev This facet provides integration with Aave V3 protocol for lending and withdrawing assets
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -56,6 +50,15 @@ error AaveV3Facet_InsufficientATokenBalance();
 // AaveV3Facet
 // ============================================================================
 
+/**
+ * @title AaveV3Facet
+ * @author BLOK Capital DAO
+ * @notice Facet that implements the IAaveV3 interface to allow lending and withdrawing tokens from Aave V3 on Arbitrum
+ * One. This facet provides external functions for garden owners to lend tokens to Aave and withdraw tokens from Aave,
+ * with appropriate access control and user-facing error messages. It inherits from AaveV3Base which contains the
+ * internal logic for interacting with Aave, while AaveV3Facet itself provides the external interface for these
+ * operations.
+ */
 contract AaveV3Facet is AaveV3Base, Facet {
     using SafeERC20 for IERC20;
 
@@ -63,9 +66,7 @@ contract AaveV3Facet is AaveV3Base, Facet {
     // External Functions (View)
     // ========================================================================
 
-    /// @notice Gets reserve data from an Aave pool for a specific token
-    /// @param tokenIn The underlying asset token address whose reserve data is requested
-    /// @return reserveData The Aave ReserveData struct for the token
+    /// @inheritdoc IAaveV3
     function getReserveDataAaveV3(address tokenIn) external view returns (DataTypes.ReserveData memory reserveData) {
         return _getReserveDataAaveV3(tokenIn);
     }
@@ -74,17 +75,21 @@ contract AaveV3Facet is AaveV3Base, Facet {
     // External Functions (State-Changing)
     // ========================================================================
 
-    /// @notice Lends tokens to an Aave pool
-    /// @param tokenIn The ERC20 token address to supply
-    /// @param amountIn Amount of token to supply
+    /// @inheritdoc IAaveV3
     function lendAaveV3(address tokenIn, uint256 amountIn) external onlyGardenOwner nonReentrant ifIndexNotConnected {
         _lendAaveV3(tokenIn, amountIn);
     }
 
-    /// @notice Withdraws tokens from an Aave pool
-    /// @param tokenIn The underlying asset address (asset corresponding to the aToken)
-    /// @param amountToWithdraw Amount of underlying to withdraw (in token decimals)
-    function withdrawAaveV3(address tokenIn, uint256 amountToWithdraw) external onlyGardenOwner nonReentrant ifIndexNotConnected {
+    /// @inheritdoc IAaveV3
+    function withdrawAaveV3(
+        address tokenIn,
+        uint256 amountToWithdraw
+    )
+        external
+        onlyGardenOwner
+        nonReentrant
+        ifIndexNotConnected
+    {
         _withdrawAaveV3(tokenIn, amountToWithdraw);
     }
 }

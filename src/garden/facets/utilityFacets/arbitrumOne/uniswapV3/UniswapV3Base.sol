@@ -3,17 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title UniswapV3Base
-    @author BLOK Capital DAO
-    @notice Base contract exposing Uniswap V3 swap and TWAP functions
-    @dev This base contract provides integration with Uniswap V3 for token swaps and price
-         oracle queries.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -67,14 +60,13 @@ error UniswapV3Facet_InvalidTokenAddress();
 /// @notice Thrown when pool address is zero
 error UniswapV3Facet_InvalidPoolAddress();
 
-// ============================================================================
-// UniswapV3Base
-// ============================================================================
-
-/// @title UniswapV3Base
-/// @notice Base contract providing Uniswap V3 integration for swaps and price oracle queries
-/// @dev This base contract provides integration with Uniswap V3 for token swaps and price
-///      oracle queries.
+/**
+ * @title UniswapV3Base
+ * @notice Base contract for Uniswap V3 interactions on Arbitrum One, providing shared logic for swaps and price
+ * queries. This abstract contract is inherited by UniswapV3Facet which implements the external functions. It includes
+ * internal functions for executing exact input/output swaps (single and multi-hop) and fetching TWAP prices. The
+ * contract also validates pool registrations and handles token approvals securely using SafeERC20.
+ */
 abstract contract UniswapV3Base {
     using SafeERC20 for IERC20;
 
