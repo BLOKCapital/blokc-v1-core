@@ -18,9 +18,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IPool } from "@aave/aave-v3-core/contracts/interfaces/IPool.sol";
 import { DataTypes } from "@aave/aave-v3-core/contracts/protocol/libraries/types/DataTypes.sol";
 
-// Local Interfaces
-import { IAaveV3 } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/IAaveV3.sol";
-
 // ============================================================================
 // Errors
 // ============================================================================
@@ -47,7 +44,7 @@ error AaveV3Facet_InsufficientATokenBalance();
  * with appropriate access control and user-facing error messages. It includes functions to get reserve data, lend
  * tokens to Aave, and withdraw tokens from Aave, along with events for off-chain tracking of these operations.
  */
-abstract contract AaveV3Base is IAaveV3 {
+abstract contract AaveV3Base {
     using SafeERC20 for IERC20;
 
     /// @notice The address of the Aave V3 Pool contract on Arbitrum One

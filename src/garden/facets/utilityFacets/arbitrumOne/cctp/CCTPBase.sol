@@ -15,11 +15,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Local Interfaces
-import {
-    ICCTP,
-    IMessageTransmitterV2,
-    ITokenMessengerV2
-} from "src/garden/facets/utilityFacets/arbitrumOne/cctp/ICCTP.sol";
+import { IMessageTransmitterV2, ITokenMessengerV2 } from "src/garden/facets/utilityFacets/arbitrumOne/cctp/ICCTP.sol";
 
 /// @notice Thrown when amount is zero
 error CCTPFacet_ZeroAmount();
@@ -47,7 +43,7 @@ error CCTPFacet_TransferFailed();
  * includes the core logic for interacting with the Circle TokenMessengerV2 and MessageTransmitterV2 contracts to
  * perform cross-chain USDC transfers, along with events for off-chain tracking of these operations.
  */
-abstract contract CCTPBase is ICCTP {
+abstract contract CCTPBase {
     using SafeERC20 for IERC20;
 
     /// @notice Circle TokenMessengerV2 address on Arbitrum One

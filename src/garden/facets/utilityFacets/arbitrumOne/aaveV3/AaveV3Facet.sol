@@ -21,6 +21,9 @@ import { DataTypes } from "@aave/aave-v3-core/contracts/protocol/libraries/types
 import { AaveV3Base } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Base.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
+// local Interfaces
+import { IAaveV3 } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/IAaveV3.sol";
+
 // ============================================================================
 // Errors
 // ============================================================================
@@ -59,7 +62,7 @@ error AaveV3Facet_InsufficientATokenBalance();
  * internal logic for interacting with Aave, while AaveV3Facet itself provides the external interface for these
  * operations.
  */
-contract AaveV3Facet is AaveV3Base, Facet {
+contract AaveV3Facet is IAaveV3, AaveV3Base, Facet {
     using SafeERC20 for IERC20;
 
     // ========================================================================

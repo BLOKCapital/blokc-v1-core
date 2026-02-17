@@ -13,6 +13,8 @@ pragma solidity ^0.8.31;
 import { CCTPBase } from "src/garden/facets/utilityFacets/arbitrumOne/cctp/CCTPBase.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
+import { ICCTP } from "src/garden/facets/utilityFacets/arbitrumOne/cctp/ICCTP.sol";
+
 /**
  * @title CCTPFacet
  * @author BLOK Capital DAO
@@ -22,7 +24,7 @@ import { Facet } from "src/garden/facets/Facet.sol";
  * messages. It inherits from CCTPBase which contains the internal logic for interacting with CCTP, while CCTPFacet
  * itself provides the external interface for these operations.
  */
-contract CCTPFacet is CCTPBase, Facet {
+contract CCTPFacet is ICCTP, CCTPBase, Facet {
     /// @inheritdoc ICCTP
     function sendUsdc(
         uint256 amount,
