@@ -3,38 +3,47 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IFacetRegistry
-    @author BLOK Capital DAO
-    @notice Interface for Facet Registry with module and garden type support
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
+/// @title IFacetRegistry
+/// @author BLOK Capital DAO
+/// @notice Interface for the modular Facet Registry supporting versioned modules and garden types.
+/// @dev Manages facet registration across modules, tracks versions, and defines garden type
+///      configurations that determine which modules a deployed Garden diamond can use.
 interface IFacetRegistry {
     // ========================================================================
     //                              STRUCTS
     // ========================================================================
 
+    /// @notice Represents a facet address paired with its registered function selectors.
+    /// @param facetAddress The deployed address of the facet contract.
+    /// @param functionSelectors The four-byte selectors routed to this facet.
     struct Facet {
         address facetAddress;
         bytes4[] functionSelectors;
     }
 
+    /// @notice Maps a facet address to its position within the selector array.
+    /// @param facetAddress The deployed address of the facet contract.
+    /// @param functionSelectorPosition Index within `FacetFunctionSelectors.functionSelectors`.
     struct FacetAddressAndPosition {
         address facetAddress;
-        uint96 functionSelectorPosition; // position in facetFunctionSelectors.functionSelectors array
+        uint96 functionSelectorPosition;
     }
 
+    /// @notice Stores selectors for a facet and the facet's position in the address array.
+    /// @param functionSelectors The four-byte selectors registered to this facet.
+    /// @param facetAddressPosition Index of the facet in the `facetAddresses` array.
     struct FacetFunctionSelectors {
         bytes4[] functionSelectors;
-        uint256 facetAddressPosition; // position of facetAddress in facetAddresses array
+        uint256 facetAddressPosition;
     }
 
     // ========================================================================

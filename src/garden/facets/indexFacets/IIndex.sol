@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT License
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 /*###############################################################################
@@ -10,7 +10,7 @@ pragma solidity ^0.8.31;
 
 ################################################################################*/
 
-/// @dev CRE provides an array of these to rebalance the garden
+/// @notice A single swap instruction provided by the CRE to rebalance the garden
 /// @param selector The function selector of the DEX facet function to call
 /// @param data The ABI-encoded arguments for the function (excluding selector)
 struct SwapCall {
@@ -34,25 +34,31 @@ struct PendingIntent {
     address[] tokenAddresses;
 }
 
-/**
- * @title IIndex
- * @author BLOK Capital DAO
- * @notice Interface for Index Facet operations, enabling gardens to connect to indices for automated rebalancing.
- * Defines events and functions for managing index connections, creating rebalance intents, and executing rebalances
- * with CRE-provided swap calls.
- */
+/// @title IIndex
+/// @author BLOK Capital DAO
+/// @notice Interface for Index Facet operations, enabling gardens to connect to indices for automated rebalancing
+/// @dev Defines events and functions for managing index connections, creating rebalance intents, and executing
+///      rebalances with CRE-provided swap calls
 interface IIndex {
     // ========================================================================
     // Events
     // ========================================================================
 
-    /// @notice Emitted when garden connects to an index
+    /// @notice Emitted when a garden connects to an index
+    /// @param indexAddress The address of the index contract that was connected
     event IndexConnected(address indexed indexAddress);
 
-    /// @notice Emitted when garden disconnects from an index
+    /// @notice Emitted when a garden disconnects from an index
+    /// @param indexAddress The address of the index contract that was disconnected
     event IndexDisconnected(address indexed indexAddress);
 
-    /// @notice Emitted when rebalance intent is created
+    /// @notice Emitted when a rebalance intent is created
+    /// @param garden The address of the garden creating the intent
+    /// @param indexAddress The address of the connected index contract
+    /// @param symbols Array of token symbols included in the rebalance
+    /// @param currentValues Array of current token values in USD (8 decimals)
+    /// @param targetValues Array of target token values in USD (8 decimals)
+    /// @param totalValueUsd Total portfolio value in USD (8 decimals)
     event RebalanceIntentCreated(
         address indexed garden,
         address indexed indexAddress,
@@ -62,7 +68,11 @@ interface IIndex {
         uint256 totalValueUsd
     );
 
-    /// @notice Emitted when rebalance is completed
+    /// @notice Emitted when a rebalance is completed
+    /// @param garden The address of the garden that was rebalanced
+    /// @param indexAddress The address of the connected index contract
+    /// @param timestamp The block timestamp when the rebalance was executed
+    /// @param nextRebalanceTimestamp The earliest timestamp at which the next rebalance can occur
     event RebalanceCompleted(
         address indexed garden, address indexed indexAddress, uint256 timestamp, uint256 nextRebalanceTimestamp
     );

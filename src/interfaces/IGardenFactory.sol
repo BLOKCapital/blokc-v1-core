@@ -3,25 +3,28 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IGardenFactory
-    @author BLOK Capital DAO
-    @notice Interface for Garden Factory
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title IGardenFactory
+/// @author BLOK Capital DAO
+/// @notice Interface for the Garden Factory that deploys deterministic Garden (Diamond) contracts.
+/// @dev Gardens are deployed via CREATE2 with per-user indices (1–10) and initialized with
+///      facets determined by the specified garden type from the Facet Registry.
 interface IGardenFactory {
-    /// @notice Deploys a new garden proxy for the given owner and applies the initial diamond cut.
-    /// @param  index The per-user garden index (1..10) selected by the user.
-    /// @param  collection The address of the collection to mint from.
-    /// @param  tokenId The token id to mint.
-    /// @param  gardenType The type of the garden, used to determine which facets to include in the initial cut.
-    /// @return garden The address of the newly deployed garden proxy.
+    /// @notice Creates a new garden (Diamond) contract for the caller
+    /// @dev The garden is deployed using CREATE2 with a deterministic address based on the owner, index, and factory.
+    ///      Each user can deploy up to 10 gardens (indices 1-10). The garden is initialized with facets
+    ///      for the specified garden type (BASE module + allowed modules) from the facet registry.
+    /// @param index The per-user garden index (must be between 1 and 10, inclusive)
+    /// @param collection The SBT collection address to mint from
+    /// @param tokenId The token ID of the SBT to mint
+    /// @param gardenType The type of garden to create (determines which modules/facets are included)
+    /// @return gardenAddress The address of the newly deployed garden contract
     function createGarden(
         uint256 index,
         address collection,
@@ -29,15 +32,15 @@ interface IGardenFactory {
         bytes32 gardenType
     )
         external
-        returns (address garden);
+        returns (address gardenAddress);
 
-    /// @notice Returns all registered gardens.
-    /// @return gardens Array of all registered garden addresses.
+    /// @notice Returns all gardens created by this factory
+    /// @return gardens Array of all registered garden addresses
     function getAllGardens() external view returns (address[] memory gardens);
 
-    /// @notice Returns all gardens deployed by a specific address.
-    /// @param user The address of the user.
-    /// @return gardens Array of garden addresses deployed by the specified address.
+    /// @notice Returns all gardens created by a specific user
+    /// @param user The address of the user
+    /// @return gardens Array of garden addresses created by the specified user
     function getUserGardens(address user) external view returns (address[] memory gardens);
 
     /// @notice Returns the garden associated with a specific user and index.

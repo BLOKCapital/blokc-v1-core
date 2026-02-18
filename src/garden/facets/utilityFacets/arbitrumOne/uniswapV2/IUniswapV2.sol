@@ -3,20 +3,18 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IUniswapV2
-    @author BLOK Capital DAO
-    @notice Interface for Uniswap V2 integration (swaps and quote functions)
-    @dev This interface provides functions for executing token swaps on Uniswap V2
-         and querying quote/amount calculations.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title IUniswapV2
+/// @author BLOK Capital DAO
+/// @notice Interface for Uniswap V2 swap and quote functions within the Garden diamond
+/// @dev Provides functions for executing token swaps on Uniswap V2
+///      and querying quote/amount calculations
 interface IUniswapV2 {
     // ========================================================================
     // Structs
@@ -147,7 +145,6 @@ interface IUniswapV2 {
     // ========================================================================
 
     /// @notice Swaps an exact amount of input tokens for as many output tokens as possible
-    /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
     function uniswapV2SwapExactTokensForTokens(UniswapV2SwapExactTokensForTokensParams calldata params)
@@ -155,7 +152,6 @@ interface IUniswapV2 {
         returns (uint256[] memory amounts);
 
     /// @notice Swaps tokens for an exact amount of output tokens
-    /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
     function uniswapV2SwapTokensForExactTokens(UniswapV2SwapTokensForExactTokensParams calldata params)
@@ -163,7 +159,6 @@ interface IUniswapV2 {
         returns (uint256[] memory amounts);
 
     /// @notice Swaps an exact amount of ETH for as many output tokens as possible
-    /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
     function uniswapV2SwapExactETHForTokens(UniswapV2SwapExactETHForTokensParams calldata params)
@@ -172,7 +167,6 @@ interface IUniswapV2 {
         returns (uint256[] memory amounts);
 
     /// @notice Swaps tokens for an exact amount of ETH
-    /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
     function uniswapV2SwapTokensForExactETH(UniswapV2SwapTokensForExactETHParams calldata params)
@@ -180,7 +174,6 @@ interface IUniswapV2 {
         returns (uint256[] memory amounts);
 
     /// @notice Swaps an exact amount of tokens for as much ETH as possible
-    /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
     function uniswapV2SwapExactTokensForETH(UniswapV2SwapExactTokensForETHParams calldata params)
@@ -188,7 +181,6 @@ interface IUniswapV2 {
         returns (uint256[] memory amounts);
 
     /// @notice Swaps ETH for an exact amount of output tokens
-    /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     /// @return amounts Array of input and output amounts for each step in the path
     function uniswapV2SwapETHForExactTokens(UniswapV2SwapETHForExactTokensParams calldata params)
@@ -197,20 +189,17 @@ interface IUniswapV2 {
         returns (uint256[] memory amounts);
 
     /// @notice Swaps an exact amount of input tokens for as many output tokens as possible, supporting fee-on-transfer
-    /// tokens @dev All pools in the path must be registered in the PoolRegistry
-    /// @param params Swap parameters including amounts, path, and deadline
+    /// tokens @param params Swap parameters including amounts, path, and deadline
     function uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(UniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params)
         external;
 
     /// @notice Swaps an exact amount of ETH for as many output tokens as possible, supporting fee-on-transfer tokens
-    /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     function uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(UniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokensParams calldata params)
         external
         payable;
 
     /// @notice Swaps an exact amount of tokens for as much ETH as possible, supporting fee-on-transfer tokens
-    /// @dev All pools in the path must be registered in the PoolRegistry
     /// @param params Swap parameters including amounts, path, and deadline
     function uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(UniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params)
         external;

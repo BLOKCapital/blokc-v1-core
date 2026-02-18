@@ -3,18 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title PendleV2Base
-    @author BLOK Capital DAO
-    @notice Base contract for Pendle V2 protocol integration
-    @dev Base contract for Pendle V2 protocol integration
-         This contract provides the base functionality for the Pendle V2 facet.
-         It contains the logic for swapping tokens for PT and PT for tokens.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -29,11 +21,29 @@ import {
     ApproxParams
 } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPAllActionTypeV3.sol";
 
+/**
+ * @title PendleV2Base
+ * @notice Base contract that implements internal functions for swapping tokens through the Pendle V2 router on Arbitrum
+ * One. This contract is intended to be inherited by a PendleV2Facet that exposes the swap functions with appropriate
+ * access control and user-facing error messages. It includes the core logic for interacting with the Pendle V2 router
+ * to perform token swaps, along with events for off-chain tracking of these operations.
+ */
 abstract contract PendleV2Base {
     using SafeERC20 for IERC20;
+
     /// @notice The address of the Pendle V2 router on Arbitrum One
     address private constant PENDLE_V2_ROUTER_ADDRESS = 0x929eC64C34a17401F460460d4B9390518e525bB4;
 
+    /// @notice Swaps an exact amount of tokens for Principal Tokens (PT) via the Pendle V2 router
+    /// @param receiver Address to receive the PT output
+    /// @param market Address of the Pendle market
+    /// @param minPtOut Minimum PT output amount (slippage protection)
+    /// @param guessPtOut Approximation parameters for PT output calculation
+    /// @param input Token input parameters including token address and amount
+    /// @param limit Limit order data for the swap
+    /// @return netPtOut The net PT amount received
+    /// @return netSyFee The SY fee incurred
+    /// @return netSyInterm The intermediate SY amount
     function _swapExactTokenForPt(
         address receiver,
         address market,
@@ -55,6 +65,15 @@ abstract contract PendleV2Base {
         tokenIn.forceApprove(address(router), 0);
     }
 
+    /// @notice Swaps an exact amount of Principal Tokens (PT) for tokens via the Pendle V2 router
+    /// @param receiver Address to receive the token output
+    /// @param market Address of the Pendle market
+    /// @param exactPtIn Exact amount of PT to swap
+    /// @param output Token output parameters including token address and minimum amount
+    /// @param limit Limit order data for the swap
+    /// @return netTokenOut The net token amount received
+    /// @return netSyFee The SY fee incurred
+    /// @return netSyInterm The intermediate SY amount
     function _swapExactPtForToken(
         address receiver,
         address market,

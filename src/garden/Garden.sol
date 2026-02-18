@@ -3,19 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title Garden
-    @author BLOK Capital DAO (based on EIP-2535 by Nick Mudge)
-    @notice Implementation of a Garden contract(Diamond Proxy) that manages a collection of facets
-    @dev This contract implements the Diamond proxy pattern with additional validation
-         logic to ensure all function calls are validated against the FacetRegistry.
-         The registry validation provides defense-in-depth security by ensuring only
-         registered facets and selectors can be executed.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -42,7 +33,8 @@ import { IERC721Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093
 // Errors
 // ============================================================================
 
-/// @param selector The function selector that was attempted
+/// @notice Thrown when a function selector has no registered facet in the diamond or the registry.
+/// @param selector The function selector that was attempted.
 error Garden_InvalidCall(bytes4 selector);
 
 /// @notice Thrown when facet registry address is not set or is zero
@@ -54,13 +46,16 @@ error Garden_ProtocolStatusNotSet();
 /// @notice Thrown when contract owner address is zero
 error Garden_ContractOwnerIsZero();
 
-/// @param selector The function selector that requires upgrade
+/// @notice Thrown when a selector is registered in the FacetRegistry but not yet installed in this Garden.
+/// @param selector The function selector that requires an upgrade to install.
 error Garden_SelectorNotInGarden(bytes4 selector);
 
-/// @param selector The function selector that was removed
+/// @notice Thrown when a selector exists in the Garden but was removed from the FacetRegistry.
+/// @param selector The function selector that was removed.
 error Garden_SelectorRemoved(bytes4 selector);
 
-/// @param selector The function selector that was moved
+/// @notice Thrown when the Garden's facet for a selector differs from the registry's facet (needs upgrade).
+/// @param selector The function selector whose facet mapping is stale.
 error Garden_SelectorMoved(bytes4 selector);
 
 /// @notice Thrown when upgrades are disabled
@@ -76,6 +71,15 @@ error Garden_GardenTypeNotRegistered();
 /// @param selector The function selector whose module is not allowed
 error Garden_ModuleNotAllowed(bytes4 selector);
 
+/**
+ * @title Garden
+ * @author BLOK Capital DAO(EIP-2535 Diamond Proxy)
+ * @notice The main Diamond contract for the garden, implementing the core proxy logic and enforcing access control.
+ * This contract implements the Diamond proxy pattern, routing function calls to the appropriate facets based on
+ * the function selector. It includes a constructor for initializing the diamond with initial facets and configuration
+ * and a fallback function that performs the routing logic. The contract also includes comprehensive error handling
+ * for various edge cases related to facet registration, protocol status, and access control.
+ */
 contract Garden is DiamondCutBase {
     // ========================================================================
     // Constructor
@@ -145,16 +149,10 @@ contract Garden is DiamondCutBase {
     // Fallback and Receive Functions
     // ========================================================================
 
-    /// @notice Fallback function that routes function calls to appropriate facets
-    /// @dev Implements the core Diamond proxy pattern:
-    ///      1. Loads diamond storage from a fixed slot position
-    ///      2. Looks up the facet address for the called function selector
-    ///      3. Validates the selector exists in the diamond (facet != address(0))
-    ///      4. Validates the selector is registered in the FacetRegistry for security
-    ///      5. Executes the function call via delegatecall to the facet
-    ///
-    ///      The registry validation provides defense-in-depth by ensuring only registered
-    ///      facets can execute, even if the diamond's internal state becomes inconsistent.
+    /// @notice Fallback function that routes calls to the appropriate facet based on the function selector
+    /// @dev Validates protocol status, selector registration, facet mapping, and module allowance before
+    ///      executing the call via delegatecall. Implements defense-in-depth checks for selector validity
+    ///      and module permissions. Reverts with detailed errors for various failure cases.
     fallback() external payable {
         LibDiamond.Layout storage ld = LibDiamond.layout();
 

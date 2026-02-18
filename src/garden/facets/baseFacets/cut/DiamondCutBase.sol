@@ -3,16 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title DiamondCutBase
-    @author BLOK Capital DAO
-    @notice Base contract for DiamondCutFacet
-    @dev This base contract allows applying diamond cuts to the diamond
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -91,6 +85,12 @@ error DiamondCut_ModuleNotAllowedForGardenType(bytes32 gardenType, bytes32 modul
 /// @notice Thrown when the function selector array is empty
 error DiamondCut_SelectorArrayEmpty();
 
+/**
+ * @title DiamondCutBase
+ * @notice Base contract that implements internal functions for adding, replacing, and removing facet functions
+ * according to the EIP-2535 Diamond Standard. This contract is intended to be inherited by a DiamondCutFacet that
+ * exposes the diamondCut function with appropriate access control and restrictions.
+ */
 contract DiamondCutBase {
     /// @notice Emitted when functions are added to a facet
     /// @param facetAddress The address of the facet

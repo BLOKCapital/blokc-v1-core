@@ -1,20 +1,12 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title MarketCapWeighted
-    @author BLOK Capital DAO
-    @notice Market capitalization weighted index calculation strategy
-    @dev Implements IIndexCalculation to calculate component weights based on
-         market cap. Each component's weight = (component market cap) / (total market cap).
-         Uses Chainlink price feeds and circulating supply data for calculations.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -38,6 +30,13 @@ error MarketCapWeighted_InvalidTotalMarketCap();
 /// @notice Thrown when market cap calculation causes overflow
 error MarketCapWeighted_MarketCapOverflow();
 
+/**
+ * @title MarketCapWeighted
+ * @notice Implementation of the IIndexCalculation interface that calculates component weights based on market
+ * capitalization. This contract retrieves price data from Chainlink oracles and circulating supply data to compute the
+ * market cap for each component and determine their respective weights in the index. The weights are normalized to sum
+ * to 1 (scaled to 1e18).
+ */
 contract MarketCapWeighted is IIndexCalculation {
     /// @notice Reference to the IndexComponentRegistry for price feed lookups
     /// @dev Immutable for consistent pricing sources

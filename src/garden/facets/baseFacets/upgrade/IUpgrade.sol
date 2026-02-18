@@ -3,23 +3,20 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title Upgrade Interface
-    @author BLOK Capital DAO
-    @notice Interface for the upgrade facet which allows upgrading the diamond to the
-            latest set of facets published in the external FacetRegistry and to query the
-            current upgrade version.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
 // Local Interfaces
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
+/// @title IUpgrade
+/// @author BLOK Capital DAO
+/// @notice Interface for upgrading the diamond to the latest facets from the FacetRegistry
+/// @dev Allows querying upgrade details and applying per-module upgrades
 interface IUpgrade {
     /// @notice Returns the upgrade details: facet cuts to apply, registry version, and hash for verification
     /// @return facetCuts Array of facet cuts required for the upgrade

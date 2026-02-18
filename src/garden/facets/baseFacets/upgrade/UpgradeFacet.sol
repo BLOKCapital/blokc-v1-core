@@ -3,17 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title UpgradeFacet
-    @author BLOK Capital DAO
-    @notice Facet that manages Diamond upgrades by syncing with the FacetRegistry.
-    @dev This facet allows upgrading the diamond to match the latest state of the
-         FacetRegistry.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -25,6 +18,15 @@ import { IUpgrade } from "src/garden/facets/baseFacets/upgrade/IUpgrade.sol";
 import { UpgradeBase } from "src/garden/facets/baseFacets/upgrade/UpgradeBase.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
+/**
+ * @title UpgradeFacet
+ * @author Blok Capital DAO
+ * @notice Facet that implements the IUpgrade interface to allow upgrading the diamond to the latest facets from the
+ * FacetRegistry. This facet is intended to be included in the base set of facets for all gardens to provide a
+ * standardized upgrade mechanism. It inherits from UpgradeBase which contains the internal logic for performing the
+ * upgrade, while UpgradeFacet itself provides the external interface with appropriate access control and user-facing
+ * error messages.
+ */
 contract UpgradeFacet is IUpgrade, UpgradeBase, Facet {
     /// @inheritdoc IUpgrade
     function upgradeDetails() external view returns (IDiamondCut.FacetCut[] memory facetCuts, bytes32 hashData) {

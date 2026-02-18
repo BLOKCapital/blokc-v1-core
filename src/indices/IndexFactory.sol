@@ -1,20 +1,12 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title IndexFactory
-    @author BLOK Capital DAO
-    @notice Factory for deploying and managing Index contracts
-    @dev Creates new Index instances with validated calculation strategies and components.
-         Maintains a registry of all deployed indices for tracking and governance.
-         Enforces maximum component limits and validates against calculation/component registries.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -82,6 +74,14 @@ error IndexFactory_TooManyComponents(uint256 componentCount, uint256 maxComponen
 /// @notice Thrown when attempting to create an index with an empty name
 error IndexFactory_InvalidIndexName();
 
+/**
+ * @title IndexFactory
+ * @notice Factory contract for deploying new Index contracts with specified parameters. This contract validates that
+ * the provided index calculation strategy and components are registered in their respective registries before
+ * deployment.It also manages metadata for deployed indices and allows gardens to connect and disconnect from indices.
+ * The factory enforces a maximum number of components per index and includes comprehensive error handling for various
+ * edge cases related to index deployment and garden connections.
+ */
 contract IndexFactory is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -166,6 +166,7 @@ contract IndexFactory is Ownable {
         _;
     }
 
+    /// @dev Reverts if the calculation strategy is not registered in IndexCalculationRegistry.
     function _checkCalculationRegistered(address indexCalculationAddress) internal view {
         if (!IndexCalculationRegistry(INDEX_CALCULATION_REGISTRY).isIndexCalculationRegistered(indexCalculationAddress))
         {
@@ -181,6 +182,7 @@ contract IndexFactory is Ownable {
         _;
     }
 
+    /// @dev Reverts if any component symbol is not registered in IndexComponentRegistry.
     function _checkComponentsRegistered(string[] memory symbols) internal view {
         for (uint256 i = 0; i < symbols.length; i++) {
             if (!IndexComponentRegistry(COMPONENT_REGISTRY).isComponentRegistered(symbols[i])) {

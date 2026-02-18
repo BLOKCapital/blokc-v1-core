@@ -3,17 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title GmxV2Facet
-    @author BLOK Capital DAO
-    @notice Facet for GMX V2 protocol integration
-    @dev Facet for GMX V2 protocol integration - enables short positions for hedging wealth
-         This facet provides the functionality for the GMX V2 protocol.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -27,15 +20,17 @@ import { IGmxV2 } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/IGmxV2
 // Local Libraries
 import { GmxV2Storage } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/GmxV2Storage.sol";
 
+/**
+ * @title GmxV2Facet
+ * @author BLOK Capital DAO
+ * @notice Facet that implements the IGmxV2 interface to allow garden owners to manage short positions on GMX V2
+ * protocol. This facet provides external functions for opening and closing short positions, adding collateral, and
+ * querying position information and PnL. It inherits from GmxV2Base which contains the internal logic for interacting
+ * with GMX V2, while GmxV2Facet itself provides the external interface for these operations with appropriate access
+ * control and user-facing error messages.
+ */
 contract GmxV2Facet is Facet, GmxV2Base {
-    // ========================================================================
-    // External Functions (State-Changing)
-    // ========================================================================
-
-    /// @notice Opens a new short position on GMX V2
-    /// @param params Parameters for opening the short position
-    /// @return positionKey The unique identifier for the opened position
-    /// @dev Only callable by diamond owner. Requires execution fee sent as msg.value
+    /// @inheritdoc IGmxV2
     function openShort(OpenShortParams calldata params)
         external
         payable
@@ -48,17 +43,19 @@ contract GmxV2Facet is Facet, GmxV2Base {
         return _openShort(params);
     }
 
-    /// @notice Closes an existing short position
-    /// @param params Parameters for closing the position
-    /// @dev Only callable by diamond owner. Requires execution fee sent as msg.value
-    function closeShort(CloseShortParams calldata params) external payable override onlyGardenOwner nonReentrant ifIndexNotConnected {
+    /// @inheritdoc IGmxV2
+    function closeShort(CloseShortParams calldata params)
+        external
+        payable
+        override
+        onlyGardenOwner
+        nonReentrant
+        ifIndexNotConnected
+    {
         _closeShort(params);
     }
 
-    /// @notice Adds collateral to an existing position
-    /// @param positionKey The position to add collateral to
-    /// @param collateralAmount Amount of collateral to add
-    /// @dev Only callable by diamond owner
+    /// @inheritdoc IGmxV2
     function addCollateral(
         bytes32 positionKey,
         uint256 collateralAmount
@@ -72,21 +69,12 @@ contract GmxV2Facet is Facet, GmxV2Base {
         _addCollateral(positionKey, collateralAmount);
     }
 
-    /// @notice Updates configuration parameters
-    /// @param maxLeverage Maximum leverage allowed (e.g., 10 = 10x)
-    /// @param minCollateralUsd Minimum collateral required in USD (30 decimals)
-    /// @dev Only callable by diamond owner
+    /// @inheritdoc IGmxV2
     function updateConfig(uint256 maxLeverage, uint256 minCollateralUsd) external override onlyGardenOwner {
         _updateConfig(maxLeverage, minCollateralUsd);
     }
 
-    // ========================================================================
-    // External Functions (View)
-    // ========================================================================
-
-    /// @notice Gets information about a specific position
-    /// @param positionKey The position identifier
-    /// @return position The position information struct
+    /// @inheritdoc IGmxV2
     function getPosition(bytes32 positionKey)
         external
         view
@@ -96,32 +84,27 @@ contract GmxV2Facet is Facet, GmxV2Base {
         return _getPosition(positionKey);
     }
 
-    /// @notice Gets all active positions
-    /// @return positions Array of all active position information
+    /// @inheritdoc IGmxV2
     function getActivePositions() external view override returns (GmxV2Storage.PositionInfo[] memory positions) {
         return _getActivePositions();
     }
 
-    /// @notice Gets the current PnL for a position
-    /// @param positionKey The position identifier
-    /// @return pnl The profit and loss in USD (30 decimals), negative for losses
+    /// @inheritdoc IGmxV2
     function getPositionPnL(bytes32 positionKey) external view override returns (int256 pnl) {
         return _getPositionPnL(positionKey);
     }
 
-    /// @notice Gets total collateral locked across all positions
-    /// @return totalCollateral Total collateral in USD
+    /// @inheritdoc IGmxV2
     function getTotalCollateral() external view override returns (uint256 totalCollateral) {
         return _getTotalCollateral();
     }
 
-    /// @notice Gets the number of active positions
-    /// @return count Number of active positions
+    /// @inheritdoc IGmxV2
     function getActivePositionCount() external view override returns (uint256 count) {
         return _getActivePositionCount();
     }
 
-    /// @notice Gets current configuration
+    /// @notice Gets current configuration parameters
     /// @return maxLeverage Maximum leverage allowed
     /// @return minCollateralUsd Minimum collateral required
     function getConfig() external view returns (uint256 maxLeverage, uint256 minCollateralUsd) {

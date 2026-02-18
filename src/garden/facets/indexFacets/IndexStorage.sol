@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT License
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 import { LibStorageSlot } from "../../libraries/LibStorageSlot.sol";
@@ -74,6 +74,10 @@ library IndexStorage {
     /// @notice Swap deadline in seconds (5 minutes)
     uint256 internal constant SWAP_DEADLINE_SECONDS = 300;
 
+    /// @notice Time interval after which a pending rebalance intent expires (5 minutes)
+    uint256 internal constant PENDING_INTENT_INTERVAL = 5 minutes;
+
+    /// @notice Minimum cooldown between consecutive rebalance executions (1 hour).
     uint256 internal constant REBALANCE_INTERVAL = 1 hours;
 
     /// @notice Maximum allowed total value loss during rebalance (0.5% = 50 bps)
@@ -82,9 +86,10 @@ library IndexStorage {
     /// @notice Intent expiry duration - intents become invalid after this period
     uint256 internal constant INTENT_EXPIRY = 10 minutes;
 
-    /// @notice Maximum number of assets allowed in an index
+    /// @notice Maximum number of assets allowed in an index.
     uint256 internal constant MAX_ASSETS = 30;
 
+    /// @notice Module identifier for DEX facets; only selectors in this module are allowed during rebalance.
     bytes32 internal constant DEX_MODULE_ID = keccak256("DEX");
 
     /// @notice Storage layout for index-related state
