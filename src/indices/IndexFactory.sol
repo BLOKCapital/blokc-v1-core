@@ -56,6 +56,10 @@ error IndexFactory_InvalidIndexCalculationRegistryAddress(address indexCalculati
 /// @param componentRegistryAddress The invalid registry address
 error IndexFactory_InvalidComponentRegistryAddress(address componentRegistryAddress);
 
+/// @notice Thrown when GardenFactory address is zero during construction
+/// @param gardenFactoryAddress The invalid garden factory address
+error IndexFactory_InvalidGardenFactoryAddress(address gardenFactoryAddress);
+
 /// @notice Thrown when garden is already connected to index
 /// @param garden The garden address
 /// @param indexAddress The index address
@@ -123,6 +127,10 @@ contract IndexFactory is Ownable {
     /// @dev Immutable to ensure consistent component validation
     address private immutable COMPONENT_REGISTRY;
 
+    /// @notice Reference to the GardenFactory for validating garden connections
+    /// @dev Immutable to ensure consistent validation of garden types
+    address private immutable GARDEN_FACTORY;
+
     /// @notice Counter for assigning unique IDs to deployed indices
     /// @dev Incremented for each new index deployment
     uint256 private _indexIdCounter;
@@ -143,7 +151,8 @@ contract IndexFactory is Ownable {
     constructor(
         address initialOwner,
         address indexCalculationRegistry,
-        address componentRegistry
+        address componentRegistry,
+        address gardenFactory
     )
         Ownable(initialOwner)
     {
@@ -154,8 +163,12 @@ contract IndexFactory is Ownable {
         if (componentRegistry == address(0)) {
             revert IndexFactory_InvalidComponentRegistryAddress(componentRegistry);
         }
+        if (GARDEN_FACTORY == address(0)) {
+            revert IndexFactory_InvalidGardenFactoryAddress(GARDEN_FACTORY);
+        }
         INDEX_CALCULATION_REGISTRY = indexCalculationRegistry;
         COMPONENT_REGISTRY = componentRegistry;
+        GARDEN_FACTORY = gardenFactory;
     }
 
     /// @notice Validates that a calculation strategy is registered
@@ -216,7 +229,8 @@ contract IndexFactory is Ownable {
             revert IndexFactory_InvalidIndexName();
         }
 
-        indexAddress = address(new Index(address(this), indexCalculationAddress, COMPONENT_REGISTRY, symbols));
+        indexAddress =
+            address(new Index(address(this), indexCalculationAddress, COMPONENT_REGISTRY, GARDEN_FACTORY, symbols));
         _registerIndex(indexAddress, name, indexCalculationAddress, symbols);
         return indexAddress;
     }

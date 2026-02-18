@@ -15,6 +15,8 @@ import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 
+import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
+
 // ============================================================================
 // Errors
 // ============================================================================
@@ -30,6 +32,10 @@ error Index_InvalidIndexCalculationAddress(address indexCalculationAddress);
 /// @notice Thrown when index component registry address is zero
 /// @param indexComponentRegistryAddress The invalid registry address
 error Index_InvalidIndexComponentRegistryAddress(address indexComponentRegistryAddress);
+
+/// @notice Thrown when garden factory address is zero
+/// @param gardenFactoryAddress The invalid garden factory address
+error Index_InvalidGardenFactoryAddress(address gardenFactoryAddress);
 
 /// @notice Thrown when calculated weights length doesn't match components length
 /// @param weightsLength Length of returned weights array
@@ -61,6 +67,10 @@ error Index_MaxConnectedGardensReached();
 /// @notice Thrown when caller has no contract code (EOA)
 error Index_CallerNotContract();
 
+/// @notice Thrown when caller is not a registered garden
+/// @param caller Address of the caller that is not a registered garden
+error Index_CallerNotGarden(address caller);
+
 /**
  * @title Index
  * @notice The Index contract manages the composition and weights of components in a decentralized index. It allows for
@@ -78,6 +88,9 @@ contract Index is Ownable {
     /// @dev Prevents unbounded set growth and gas DoS on getConnectedGardens()
     uint256 public constant MAX_CONNECTED_GARDENS = 1000;
 
+    /// @notice Unique identifier for Index type in the garden factory
+    bytes32 public constant INDEX_TYPE = keccak256("INDEX");
+
     /// @notice Emitted when index weights are recalculated
     event WeightsUpdated(string[] symbols, uint256[] weights, uint256 timestamp);
 
@@ -88,6 +101,10 @@ contract Index is Ownable {
     /// @notice Reference to the component registry for validation
     /// @dev Immutable to ensure consistent component validation
     IndexComponentRegistry public immutable INDEX_COMPONENT_REGISTRY;
+
+    /// @notice Reference to the garden factory for registering this index
+    /// @dev Immutable to ensure consistent interaction with garden factory
+    IGardenFactory public immutable GARDEN_FACTORY;
 
     /// @notice Mapping of component addresses to their current weights
     /// @dev Weights are scaled to 1e18 (100% = 1e18)
@@ -115,6 +132,7 @@ contract Index is Ownable {
         address initialOwner,
         address indexCalculationAddress,
         address indexComponentRegistryAddress,
+        address gardenFactoryAddress,
         string[] memory symbols
     )
         Ownable(initialOwner)
@@ -126,9 +144,13 @@ contract Index is Ownable {
         if (indexComponentRegistryAddress == address(0)) {
             revert Index_InvalidIndexComponentRegistryAddress(indexComponentRegistryAddress);
         }
+        if (gardenFactoryAddress == address(0)) {
+            revert Index_InvalidGardenFactoryAddress(gardenFactoryAddress);
+        }
 
         INDEX_CALCULATION = IIndexCalculation(indexCalculationAddress);
         INDEX_COMPONENT_REGISTRY = IndexComponentRegistry(indexComponentRegistryAddress);
+        GARDEN_FACTORY = IGardenFactory(gardenFactoryAddress);
 
         for (uint256 i = 0; i < symbols.length; i++) {
             string memory symbol = symbols[i];
@@ -158,7 +180,11 @@ contract Index is Ownable {
     /// @dev Allows gardens to track this index for portfolio management
     ///      Gardens must call this before using the index's weights
     function connectGardenToIndex() external {
-        if (msg.sender.code.length == 0) revert Index_CallerNotContract();
+        bytes32 gardenType = GARDEN_FACTORY.getGardenType(msg.sender);
+
+        if (gardenType != INDEX_TYPE) {
+            revert Index_CallerNotGarden(msg.sender);
+        }
         if (EnumerableSet.length(_connectedGardens) >= MAX_CONNECTED_GARDENS) {
             revert Index_MaxConnectedGardensReached();
         }
