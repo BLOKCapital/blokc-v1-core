@@ -69,7 +69,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     // ========================================================================
-    // State Variables
+    //                            STATE VARIABLES
     // ========================================================================
 
     /// @notice The address of the facet registry contract
@@ -105,7 +105,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     event FactoryInitialized(address indexed initialOwner);
 
     // ========================================================================
-    // Constructor
+    //                            CONSTRUCTOR
     // ========================================================================
 
     /// @notice Constructor
@@ -141,15 +141,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     // External Functions
     // ========================================================================
 
-    /// @notice Creates a new garden (Diamond) contract for the caller
-    /// @dev The garden is deployed using CREATE2 with a deterministic address based on the owner, index, and factory.
-    ///      Each user can deploy up to 10 gardens (indices 1-10). The garden is initialized with facets
-    ///      for the specified garden type (BASE module + allowed modules) from the facet registry.
-    /// @param index The per-user garden index (must be between 1 and 10, inclusive)
-    /// @param collection The SBT collection address to mint from
-    /// @param tokenId The token ID of the SBT to mint
-    /// @param gardenType The type of garden to create (determines which modules/facets are included)
-    /// @return gardenAddress The address of the newly deployed garden contract
+    /// @inheritdoc IGardenFactory
     function createGarden(
         uint256 index,
         address collection,
@@ -157,6 +149,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         bytes32 gardenType
     )
         external
+        override
         nonReentrant
         returns (address gardenAddress)
     {
@@ -206,23 +199,22 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         emit GardenCreated(gardenAddress, owner, index);
     }
 
-    /// @notice Returns all gardens created by this factory
-    /// @return gardens_ Array of all registered garden addresses
-    function getAllGardens() external view returns (address[] memory gardens_) {
-        gardens_ = _gardens.values();
+    /// @inheritdoc IGardenFactory
+    function getAllGardens() external view returns (address[] memory gardens) {
+        gardens = _gardens.values();
     }
 
-    /// @notice Returns all gardens created by a specific user
-    function getUserGardens(address user) external view returns (address[] memory gardens_) {
-        gardens_ = _userGardens[user];
+    /// @inheritdoc IGardenFactory
+    function getUserGardens(address user) external view returns (address[] memory gardens) {
+        gardens = _userGardens[user];
     }
 
-    /// @notice Returns the garden address associated with a specific user and index
+    /// @inheritdoc IGardenFactory
     function getGarden(address user, uint256 index) external view returns (address) {
         return _userIndexToGarden[user][index];
     }
 
-    /// @notice Checks if a garden address is registered in this factory
+    /// @inheritdoc IGardenFactory
     function isGardenRegistered(address garden) external view returns (bool) {
         return _gardens.contains(garden);
     }

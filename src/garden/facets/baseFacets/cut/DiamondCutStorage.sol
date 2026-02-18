@@ -5,19 +5,17 @@ import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 
 /*###############################################################################
 
-    @title Diamond Cut Storage
-    @author BLOK Capital DAO
-    @notice Storage layout used by the Diamond Cut facet and helpers.
-    @dev Uses a fixed storage slot to ensure compatibility across diamond upgrades.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title DiamondCutStorage
+/// @author BLOK Capital DAO
+/// @notice Storage layout used by the Diamond Cut facet and helpers
+/// @dev Uses a fixed storage slot to ensure compatibility across diamond upgrades
 library DiamondCutStorage {
     struct FacetAddressAndPosition {
         address facetAddress;

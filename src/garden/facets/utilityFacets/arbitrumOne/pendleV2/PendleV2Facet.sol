@@ -3,18 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title PendleV2Facet
-    @author BLOK Capital DAO
-    @notice Facet for Pendle V2 protocol integration
-    @dev Facet for Pendle V2 protocol integration
-         This facet provides the functionality for the Pendle V2 protocol.
-         It contains the logic for swapping tokens for PT and PT for tokens.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -28,7 +20,17 @@ import {
     LimitOrderData
 } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPAllActionTypeV3.sol";
 
+/**
+ * @title PendleV2Facet
+ * @author BLOK Capital DAO
+ * @notice Facet that implements the IPendleV2 interface to allow swapping tokens through the Pendle V2 router on
+ * Arbitrum One.
+ * This facet provides external functions for garden owners to perform token swaps using Pendle V2, with appropriate
+ * access control and user-facing error messages. It inherits from PendleV2Base which contains the internal logic for
+ * interacting with Pendle V2, while PendleV2Facet itself provides the external interface for these operations.
+ */
 contract PendleV2Facet is IPendleV2, PendleV2Base, Facet {
+    /// @inheritdoc IPendleV2
     function swapExactTokenForPt(
         address receiver,
         address market,
@@ -48,6 +50,7 @@ contract PendleV2Facet is IPendleV2, PendleV2Base, Facet {
         return _swapExactTokenForPt(receiver, market, minPtOut, guessPtOut, input, limit);
     }
 
+    /// @inheritdoc IPendleV2
     function swapExactPtForToken(
         address receiver,
         address market,

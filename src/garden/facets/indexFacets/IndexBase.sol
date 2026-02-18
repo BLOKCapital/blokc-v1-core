@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT License
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 /*###############################################################################
@@ -75,6 +75,8 @@ error IndexFacet_ExcessiveValueLoss(uint256 valueBefore, uint256 valueAfter);
  * operations.
  */
 abstract contract IndexBase {
+    /// @notice Connects the garden to an index for automated rebalancing.
+    /// @param indexAddress The address of the index contract to connect to.
     function _connectToIndex(address indexAddress) internal {
         if (!IndexFactory(IndexStorage.INDEX_FACTORY_ADDRESS).isIndexRegistered(indexAddress)) {
             revert IndexFacet_IndexNotRegistered(indexAddress);
@@ -87,6 +89,7 @@ abstract contract IndexBase {
         emit IIndex.IndexConnected(indexAddress);
     }
 
+    /// @notice Disconnects the garden from its currently connected index.
     function _disconnectFromIndex() internal {
         address indexAddress = IndexStorage.layout().indexAddress;
         Index(indexAddress).disconnectGardenFromIndex();
@@ -97,6 +100,8 @@ abstract contract IndexBase {
         emit IIndex.IndexDisconnected(indexAddress);
     }
 
+    /// @notice Creates a rebalance intent by computing current vs target allocations.
+    /// @dev Enforces both intent and rebalance interval cooldowns before allowing a new intent.
     function _rebalanceIntent() internal {
         IndexStorage.Layout storage s = IndexStorage.layout();
 
@@ -217,6 +222,9 @@ abstract contract IndexBase {
         }
     }
 
+    /// @dev Checks whether a selector belongs to the DEX module by querying the FacetRegistry.
+    /// @param selector The four-byte function selector to check.
+    /// @return `true` if the selector belongs to the DEX module.
     function _isDexFunction(bytes4 selector) internal view returns (bool) {
         IFacetRegistry registry = IFacetRegistry(LibDiamond.layout().facetRegistry);
         bytes32 moduleId = registry.getModuleIdBySelector(selector);
@@ -227,6 +235,13 @@ abstract contract IndexBase {
     // Internal Functions - Calculations
     // ========================================================================
 
+    /// @dev Calculates current token values and target values for each component in the index.
+    /// @param symbols Array of component symbols to evaluate.
+    /// @param weights Array of target weights (normalized to 1e18) corresponding to each symbol.
+    /// @return currentValues Current USD values per component (8 decimals).
+    /// @return targetValues Target USD values per component (8 decimals).
+    /// @return tokenAddresses Token contract addresses corresponding to each symbol.
+    /// @return totalValueUsd Total portfolio value in USD (8 decimals).
     function _calculateRebalanceValues(
         string[] memory symbols,
         uint256[] memory weights
@@ -269,6 +284,8 @@ abstract contract IndexBase {
         }
     }
 
+    /// @dev Verifies that post-rebalance balances match target values within the allowed threshold.
+    /// @dev Reverts with `IndexFacet_BalanceOutsideThreshold` if any component exceeds the threshold.
     function _verifyBalancesMatchTargets() internal view {
         IndexStorage.Layout storage s = IndexStorage.layout();
         IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
@@ -296,6 +313,9 @@ abstract contract IndexBase {
         }
     }
 
+    /// @dev Fetches and validates the latest price from a Chainlink price feed.
+    /// @param priceFeed The address of the Chainlink AggregatorV3 price feed.
+    /// @return The latest price as a `uint256`.
     function _getPrice(address priceFeed) internal view returns (uint256) {
         (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) =
             AggregatorV3Interface(priceFeed).latestRoundData();
@@ -330,18 +350,30 @@ abstract contract IndexBase {
     // Internal Functions - View
     // ========================================================================
 
+    /// @dev Returns whether the garden is currently connected to an index.
+    /// @return `true` if connected.
     function _isConnectedToIndex() internal view returns (bool) {
         return LibDiamond.layout().isConnectedToIndex;
     }
 
+    /// @dev Returns the address of the connected index contract.
+    /// @return The connected index address, or `address(0)` if not connected.
     function _getConnectedIndex() internal view returns (address) {
         return IndexStorage.layout().indexAddress;
     }
 
+    /// @dev Returns whether there is an active pending rebalance intent.
+    /// @return `true` if a pending intent exists.
     function _hasPendingIntent() internal view returns (bool) {
         return IndexStorage.layout().pendingIntent.active;
     }
 
+    /// @dev Returns the current pending rebalance intent details.
+    /// @return active Whether a pending intent is active.
+    /// @return totalValueUsd Total portfolio value in USD at intent creation.
+    /// @return symbols Array of component symbols.
+    /// @return currentValues Array of current USD values per component.
+    /// @return targetValues Array of target USD values per component.
     function _getPendingIntent()
         internal
         view

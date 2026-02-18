@@ -3,27 +3,24 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IGmxV2
-    @author BLOK Capital DAO
-    @notice Interface for GMX V2 protocol integration
-    @dev Interface for GMX V2 protocol integration
-         This interface provides the functions to open/close short positions.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
 import { GmxV2Storage } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/GmxV2Storage.sol";
 
+/// @title IGmxV2
+/// @author BLOK Capital DAO
+/// @notice Interface for interacting with GMX V2 protocol, including opening and closing short positions, adding
+/// collateral, and querying position information. This interface defines the core functions that a GmxV2Facet would
+/// implement to allow garden owners to manage short positions on GMX V2, as well as events for tracking these
+/// operations. The interface includes functions for opening shorts with specified parameters, closing shorts with PnL
+/// realization, adding collateral to existing positions, and retrieving position information and PnL. It also includes
+/// a function for updating configuration parameters such as maximum leverage and minimum collateral requirements.
 interface IGmxV2 {
-    // ========================================================================
-    // Structs
-    // ========================================================================
-
     /// @notice Parameters for opening a short position
     struct OpenShortParams {
         address indexToken; // Token to short (e.g., WETH, WBTC)
@@ -43,11 +40,12 @@ interface IGmxV2 {
         uint256 executionFee; // Fee for keeper execution
     }
 
-    // ========================================================================
-    // Events
-    // ========================================================================
-
     /// @notice Emitted when a short position is opened
+    /// @param positionKey The unique identifier for the position
+    /// @param indexToken The token being shorted
+    /// @param collateralToken The token used as collateral
+    /// @param sizeInUsd The position size in USD (30 decimals)
+    /// @param collateralAmount The amount of collateral deposited
     event ShortPositionOpened(
         bytes32 indexed positionKey,
         address indexed indexToken,
@@ -57,14 +55,16 @@ interface IGmxV2 {
     );
 
     /// @notice Emitted when a short position is closed
+    /// @param positionKey The unique identifier for the position
+    /// @param indexToken The token that was shorted
+    /// @param sizeInUsd The size closed in USD (30 decimals)
+    /// @param pnl The profit and loss realized
     event ShortPositionClosed(bytes32 indexed positionKey, address indexed indexToken, uint256 sizeInUsd, int256 pnl);
 
     /// @notice Emitted when collateral is added to a position
+    /// @param positionKey The unique identifier for the position
+    /// @param amount The amount of collateral added
     event CollateralAdded(bytes32 indexed positionKey, uint256 amount);
-
-    // ========================================================================
-    // External Functions
-    // ========================================================================
 
     /// @notice Opens a new short position on GMX V2
     /// @param params Parameters for opening the short position

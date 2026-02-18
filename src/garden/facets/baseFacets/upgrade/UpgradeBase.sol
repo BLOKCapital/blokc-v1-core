@@ -3,18 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title UpgradeBase
-    @author BLOK Capital DAO
-    @notice Base contract for UpgradeFacet
-    @dev This base contract allows upgrading the diamond to match the latest state of the FacetRegistry.
-         Upgrades are per-module: iterates over all modules allowed for the garden's type
-         and applies facet cuts for modules that have newer versions in the registry.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -43,6 +35,12 @@ error UpgradeFacet_FacetNotFound();
 /// @notice Thrown when no module upgrades are available
 error UpgradeFacet_NoModuleUpgradesAvailable();
 
+/**
+ * @title UpgradeBase
+ * @notice Base contract that implements internal functions for upgrading the diamond to the latest facets from the
+ * FacetRegistry. This contract is intended to be inherited by an UpgradeFacet that exposes the upgrade functions with
+ * appropriate access control and user-facing error messages.
+ */
 abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
     /// @notice Emitted when the diamond is upgraded
     /// @param facetCuts The facet cuts applied in the upgrade

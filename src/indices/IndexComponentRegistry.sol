@@ -1,20 +1,12 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title IndexComponentRegistry
-    @author BLOK Capital DAO
-    @notice Registry for approved index components and their Chainlink price feeds
-    @dev Manages a whitelist of ERC20 tokens that can be included in indices.
-         Each component is paired with a Chainlink price feed for accurate pricing.
-         This is NOT upgradeable - it's a simple Ownable contract.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -50,9 +42,21 @@ error IndexComponentRegistry__InvalidFeedResponseError(address token);
 
 error IndexComponentRegistry__UnknownFeedError(address token);
 
+/**
+ * @title IndexComponentRegistry
+ * @notice Registry contract for managing index components and their associated price feeds. This contract allows the
+ * owner to register and unregister components, which consist of a symbol, token address, and Chainlink price feed
+ * address. The registry provides functions for retrieving component data and validating component registration status.
+ * It uses OpenZeppelin's Ownable for access control and EnumerableSet for efficient management of registered component
+ * addresses.
+ */
 contract IndexComponentRegistry is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    /// @notice Represents an index component with its symbol, token address, and price feed
+    /// @param symbol Ticker symbol of the component (e.g., "WETH", "USDC")
+    /// @param tokenAddress ERC20 token contract address
+    /// @param priceFeedAddress Chainlink AggregatorV3 price feed address
     struct Component {
         string symbol;
         address tokenAddress;
@@ -76,6 +80,7 @@ contract IndexComponentRegistry is Ownable {
         bool isFeedWorking;
     }
 
+    /// @notice Mapping from symbol to component data
     mapping(string => Component) private _components;
     mapping(address => OracleRecord) private oracleRecords;
 

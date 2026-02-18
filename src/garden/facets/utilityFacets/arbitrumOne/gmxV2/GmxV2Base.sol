@@ -3,11 +3,6 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title GmxV2Base
-    @author BLOK Capital DAO
-    @notice Base contract for GmxV2Facet providing core GMX V2 integration logic
-    @dev Handles interaction with GMX ExchangeRouter and Reader contracts to open and close short positions.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
@@ -25,18 +20,35 @@ import { IGmxV2 } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/IGmxV2
 // Local Libraries
 import { GmxV2Storage } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/GmxV2Storage.sol";
 
+/// @title IExchangeRouter
+/// @author BLOK Capital DAO
+/// @notice Interface for GMX V2 ExchangeRouter contract
 interface IExchangeRouter {
+    /// @notice Parameters for creating an order on GMX V2
+    /// @param addresses Array of addresses (receiver, callback, market, indexToken, collateralToken)
+    /// @param numbers Array of uint256 values (sizeDelta, collateralDelta, triggerPrice, acceptablePrice, executionFee,
+    /// minOutput) @param referralCode Referral code for the order
     struct CreateOrderParams {
         address[] addresses;
         uint256[] numbers;
         bytes32 referralCode;
     }
 
+    /// @notice Creates a new order on GMX V2
+    /// @param params The order parameters
+    /// @return The order key
     function createOrder(CreateOrderParams calldata params) external payable returns (bytes32);
+
+    /// @notice Cancels an existing order
+    /// @param key The order key to cancel
     function cancelOrder(bytes32 key) external;
 }
 
+/// @title IReader
+/// @author BLOK Capital DAO
+/// @notice Interface for GMX V2 Reader contract for querying position data
 interface IReader {
+    /// @notice Position data structure returned by the Reader
     struct Position {
         address account;
         address market;
@@ -53,8 +65,19 @@ interface IReader {
         bool isLong;
     }
 
+    /// @notice Gets position data from the data store
+    /// @param dataStore The GMX data store address
+    /// @param key The position key
+    /// @return The position data
     function getPosition(address dataStore, bytes32 key) external view returns (Position memory);
 
+    /// @notice Gets the PnL for a position in USD
+    /// @param dataStore The GMX data store address
+    /// @param market The market address
+    /// @param indexToken The index token address
+    /// @param isLong Whether the position is long
+    /// @param sizeDeltaUsd The size delta in USD
+    /// @return The PnL values
     function getPositionPnlUsd(
         address dataStore,
         address market,
@@ -66,10 +89,6 @@ interface IReader {
         view
         returns (int256, int256);
 }
-
-// ============================================================================
-// Errors
-// ============================================================================
 
 /// @notice Thrown when position key is invalid
 error GmxV2Base_InvalidPositionKey();
@@ -92,16 +111,18 @@ error GmxV2Base_InsufficientBalance();
 /// @notice Thrown when invalid parameters are provided
 error GmxV2Facet_InvalidParameters();
 
-// ============================================================================
-// GmxV2Base Contract
-// ============================================================================
-
+/**
+ * @title GmxV2Base
+ * @author BLOK Capital DAO
+ * @notice Base contract that implements internal functions for managing short positions on GMX V2, including opening
+ * and closing shorts, adding collateral, and querying position information. This contract is intended to be inherited
+ * by a GmxV2Facet that exposes these functions with appropriate access control and user-facing error messages. It
+ * includes the core logic for interacting with the GMX V2 ExchangeRouter to create orders for opening and closing
+ * positions, as well as using the Reader to get position data and calculate PnL. The contract also manages position
+ * state within the garden's storage layout.
+ */
 abstract contract GmxV2Base is IGmxV2 {
     using SafeERC20 for IERC20;
-
-    // ========================================================================
-    // Constants - GMX V2 Arbitrum Sepolia Testnet Addresses
-    // ========================================================================
 
     /// @notice GMX V2 ExchangeRouter on Arbitrum Sepolia
     address private constant GMX_EXCHANGE_ROUTER = 0xEd50B2A1eF0C35DAaF08Da6486971180237909c3;
@@ -120,10 +141,6 @@ abstract contract GmxV2Base is IGmxV2 {
 
     /// @notice Default minimum collateral (100 USD with 30 decimals)
     uint256 private constant DEFAULT_MIN_COLLATERAL_USD = 100 * 1e30;
-
-    // ========================================================================
-    // Internal Functions
-    // ========================================================================
 
     /// @notice Opens a new short position on GMX V2
     /// @param params Parameters for opening the short position
@@ -184,7 +201,7 @@ abstract contract GmxV2Base is IGmxV2 {
         return positionKey;
     }
 
-    /// @notice Closes an existing short position
+    /// @notice Closes an existing short position on GMX V2
     /// @param params Parameters for closing the position
     function _closeShort(CloseShortParams calldata params) internal {
         GmxV2Storage.Layout storage s = GmxV2Storage.layout();
@@ -299,7 +316,7 @@ abstract contract GmxV2Base is IGmxV2 {
         return GmxV2Storage.layout().activePositionCount;
     }
 
-    /// @notice Updates configuration parameters
+    /// @notice Updates configuration parameters for leverage and collateral limits
     /// @param maxLeverage Maximum leverage allowed
     /// @param minCollateralUsd Minimum collateral required in USD
     function _updateConfig(uint256 maxLeverage, uint256 minCollateralUsd) internal {
@@ -310,7 +327,7 @@ abstract contract GmxV2Base is IGmxV2 {
         s.minCollateralUsd = minCollateralUsd;
     }
 
-    /// @notice Gets configuration parameters
+    /// @notice Gets current configuration parameters
     /// @return maxLeverage Maximum leverage allowed
     /// @return minCollateralUsd Minimum collateral required
     function _getConfig() internal view returns (uint256 maxLeverage, uint256 minCollateralUsd) {
@@ -318,11 +335,9 @@ abstract contract GmxV2Base is IGmxV2 {
         return (s.maxLeverage, s.minCollateralUsd);
     }
 
-    // ========================================================================
-    // Private Helper Functions
-    // ========================================================================
-
-    /// @notice Builds GMX order parameters for opening a position
+    /// @notice Builds GMX order parameters for opening a short position
+    /// @param params The open short parameters
+    /// @return The GMX CreateOrderParams struct
     function _buildOpenOrderParams(OpenShortParams calldata params)
         private
         view
@@ -349,7 +364,10 @@ abstract contract GmxV2Base is IGmxV2 {
         return IExchangeRouter.CreateOrderParams({ addresses: addresses, numbers: numbers, referralCode: bytes32(0) });
     }
 
-    /// @notice Builds GMX order parameters for closing a position
+    /// @notice Builds GMX order parameters for closing a short position
+    /// @param params The close short parameters
+    /// @param position The current position information
+    /// @return The GMX CreateOrderParams struct
     function _buildCloseOrderParams(
         CloseShortParams calldata params,
         GmxV2Storage.PositionInfo storage position

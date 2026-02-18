@@ -3,19 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title Index
-    @author BLOK Capital DAO
-    @notice Core index contract that manages component weights and connected gardens
-    @dev Implements a rebalance able index with configurable calculation methods.
-         Gardens (investment vehicles) connect to indices to track their composition.
-         Weights are automatically recalculated during rebalancing using the specified
-         calculation strategy (e.g., market cap weighted).
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -70,6 +61,14 @@ error Index_MaxConnectedGardensReached();
 /// @notice Thrown when caller has no contract code (EOA)
 error Index_CallerNotContract();
 
+/**
+ * @title Index
+ * @notice The Index contract manages the composition and weights of components in a decentralized index. It allows for
+ * rebalancing based on a specified calculation strategy (e.g., market cap weighted) and tracks connected gardens that
+ * use this index for their portfolios. The contract includes access control for the owner, enforces a minimum rebalance
+ * interval, and provides functions for gardens to connect and disconnect from the index. It also includes comprehensive
+ * error handling for various edge cases related to index management and garden connections.
+ */
 contract Index is Ownable {
     /// @notice Minimum time interval between rebalances
     /// @dev Set to 1 hour to prevent excessive rebalancing and associated gas costs

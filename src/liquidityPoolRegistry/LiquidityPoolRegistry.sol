@@ -3,15 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title LiquidityPoolRegistry
-    @author BLOK Capital DAO
-    @notice Registry contract that manages the registration and tracking of liquidity pools
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -55,6 +50,15 @@ error LiquidityPoolRegistry_NotContract();
 /// @notice Thrown when pair name exceeds maximum length
 error LiquidityPoolRegistry_PairNameTooLong();
 
+/**
+ * @title LiquidityPoolRegistry
+ * @notice Registry contract for managing liquidity pools across multiple DEXes. This contract allows the owner to add,
+ * remove, and update liquidity pool information, including token pairs, DEX identifiers, fee tiers, and active status.
+ * It provides various query functions to retrieve pools by address, token pair, DEX, and fee tier. The registry ensures
+ * that each pool is uniquely identified by its token pair, DEX, and fee tier combination and includes comprehensive
+ * error handling for edge cases related to pool management. The contract uses OpenZeppelin's Ownable for access control
+ * and EnumerableSet for efficient management of registered pool addresses and pair IDs.
+ */
 contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.Bytes32Set;

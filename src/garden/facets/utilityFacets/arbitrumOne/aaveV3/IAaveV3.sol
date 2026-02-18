@@ -3,23 +3,21 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IAave
-    @author BLOK Capital DAO
-    @notice Interface for Aave V3 protocol integration
-    @dev Minimal interface used by the Aave facet to interact with Aave V3 pools
-         and to structure input/output parameters in a typed manner.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
 // Aave Contracts
 import { DataTypes } from "@aave/aave-v3-core/contracts/protocol/libraries/types/DataTypes.sol";
 
+/// @title IAaveV3
+/// @author BLOK Capital DAO
+/// @notice Interface for Aave V3 protocol integration
+/// @dev Minimal interface used by the Aave facet to interact with Aave V3 pools
+///      and to structure input/output parameters in a typed manner.
 interface IAaveV3 {
     /// @notice Returns reserve data from a given pool for a token
     /// @param tokenIn The underlying asset token address whose reserve data is requested

@@ -3,13 +3,6 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title OwnershipFacet
-    @author BLOK Capital DAO
-    @notice Facet that provides ownership management functions following ERC-173
-    @dev This facet implements the ERC-173 standard for contract ownership, allowing
-         the current owner to transfer ownership to a new address. Ownership can be
-         renounced by transferring to address(0).
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
@@ -22,6 +15,14 @@ pragma solidity ^0.8.31;
 import { OwnershipBase } from "src/garden/facets/baseFacets/ownership/OwnershipBase.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
+/**
+ * @title OwnershipFacet
+ * @author Blok Capital DAO
+ * @notice Facet that implements the ERC-173 ownership standard by inheriting from OwnershipBase. This facet provides
+ * external functions to transfer ownership and query the current owner, with access control to restrict ownership
+ * transfer to the current owner. This facet is included in the base set of facets for all gardens to provide a
+ * standardized ownership mechanism.
+ */
 contract OwnershipFacet is OwnershipBase, Facet {
     /// @notice Transfers ownership of the contract to a new address
     /// @param _newOwner The address of the new owner

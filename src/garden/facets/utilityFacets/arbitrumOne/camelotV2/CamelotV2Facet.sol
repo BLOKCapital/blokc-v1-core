@@ -3,11 +3,6 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title CamelotV2Facet
-    @author BLOK Capital DAO
-    @notice Facet contract for Camelot V2 integration (swaps)
-    @dev This contract provides the functionality for Camelot V2 integration (swaps)
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
@@ -19,6 +14,14 @@ import { Facet } from "src/garden/facets/Facet.sol";
 import { CamelotV2Base } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/CamelotV2Base.sol";
 import { ICamelotV2 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/ICamelotV2.sol";
 
+/**
+ * @title CamelotV2Facet
+ * @author BLOK Capital DAO
+ * @notice Facet that implements the ICamelotV2 interface to allow swapping tokens through Camelot V2 on Arbitrum One.
+ * This facet provides external functions for garden owners to perform token swaps using Camelot V2, with appropriate
+ * access control and user-facing error messages. It inherits from CamelotV2Base which contains the internal logic for
+ * interacting with Camelot V2, while CamelotV2Facet itself provides the external interface for these operations.
+ */
 contract CamelotV2Facet is ICamelotV2, CamelotV2Base, Facet {
     /// @inheritdoc ICamelotV2
     function camelotV2ExactInputSingle(
