@@ -66,7 +66,7 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @dev CirculatingSupply MUST provide values in whole token units (NOT native token decimals).
     ///      E.g., ETH supply = 120000000, NOT 120000000 * 10^18.
     ///      Mixing conventions across tokens produces incorrect weights.
-    function getWeights(string[] memory symbols) external view override returns (uint256[] memory weights) {
+    function getWeights(string[] memory symbols) external override returns (uint256[] memory weights) {
         uint256 len = symbols.length;
         weights = new uint256[](len);
         uint256[] memory marketCaps = new uint256[](len);
@@ -92,7 +92,7 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @param symbol Component symbol
     /// @return componentMarketCap Market cap = (circulating supply) * (price)
     /// @dev Uses Chainlink price feed and CirculatingSupply contract
-    function _getComponentMarketCap(string memory symbol) internal view returns (uint256 componentMarketCap) {
+    function _getComponentMarketCap(string memory symbol) internal returns (uint256 componentMarketCap) {
         (uint256 componentPrice, uint256 componentPriceDecimals) = _getComponentPrice(symbol);
         uint256 componentCirculatingSupply = CIRCULATING_SUPPLY.getSupply(symbol);
         componentMarketCap =
@@ -106,16 +106,11 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @dev Validates oracle data for freshness and completeness
     function _getComponentPrice(string memory symbol)
         internal
-        view
         returns (uint256 componentPrice, uint8 componentPriceDecimals)
     {
         AggregatorV3Interface priceFeed =
             AggregatorV3Interface(INDEX_COMPONENT_REGISTRY.getComponentSymbolToPriceFeedAddress(symbol));
-        (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) = priceFeed.latestRoundData();
-
-        IndexMath.validateOracleData(roundId, price, updatedAt, answeredInRound);
-
-        componentPrice = uint256(price);
+        componentPrice = INDEX_COMPONENT_REGISTRY.fetchPrice(address(priceFeed), symbol);
         componentPriceDecimals = priceFeed.decimals();
     }
 }

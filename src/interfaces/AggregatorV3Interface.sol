@@ -26,6 +26,16 @@ interface AggregatorV3Interface {
     /// @return The version number.
     function version() external view returns (uint256);
 
+    // getRoundData and latestRoundData should both raise "No data present"
+    // if they do not have data to report, instead of returning unset values
+    // which could be misinterpreted as actual reported values.
+    function getRoundData(
+        uint80 _roundId
+    )
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+
     /// @notice Returns the data from the latest completed round.
     /// @return roundId The round identifier.
     /// @return answer The price answer for the round.
