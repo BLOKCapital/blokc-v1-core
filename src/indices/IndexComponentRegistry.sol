@@ -91,9 +91,11 @@ contract IndexComponentRegistry is Ownable {
         uint256 totalSymbols = symbols.length;
         for (uint256 i = 0; i < totalSymbols; i++) {
             string memory symbol = symbols[i];
-            if (_components[symbol].tokenAddress == address(0)) {
+            address tokenAddress = _components[symbol].tokenAddress;
+            if (tokenAddress == address(0)) {
                 revert IndexComponentRegistry_ComponentNotRegistered();
             }
+            _componentAddresses.remove(tokenAddress);
             delete _components[symbol];
         }
     }
@@ -109,6 +111,7 @@ contract IndexComponentRegistry is Ownable {
     /// @param symbol The component symbol
     /// @return The Chainlink price feed address for the component
     function getComponentSymbolToPriceFeedAddress(string memory symbol) public view returns (address) {
+        if (_components[symbol].tokenAddress == address(0)) revert IndexComponentRegistry_ComponentNotRegistered();
         return _components[symbol].priceFeedAddress;
     }
 
@@ -135,6 +138,8 @@ contract IndexComponentRegistry is Ownable {
     /// @param symbol The component symbol
     /// @return The token address for the component
     function getComponentAddress(string memory symbol) public view returns (address) {
-        return _components[symbol].tokenAddress;
+        address tokenAddress = _components[symbol].tokenAddress;
+        if (tokenAddress == address(0)) revert IndexComponentRegistry_ComponentNotRegistered();
+        return tokenAddress;
     }
 }

@@ -51,6 +51,16 @@ error Index_GardenNotConnected(address garden);
 /// @param symbol Symbol of the unregistered component
 error Index_ComponentNotRegistered(string symbol);
 
+/// @notice Thrown when a duplicate symbol is provided during index creation
+/// @param symbol The duplicate symbol
+error Index_DuplicateSymbol(string symbol);
+
+/// @notice Thrown when maximum connected gardens limit is reached
+error Index_MaxConnectedGardensReached();
+
+/// @notice Thrown when caller has no contract code (EOA)
+error Index_CallerNotContract();
+
 /**
  * @title Index
  * @notice The Index contract manages the composition and weights of components in a decentralized index. It allows for
@@ -63,6 +73,13 @@ contract Index is Ownable {
     /// @notice Minimum time interval between rebalances
     /// @dev Set to 1 hour to prevent excessive rebalancing and associated gas costs
     uint256 public constant REBALANCE_INTERVAL = 1 hours;
+
+    /// @notice Maximum number of gardens that can connect to this index
+    /// @dev Prevents unbounded set growth and gas DoS on getConnectedGardens()
+    uint256 public constant MAX_CONNECTED_GARDENS = 1000;
+
+    /// @notice Emitted when index weights are recalculated
+    event WeightsUpdated(string[] symbols, uint256[] weights, uint256 timestamp);
 
     /// @notice Reference to the calculation strategy contract (e.g., market cap weighted)
     /// @dev Immutable to ensure index methodology remains consistent
@@ -118,7 +135,9 @@ contract Index is Ownable {
             if (!INDEX_COMPONENT_REGISTRY.isComponentRegistered(symbol)) {
                 revert Index_ComponentNotRegistered(symbol);
             }
-            EnumerableSet.add(_componentSymbols, symbol);
+            if (!EnumerableSet.add(_componentSymbols, symbol)) {
+                revert Index_DuplicateSymbol(symbol);
+            }
         }
 
         _rebalance();
@@ -139,6 +158,10 @@ contract Index is Ownable {
     /// @dev Allows gardens to track this index for portfolio management
     ///      Gardens must call this before using the index's weights
     function connectGardenToIndex() external {
+        if (msg.sender.code.length == 0) revert Index_CallerNotContract();
+        if (EnumerableSet.length(_connectedGardens) >= MAX_CONNECTED_GARDENS) {
+            revert Index_MaxConnectedGardensReached();
+        }
         if (EnumerableSet.contains(_connectedGardens, msg.sender)) {
             revert Index_GardenAlreadyConnected(msg.sender);
         }
@@ -213,5 +236,7 @@ contract Index is Ownable {
         }
 
         _lastRebalanceTimestamp = block.timestamp;
+
+        emit WeightsUpdated(symbols, weights, block.timestamp);
     }
 }

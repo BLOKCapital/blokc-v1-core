@@ -63,27 +63,28 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @return weights Array of weights scaled to 1e18 (100% = 1e18)
     /// @dev For each component: weight = (component market cap) / (total market cap)
     ///      Uses Chainlink price feeds and circulating supply data
+    /// @dev CirculatingSupply MUST provide values in whole token units (NOT native token decimals).
+    ///      E.g., ETH supply = 120000000, NOT 120000000 * 10^18.
+    ///      Mixing conventions across tokens produces incorrect weights.
     function getWeights(string[] memory symbols) external view override returns (uint256[] memory weights) {
-        weights = new uint256[](symbols.length);
-        uint256 totalMarketCap = _getTotalMarketCap(symbols);
-        if (totalMarketCap == 0) revert MarketCapWeighted_InvalidTotalMarketCap();
-        for (uint256 i = 0; i < symbols.length; i++) {
-            weights[i] = IndexMath.calculateWeight(_getComponentMarketCap(symbols[i]), totalMarketCap);
-        }
-        return weights;
-    }
+        uint256 len = symbols.length;
+        weights = new uint256[](len);
+        uint256[] memory marketCaps = new uint256[](len);
+        uint256 totalMarketCap = 0;
 
-    /// @notice Calculates total market cap across all components
-    /// @param symbols Array of component symbols
-    /// @return totalMarketCap Sum of all component market caps
-    /// @dev Uses safe math to prevent overflow
-    function _getTotalMarketCap(string[] memory symbols) internal view returns (uint256 totalMarketCap) {
-        for (uint256 i = 0; i < symbols.length; i++) {
-            (bool success, uint256 result) = Math.tryAdd(totalMarketCap, _getComponentMarketCap(symbols[i]));
-            if (!success) {
-                revert MarketCapWeighted_MarketCapOverflow();
-            }
+        // Single pass: compute and cache all market caps (avoids redundant oracle reads)
+        for (uint256 i = 0; i < len; i++) {
+            marketCaps[i] = _getComponentMarketCap(symbols[i]);
+            (bool success, uint256 result) = Math.tryAdd(totalMarketCap, marketCaps[i]);
+            if (!success) revert MarketCapWeighted_MarketCapOverflow();
             totalMarketCap = result;
+        }
+
+        if (totalMarketCap == 0) revert MarketCapWeighted_InvalidTotalMarketCap();
+
+        // Second pass: calculate weights from cached market caps
+        for (uint256 i = 0; i < len; i++) {
+            weights[i] = IndexMath.calculateWeight(marketCaps[i], totalMarketCap);
         }
     }
 
