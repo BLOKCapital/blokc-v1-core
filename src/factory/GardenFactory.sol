@@ -305,22 +305,6 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     }
 
     /// @inheritdoc IGardenFactory
-    function computeGardenAddress(address user, uint256 index) external view returns (address predicted) {
-        bytes32 salt = keccak256(abi.encode(user, index, address(this)));
-
-        IFacetRegistry registry = IFacetRegistry(_facetRegistry);
-        IDiamondCut.FacetCut[] memory diamondCut = registry.getBaseFacetCuts();
-
-        bytes memory bytecode = abi.encodePacked(
-            type(Garden).creationCode,
-            abi.encode(diamondCut, user, _facetRegistry, _protocolStatus, bytes32(0))
-        );
-
-        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, keccak256(bytecode)));
-        predicted = address(uint160(uint256(hash)));
-    }
-
-    /// @inheritdoc IGardenFactory
     function getFacetRegistry() external view returns (address) {
         return _facetRegistry;
     }
@@ -403,11 +387,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     }
 
     /// @inheritdoc IGardenFactory
-    function getGardenInfo(address garden)
-        external
-        view
-        returns (address owner, bytes32 gardenType, bool registered)
-    {
+    function getGardenInfo(address garden) external view returns (address owner, bytes32 gardenType, bool registered) {
         owner = _gardenToOwner[garden];
         gardenType = _gardenToType[garden];
         registered = _gardens.contains(garden);
