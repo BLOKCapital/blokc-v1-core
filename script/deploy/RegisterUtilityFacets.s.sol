@@ -143,15 +143,15 @@ contract RegisterUtilityFacets is BaseScript {
         // =====================================================================
         AaveV3Facet aaveV3Facet = new AaveV3Facet();
         bytes4[] memory aaveSelectors = new bytes4[](3);
-        aaveSelectors[0] = aaveV3Facet.getReserveDataAaveV3.selector;
-        aaveSelectors[1] = aaveV3Facet.lendAaveV3.selector;
-        aaveSelectors[2] = aaveV3Facet.withdrawAaveV3.selector;
+        aaveSelectors[0] = aaveV3Facet.aaveV3GetReserveData.selector;
+        aaveSelectors[1] = aaveV3Facet.aaveV3Lend.selector;
+        aaveSelectors[2] = aaveV3Facet.aaveV3Withdraw.selector;
         console2.log("AaveV3Facet deployed at:", address(aaveV3Facet));
 
         PendleV2Facet pendleFacet = new PendleV2Facet();
         bytes4[] memory pendleSelectors = new bytes4[](2);
-        pendleSelectors[0] = pendleFacet.swapExactTokenForPt.selector;
-        pendleSelectors[1] = pendleFacet.swapExactPtForToken.selector;
+        pendleSelectors[0] = pendleFacet.pendleV2SwapExactTokenForPt.selector;
+        pendleSelectors[1] = pendleFacet.pendleV2SwapExactPtForToken.selector;
         console2.log("PendleV2Facet deployed at:", address(pendleFacet));
 
         IDiamondCut.FacetCut[] memory yieldCuts = new IDiamondCut.FacetCut[](2);

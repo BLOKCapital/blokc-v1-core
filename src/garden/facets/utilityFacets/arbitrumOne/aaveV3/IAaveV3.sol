@@ -22,15 +22,15 @@ interface IAaveV3 {
     /// @notice Returns reserve data from a given pool for a token
     /// @param tokenIn The underlying asset token address whose reserve data is requested
     /// @return reserveData The Aave ReserveData struct for the token
-    function getReserveDataAaveV3(address tokenIn) external view returns (DataTypes.ReserveData memory reserveData);
+    function aaveV3GetReserveData(address tokenIn) external view returns (DataTypes.ReserveData memory reserveData);
 
     /// @notice Supplies tokens into Aave using the provided parameters
     /// @param tokenIn The ERC20 token address to supply
     /// @param amountIn Amount of token to supply
-    function lendAaveV3(address tokenIn, uint256 amountIn) external;
+    function aaveV3Lend(address tokenIn, uint256 amountIn) external;
 
     /// @notice Withdraws underlying tokens from Aave back to the diamond contract
     /// @param tokenIn The underlying asset address (asset corresponding to the aToken)
     /// @param amountToWithdraw Amount of underlying to withdraw (in token decimals)
-    function withdrawAaveV3(address tokenIn, uint256 amountToWithdraw) external;
+    function aaveV3Withdraw(address tokenIn, uint256 amountToWithdraw) external;
 }

@@ -34,6 +34,24 @@ abstract contract PendleV2Base {
     /// @notice The address of the Pendle V2 router on Arbitrum One
     address private constant PENDLE_V2_ROUTER_ADDRESS = 0x929eC64C34a17401F460460d4B9390518e525bB4;
 
+    event PendleV2FacetSwappedExactTokenForPt(
+        address indexed receiver,
+        address indexed market,
+        uint256 minPtOut,
+        uint256 netPtOut,
+        uint256 netSyFee,
+        uint256 netSyInterm
+    );
+
+    event PendleV2FacetSwappedExactPtForToken(
+        address indexed receiver,
+        address indexed market,
+        uint256 exactPtIn,
+        uint256 netTokenOut,
+        uint256 netSyFee,
+        uint256 netSyInterm
+    );
+
     /// @notice Swaps an exact amount of tokens for Principal Tokens (PT) via the Pendle V2 router
     /// @param receiver Address to receive the PT output
     /// @param market Address of the Pendle market
@@ -44,7 +62,7 @@ abstract contract PendleV2Base {
     /// @return netPtOut The net PT amount received
     /// @return netSyFee The SY fee incurred
     /// @return netSyInterm The intermediate SY amount
-    function _swapExactTokenForPt(
+    function _pendleV2SwapExactTokenForPt(
         address receiver,
         address market,
         uint256 minPtOut,
@@ -63,6 +81,7 @@ abstract contract PendleV2Base {
         (netPtOut, netSyFee, netSyInterm) =
             router.swapExactTokenForPt{ value: msg.value }(receiver, market, minPtOut, guessPtOut, input, limit);
         tokenIn.forceApprove(address(router), 0);
+        emit PendleV2FacetSwappedExactTokenForPt(receiver, market, minPtOut, netPtOut, netSyFee, netSyInterm);
     }
 
     /// @notice Swaps an exact amount of Principal Tokens (PT) for tokens via the Pendle V2 router
@@ -74,7 +93,7 @@ abstract contract PendleV2Base {
     /// @return netTokenOut The net token amount received
     /// @return netSyFee The SY fee incurred
     /// @return netSyInterm The intermediate SY amount
-    function _swapExactPtForToken(
+    function _pendleV2SwapExactPtForToken(
         address receiver,
         address market,
         uint256 exactPtIn,
@@ -88,5 +107,7 @@ abstract contract PendleV2Base {
 
         IERC20 tokenOut = IERC20(output.tokenOut);
         (netTokenOut, netSyFee, netSyInterm) = router.swapExactPtForToken(receiver, market, exactPtIn, output, limit);
+        emit PendleV2FacetSwappedExactPtForToken(receiver, market, exactPtIn, netTokenOut, netSyFee, netSyInterm);
     }
 }
+

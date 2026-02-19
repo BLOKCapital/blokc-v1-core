@@ -31,7 +31,7 @@ import {
  */
 contract PendleV2Facet is IPendleV2, PendleV2Base, Facet {
     /// @inheritdoc IPendleV2
-    function swapExactTokenForPt(
+    function pendleV2SwapExactTokenForPt(
         address receiver,
         address market,
         uint256 minPtOut,
@@ -47,11 +47,11 @@ contract PendleV2Facet is IPendleV2, PendleV2Base, Facet {
         ifIndexNotConnected
         returns (uint256 netPtOut, uint256 netSyFee, uint256 netSyInterm)
     {
-        return _swapExactTokenForPt(receiver, market, minPtOut, guessPtOut, input, limit);
+        return _pendleV2SwapExactTokenForPt(receiver, market, minPtOut, guessPtOut, input, limit);
     }
 
     /// @inheritdoc IPendleV2
-    function swapExactPtForToken(
+    function pendleV2SwapExactPtForToken(
         address receiver,
         address market,
         uint256 exactPtIn,
@@ -65,6 +65,6 @@ contract PendleV2Facet is IPendleV2, PendleV2Base, Facet {
         ifIndexNotConnected
         returns (uint256 netTokenOut, uint256 netSyFee, uint256 netSyInterm)
     {
-        return _swapExactPtForToken(receiver, market, exactPtIn, output, limit);
+        return _pendleV2SwapExactPtForToken(receiver, market, exactPtIn, output, limit);
     }
 }

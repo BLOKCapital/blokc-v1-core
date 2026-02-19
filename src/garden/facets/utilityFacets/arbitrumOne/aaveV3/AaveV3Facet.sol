@@ -70,8 +70,8 @@ contract AaveV3Facet is IAaveV3, AaveV3Base, Facet {
     // ========================================================================
 
     /// @inheritdoc IAaveV3
-    function getReserveDataAaveV3(address tokenIn) external view returns (DataTypes.ReserveData memory reserveData) {
-        return _getReserveDataAaveV3(tokenIn);
+    function aaveV3GetReserveData(address tokenIn) external view returns (DataTypes.ReserveData memory reserveData) {
+        return _aaveV3GetReserveData(tokenIn);
     }
 
     // ========================================================================
@@ -79,12 +79,12 @@ contract AaveV3Facet is IAaveV3, AaveV3Base, Facet {
     // ========================================================================
 
     /// @inheritdoc IAaveV3
-    function lendAaveV3(address tokenIn, uint256 amountIn) external onlyGardenOwner nonReentrant ifIndexNotConnected {
-        _lendAaveV3(tokenIn, amountIn);
+    function aaveV3Lend(address tokenIn, uint256 amountIn) external onlyGardenOwner nonReentrant ifIndexNotConnected {
+        _aaveV3Lend(tokenIn, amountIn);
     }
 
     /// @inheritdoc IAaveV3
-    function withdrawAaveV3(
+    function aaveV3Withdraw(
         address tokenIn,
         uint256 amountToWithdraw
     )
@@ -93,6 +93,6 @@ contract AaveV3Facet is IAaveV3, AaveV3Base, Facet {
         nonReentrant
         ifIndexNotConnected
     {
-        _withdrawAaveV3(tokenIn, amountToWithdraw);
+        _aaveV3Withdraw(tokenIn, amountToWithdraw);
     }
 }

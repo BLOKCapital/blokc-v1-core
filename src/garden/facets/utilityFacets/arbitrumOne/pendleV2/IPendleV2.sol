@@ -31,7 +31,7 @@ interface IPendleV2 {
     /// @return netPtOut The net PT amount received
     /// @return netSyFee The SY fee incurred
     /// @return netSyInterm The intermediate SY amount
-    function swapExactTokenForPt(
+    function pendleV2SwapExactTokenForPt(
         address receiver,
         address market,
         uint256 minPtOut,
@@ -52,7 +52,7 @@ interface IPendleV2 {
     /// @return netTokenOut The net token amount received
     /// @return netSyFee The SY fee incurred
     /// @return netSyInterm The intermediate SY amount
-    function swapExactPtForToken(
+    function pendleV2SwapExactPtForToken(
         address receiver,
         address market,
         uint256 exactPtIn,
