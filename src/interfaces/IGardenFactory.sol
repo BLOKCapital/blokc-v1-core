@@ -79,12 +79,6 @@ interface IGardenFactory {
     /// @return gardens Array of garden addresses in the requested range
     function getGardensByRange(uint256 offset, uint256 limit) external view returns (address[] memory gardens);
 
-    /// @notice Computes the deterministic address of a garden before deployment
-    /// @param user The address of the garden owner
-    /// @param index The per-user garden index (1-10)
-    /// @return predicted The predicted garden address via CREATE2
-    function computeGardenAddress(address user, uint256 index) external view returns (address predicted);
-
     /// @notice Returns the facet registry address used by this factory
     /// @return The facet registry contract address
     function getFacetRegistry() external view returns (address);
@@ -158,10 +152,7 @@ interface IGardenFactory {
     /// @return owner The garden owner
     /// @return gardenType The garden type identifier
     /// @return registered Whether the garden is registered in the factory
-    function getGardenInfo(address garden)
-        external
-        view
-        returns (address owner, bytes32 gardenType, bool registered);
+    function getGardenInfo(address garden) external view returns (address owner, bytes32 gardenType, bool registered);
 
     /// @notice Returns all gardens and their types for a user in one call
     /// @param user The address of the user
