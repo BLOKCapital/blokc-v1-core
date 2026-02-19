@@ -12,8 +12,8 @@ pragma solidity ^0.8.31;
  *##############################################################################*/
 
 import { MarketParams } from "@morphoBlue/src/interfaces/IMorpho.sol";
-import { IMorphoBlue } from "src/garden/facets/utilityFacets/ethereum/IMorphoV1.sol";
-import { MorphoBlueBase } from "src/garden/facets/utilityFacets/ethereum/MorphoV1Base.sol";
+import { IMorphoBlue } from "src/garden/facets/utilityFacets/ethereum/IMorphoBlue.sol";
+import { MorphoBlueBase } from "src/garden/facets/utilityFacets/ethereum/MorphoBlueBase.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
 contract MorphoBlueFacet is IMorphoBlue, MorphoBlueBase, Facet {
