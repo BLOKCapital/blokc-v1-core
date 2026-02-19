@@ -163,7 +163,7 @@ contract IndexFactory is Ownable {
         if (componentRegistry == address(0)) {
             revert IndexFactory_InvalidComponentRegistryAddress(componentRegistry);
         }
-        if (GARDEN_FACTORY == address(0)) {
+        if (gardenFactory == address(0)) {
             revert IndexFactory_InvalidGardenFactoryAddress(GARDEN_FACTORY);
         }
         INDEX_CALCULATION_REGISTRY = indexCalculationRegistry;
