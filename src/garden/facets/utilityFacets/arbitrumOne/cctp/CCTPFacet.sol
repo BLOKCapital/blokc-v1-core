@@ -26,7 +26,7 @@ import { ICCTP } from "src/garden/facets/utilityFacets/arbitrumOne/cctp/ICCTP.so
  */
 contract CCTPFacet is ICCTP, CCTPBase, Facet {
     /// @inheritdoc ICCTP
-    function sendUsdc(
+    function cctpSendUsdc(
         uint256 amount,
         uint32 destinationDomain,
         bytes32 mintRecipient
@@ -36,11 +36,11 @@ contract CCTPFacet is ICCTP, CCTPBase, Facet {
         nonReentrant
         ifIndexNotConnected
     {
-        _sendUsdc(amount, destinationDomain, mintRecipient);
+        _cctpSendUsdc(amount, destinationDomain, mintRecipient);
     }
 
     /// @inheritdoc ICCTP
-    function redeemUsdc(
+    function cctpRedeemUsdc(
         bytes calldata message,
         bytes calldata attestation
     )
@@ -49,6 +49,6 @@ contract CCTPFacet is ICCTP, CCTPBase, Facet {
         nonReentrant
         ifIndexNotConnected
     {
-        _redeemUsdc(message, attestation);
+        _cctpRedeemUsdc(message, attestation);
     }
 }

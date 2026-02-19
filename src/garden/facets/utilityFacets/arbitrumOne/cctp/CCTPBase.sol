@@ -70,7 +70,7 @@ abstract contract CCTPBase {
     /// @param amount USDC amount to send (usually 6 decimals)
     /// @param destinationDomain Circle domain ID of the destination chain
     /// @param mintRecipient Bytes32-encoded recipient address on destination chain
-    function _sendUsdc(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) internal {
+    function _cctpSendUsdc(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) internal {
         if (amount == 0) {
             revert CCTPFacet_ZeroAmount();
         }
@@ -106,7 +106,7 @@ abstract contract CCTPBase {
     /// @notice Redeems (mints) USDC from another chain using Circle attestation
     /// @param message Raw message bytes from Circle attestation flow
     /// @param attestation Attestation bytes from Circle network
-    function _redeemUsdc(bytes calldata message, bytes calldata attestation) internal {
+    function _cctpRedeemUsdc(bytes calldata message, bytes calldata attestation) internal {
         if (message.length == 0) {
             revert CCTPFacet_InvalidMessage();
         }

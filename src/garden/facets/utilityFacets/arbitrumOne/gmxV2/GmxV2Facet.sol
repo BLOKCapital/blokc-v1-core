@@ -31,7 +31,7 @@ import { GmxV2Storage } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/
  */
 contract GmxV2Facet is Facet, GmxV2Base {
     /// @inheritdoc IGmxV2
-    function openShort(OpenShortParams calldata params)
+    function gmxV2OpenShort(GmxV2OpenShortParams calldata params)
         external
         payable
         override
@@ -40,11 +40,11 @@ contract GmxV2Facet is Facet, GmxV2Base {
         ifIndexNotConnected
         returns (bytes32 positionKey)
     {
-        return _openShort(params);
+        return _gmxV2OpenShort(params);
     }
 
     /// @inheritdoc IGmxV2
-    function closeShort(CloseShortParams calldata params)
+    function gmxV2CloseShort(GmxV2CloseShortParams calldata params)
         external
         payable
         override
@@ -52,11 +52,11 @@ contract GmxV2Facet is Facet, GmxV2Base {
         nonReentrant
         ifIndexNotConnected
     {
-        _closeShort(params);
+        _gmxV2CloseShort(params);
     }
 
     /// @inheritdoc IGmxV2
-    function addCollateral(
+    function gmxV2AddCollateral(
         bytes32 positionKey,
         uint256 collateralAmount
     )
@@ -66,48 +66,48 @@ contract GmxV2Facet is Facet, GmxV2Base {
         nonReentrant
         ifIndexNotConnected
     {
-        _addCollateral(positionKey, collateralAmount);
+        _gmxV2AddCollateral(positionKey, collateralAmount);
     }
 
     /// @inheritdoc IGmxV2
-    function updateConfig(uint256 maxLeverage, uint256 minCollateralUsd) external override onlyGardenOwner {
-        _updateConfig(maxLeverage, minCollateralUsd);
+    function gmxV2UpdateConfig(uint256 maxLeverage, uint256 minCollateralUsd) external override onlyGardenOwner {
+        _gmxV2UpdateConfig(maxLeverage, minCollateralUsd);
     }
 
     /// @inheritdoc IGmxV2
-    function getPosition(bytes32 positionKey)
+    function gmxV2GetPosition(bytes32 positionKey)
         external
         view
         override
         returns (GmxV2Storage.PositionInfo memory position)
     {
-        return _getPosition(positionKey);
+        return _gmxV2GetPosition(positionKey);
     }
 
     /// @inheritdoc IGmxV2
-    function getActivePositions() external view override returns (GmxV2Storage.PositionInfo[] memory positions) {
-        return _getActivePositions();
+    function gmxV2GetActivePositions() external view override returns (GmxV2Storage.PositionInfo[] memory positions) {
+        return _gmxV2GetActivePositions();
     }
 
     /// @inheritdoc IGmxV2
-    function getPositionPnL(bytes32 positionKey) external view override returns (int256 pnl) {
-        return _getPositionPnL(positionKey);
+    function gmxV2GetPositionPnL(bytes32 positionKey) external view override returns (int256 pnl) {
+        return _gmxV2GetPositionPnL(positionKey);
     }
 
     /// @inheritdoc IGmxV2
-    function getTotalCollateral() external view override returns (uint256 totalCollateral) {
-        return _getTotalCollateral();
+    function gmxV2GetTotalCollateral() external view override returns (uint256 totalCollateral) {
+        return _gmxV2GetTotalCollateral();
     }
 
     /// @inheritdoc IGmxV2
-    function getActivePositionCount() external view override returns (uint256 count) {
-        return _getActivePositionCount();
+    function gmxV2GetActivePositionCount() external view override returns (uint256 count) {
+        return _gmxV2GetActivePositionCount();
     }
 
     /// @notice Gets current configuration parameters
     /// @return maxLeverage Maximum leverage allowed
     /// @return minCollateralUsd Minimum collateral required
-    function getConfig() external view returns (uint256 maxLeverage, uint256 minCollateralUsd) {
-        return _getConfig();
+    function gmxV2GetConfig() external view returns (uint256 maxLeverage, uint256 minCollateralUsd) {
+        return _gmxV2GetConfig();
     }
 }

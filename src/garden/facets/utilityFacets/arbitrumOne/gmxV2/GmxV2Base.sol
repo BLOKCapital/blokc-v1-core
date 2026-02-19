@@ -145,7 +145,7 @@ abstract contract GmxV2Base is IGmxV2 {
     /// @notice Opens a new short position on GMX V2
     /// @param params Parameters for opening the short position
     /// @return positionKey The unique identifier for the opened position
-    function _openShort(OpenShortParams calldata params) internal returns (bytes32 positionKey) {
+    function _gmxV2OpenShort(GmxV2OpenShortParams calldata params) internal returns (bytes32 positionKey) {
         GmxV2Storage.Layout storage s = GmxV2Storage.layout();
 
         // Initialize config if not set
@@ -194,7 +194,7 @@ abstract contract GmxV2Base is IGmxV2 {
         s.totalCollateralLocked += params.collateralAmount;
         s.lastInteractionTimestamp = block.timestamp;
 
-        emit ShortPositionOpened(
+        emit GmxV2ShortPositionOpened(
             positionKey, params.indexToken, params.collateralToken, params.sizeInUsd, params.collateralAmount
         );
 
@@ -203,14 +203,14 @@ abstract contract GmxV2Base is IGmxV2 {
 
     /// @notice Closes an existing short position on GMX V2
     /// @param params Parameters for closing the position
-    function _closeShort(CloseShortParams calldata params) internal {
+    function _gmxV2CloseShort(GmxV2CloseShortParams calldata params) internal {
         GmxV2Storage.Layout storage s = GmxV2Storage.layout();
 
         GmxV2Storage.PositionInfo storage position = s.positions[params.positionKey];
         if (!position.isActive) revert GmxV2Base_PositionNotActive();
 
         // Get current PnL
-        int256 pnl = _getPositionPnL(params.positionKey);
+        int256 pnl = _gmxV2GetPositionPnL(params.positionKey);
 
         // Build close order params
         IExchangeRouter.CreateOrderParams memory orderParams = _buildCloseOrderParams(params, position);
@@ -236,13 +236,13 @@ abstract contract GmxV2Base is IGmxV2 {
 
         s.lastInteractionTimestamp = block.timestamp;
 
-        emit ShortPositionClosed(params.positionKey, position.indexToken, sizeToClose, pnl);
+        emit GmxV2ShortPositionClosed(params.positionKey, position.indexToken, sizeToClose, pnl);
     }
 
     /// @notice Adds collateral to an existing position
     /// @param positionKey The position to add collateral to
     /// @param collateralAmount Amount of collateral to add
-    function _addCollateral(bytes32 positionKey, uint256 collateralAmount) internal {
+    function _gmxV2AddCollateral(bytes32 positionKey, uint256 collateralAmount) internal {
         GmxV2Storage.Layout storage s = GmxV2Storage.layout();
 
         GmxV2Storage.PositionInfo storage position = s.positions[positionKey];
@@ -259,19 +259,19 @@ abstract contract GmxV2Base is IGmxV2 {
         position.collateralAmount += collateralAmount;
         s.totalCollateralLocked += collateralAmount;
 
-        emit CollateralAdded(positionKey, collateralAmount);
+        emit GmxV2CollateralAdded(positionKey, collateralAmount);
     }
 
     /// @notice Gets information about a specific position
     /// @param positionKey The position identifier
     /// @return position The position information struct
-    function _getPosition(bytes32 positionKey) internal view returns (GmxV2Storage.PositionInfo memory position) {
+    function _gmxV2GetPosition(bytes32 positionKey) internal view returns (GmxV2Storage.PositionInfo memory position) {
         return GmxV2Storage.layout().positions[positionKey];
     }
 
     /// @notice Gets all active positions
     /// @return positions Array of all active position information
-    function _getActivePositions() internal view returns (GmxV2Storage.PositionInfo[] memory positions) {
+    function _gmxV2GetActivePositions() internal view returns (GmxV2Storage.PositionInfo[] memory positions) {
         GmxV2Storage.Layout storage s = GmxV2Storage.layout();
 
         uint256 activeCount = s.activePositionCount;
@@ -292,7 +292,7 @@ abstract contract GmxV2Base is IGmxV2 {
     /// @notice Gets the current PnL for a position
     /// @param positionKey The position identifier
     /// @return pnl The profit and loss in USD (30 decimals)
-    function _getPositionPnL(bytes32 positionKey) internal view returns (int256 pnl) {
+    function _gmxV2GetPositionPnL(bytes32 positionKey) internal view returns (int256 pnl) {
         GmxV2Storage.PositionInfo memory position = GmxV2Storage.layout().positions[positionKey];
         if (!position.isActive) return 0;
 
@@ -306,20 +306,20 @@ abstract contract GmxV2Base is IGmxV2 {
 
     /// @notice Gets total collateral locked across all positions
     /// @return totalCollateral Total collateral amount
-    function _getTotalCollateral() internal view returns (uint256 totalCollateral) {
+    function _gmxV2GetTotalCollateral() internal view returns (uint256 totalCollateral) {
         return GmxV2Storage.layout().totalCollateralLocked;
     }
 
     /// @notice Gets the number of active positions
     /// @return count Number of active positions
-    function _getActivePositionCount() internal view returns (uint256 count) {
+    function _gmxV2GetActivePositionCount() internal view returns (uint256 count) {
         return GmxV2Storage.layout().activePositionCount;
     }
 
     /// @notice Updates configuration parameters for leverage and collateral limits
     /// @param maxLeverage Maximum leverage allowed
     /// @param minCollateralUsd Minimum collateral required in USD
-    function _updateConfig(uint256 maxLeverage, uint256 minCollateralUsd) internal {
+    function _gmxV2UpdateConfig(uint256 maxLeverage, uint256 minCollateralUsd) internal {
         if (maxLeverage == 0 || maxLeverage > 50) revert GmxV2Facet_InvalidParameters();
         if (minCollateralUsd == 0) revert GmxV2Facet_InvalidParameters();
         GmxV2Storage.Layout storage s = GmxV2Storage.layout();
@@ -330,7 +330,7 @@ abstract contract GmxV2Base is IGmxV2 {
     /// @notice Gets current configuration parameters
     /// @return maxLeverage Maximum leverage allowed
     /// @return minCollateralUsd Minimum collateral required
-    function _getConfig() internal view returns (uint256 maxLeverage, uint256 minCollateralUsd) {
+    function _gmxV2GetConfig() internal view returns (uint256 maxLeverage, uint256 minCollateralUsd) {
         GmxV2Storage.Layout storage s = GmxV2Storage.layout();
         return (s.maxLeverage, s.minCollateralUsd);
     }
@@ -338,7 +338,7 @@ abstract contract GmxV2Base is IGmxV2 {
     /// @notice Builds GMX order parameters for opening a short position
     /// @param params The open short parameters
     /// @return The GMX CreateOrderParams struct
-    function _buildOpenOrderParams(OpenShortParams calldata params)
+    function _buildOpenOrderParams(GmxV2OpenShortParams calldata params)
         private
         view
         returns (IExchangeRouter.CreateOrderParams memory)
@@ -369,7 +369,7 @@ abstract contract GmxV2Base is IGmxV2 {
     /// @param position The current position information
     /// @return The GMX CreateOrderParams struct
     function _buildCloseOrderParams(
-        CloseShortParams calldata params,
+        GmxV2CloseShortParams calldata params,
         GmxV2Storage.PositionInfo storage position
     )
         private

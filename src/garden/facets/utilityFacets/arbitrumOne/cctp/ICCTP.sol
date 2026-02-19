@@ -18,12 +18,12 @@ interface ICCTP {
     /// @param amount The amount of USDC to send (usually 6 decimals)
     /// @param destinationDomain The Circle domain ID of the destination chain
     /// @param mintRecipient The recipient address on the destination chain (encoded as bytes32)
-    function sendUsdc(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external;
+    function cctpSendUsdc(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external;
 
     /// @notice Redeems (mints) USDC from another chain using Circle attestation
     /// @param message Raw message bytes from Circle attestation flow
     /// @param attestation Attestation bytes from Circle network
-    function redeemUsdc(bytes calldata message, bytes calldata attestation) external;
+    function cctpRedeemUsdc(bytes calldata message, bytes calldata attestation) external;
 }
 
 /// @title ITokenMessengerV2
