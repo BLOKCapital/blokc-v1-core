@@ -26,7 +26,13 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
     // Swaps
     // -------------------------------------------------------------------------
 
-    /// @inheritdoc ITraderJoeV2
+    /// @notice Swaps an exact amount of input tokens for output tokens
+    /// @param amountIn The exact amount of input tokens to swap
+    /// @param amountOutMin The minimum amount of output tokens to receive
+    /// @param path The swap path containing token pairs and bin steps
+    /// @param to The address to receive the output tokens
+    /// @param deadline The deadline timestamp for the swap
+    /// @return amountOut The actual amount of output tokens received
     function traderJoeV2SwapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -43,7 +49,13 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         return _traderJoeV2SwapExactTokensForTokens(amountIn, amountOutMin, path, to, deadline);
     }
 
-    /// @inheritdoc ITraderJoeV2
+    /// @notice Swaps an exact amount of input tokens for native tokens (AVAX)
+    /// @param amountIn The exact amount of input tokens to swap
+    /// @param amountOutMinNative The minimum amount of native tokens to receive
+    /// @param path The swap path containing token pairs and bin steps
+    /// @param to The address to receive the native tokens
+    /// @param deadline The deadline timestamp for the swap
+    /// @return amountOut The actual amount of native tokens received
     function traderJoeV2SwapExactTokensForNative(
         uint256 amountIn,
         uint256 amountOutMinNative,
@@ -60,7 +72,12 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         return _traderJoeV2SwapExactTokensForNative(amountIn, amountOutMinNative, path, to, deadline);
     }
 
-    /// @inheritdoc ITraderJoeV2
+    /// @notice Swaps an exact amount of native tokens (AVAX) for output tokens
+    /// @param amountOutMin The minimum amount of output tokens to receive
+    /// @param path The swap path containing token pairs and bin steps
+    /// @param to The address to receive the output tokens
+    /// @param deadline The deadline timestamp for the swap
+    /// @return amountOut The actual amount of output tokens received
     function traderJoeV2SwapExactNativeForTokens(
         uint256 amountOutMin,
         ILBRouter.Path memory path,
@@ -77,7 +94,13 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         return _traderJoeV2SwapExactNativeForTokens(amountOutMin, path, to, deadline);
     }
 
-    /// @inheritdoc ITraderJoeV2
+    /// @notice Swaps input tokens for an exact amount of output tokens
+    /// @param amountOut The exact amount of output tokens to receive
+    /// @param amountInMax The maximum amount of input tokens to spend
+    /// @param path The swap path containing token pairs and bin steps
+    /// @param to The address to receive the output tokens
+    /// @param deadline The deadline timestamp for the swap
+    /// @return amountIn The actual amount of input tokens spent
     function traderJoeV2SwapTokensForExactTokens(
         uint256 amountOut,
         uint256 amountInMax,
@@ -94,7 +117,13 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         return _traderJoeV2SwapTokensForExactTokens(amountOut, amountInMax, path, to, deadline);
     }
 
-    /// @inheritdoc ITraderJoeV2
+    /// @notice Swaps input tokens for an exact amount of native tokens (AVAX)
+    /// @param amountOut The exact amount of native tokens to receive
+    /// @param amountInMax The maximum amount of input tokens to spend
+    /// @param path The swap path containing token pairs and bin steps
+    /// @param to The address to receive the native tokens
+    /// @param deadline The deadline timestamp for the swap
+    /// @return amountsIn The actual amounts of input tokens spent at each step
     function traderJoeV2SwapTokensForExactNative(
         uint256 amountOut,
         uint256 amountInMax,
@@ -111,7 +140,12 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         return _traderJoeV2SwapTokensForExactNative(amountOut, amountInMax, path, to, deadline);
     }
 
-    /// @inheritdoc ITraderJoeV2
+    /// @notice Swaps native tokens (AVAX) for an exact amount of output tokens
+    /// @param amountOut The exact amount of output tokens to receive
+    /// @param path The swap path containing token pairs and bin steps
+    /// @param to The address to receive the output tokens
+    /// @param deadline The deadline timestamp for the swap
+    /// @return amountsIn The actual amounts of native tokens spent at each step
     function traderJoeV2SwapNativeForExactTokens(
         uint256 amountOut,
         ILBRouter.Path memory path,
