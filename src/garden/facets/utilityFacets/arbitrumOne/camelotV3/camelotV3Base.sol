@@ -1,12 +1,7 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title CamelotV3Base
-    @author BLOK Capital DAO
-    @notice Base contract for Camelot V3 integration (swaps)
-    @dev This contract provides the base functionality for Camelot V3 integration (swaps)
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -21,34 +16,45 @@ import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.so
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @notice Camelot V3 facet invalid pool address error
+/// @notice Thrown when the factory poolByPair call returns an invalid pool address
 error CamelotV3Facet_InvalidPoolAddress();
 
-/// @notice Camelot V3 facet invalid pool error
+/// @notice Thrown when the resolved pool address is the zero address
 error CamelotV3Facet_InvalidPool();
 
-/// @notice Camelot V3 facet unregistered pool error
+/// @notice Thrown when a pool along the swap path is not registered in the pool registry
 error CamelotV3Facet_UnregisteredPool();
 
+/**
+ * @title CamelotV3Base
+ * @notice Base contract that implements internal functions for swapping tokens through Camelot V3 on Arbitrum One. This
+ * contract is intended to be inherited by a CamelotV3Facet that exposes the swap functions with appropriate access
+ * control and user-facing error messages. It includes functions to perform single-hop and multi-hop exact-input and
+ * exact-output swaps, along with events for off-chain tracking of swap operations.
+ */
 abstract contract CamelotV3Base {
     using SafeERC20 for IERC20;
+
+    /// @notice Camelot V3 router address on Arbitrum One
     address internal constant CAMELOT_V3_ROUTER_ADDRESS = 0x1F721E2E82F6676FCE4eA07A5958cF098D339e18;
+
+    /// @notice Camelot V3 factory address on Arbitrum One
     address internal constant CAMELOT_V3_FACTORY_ADDRESS = 0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B;
+
+    /// @notice Liquidity pool registry address on Arbitrum One
     address internal constant POOL_REGISTRY_ADDRESS = 0xBa7898DbE9C2be340197e1fffe85FC5a3B977744;
 
-    /// @notice Camelot V3 facet tokens swapped event
-    /// @param tokenIn The input token
-    /// @param tokenOut The output token
+    /// @notice Emitted when a Camelot V3 swap is successfully executed
+    /// @param tokenIn The input token address
+    /// @param tokenOut The output token address
     /// @param amountIn The amount of input tokens swapped
     /// @param amountOut The amount of output tokens received
     event CamelotV3FacetTokensSwapped(
         address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
     );
 
-    /// @notice Camelot V3 base exact input single swap
+    /// @notice Executes a single-hop exact-input swap on Camelot V3
     /// @param params Single-hop swap parameters including tokens, amounts, and deadline
-    /// @dev Validates pool registration, handles token approvals, and executes swap.
-    ///      Uses SafeERC20 for secure token operations.
     function _camelotV3ExactInputSingle(ICamelotV3.CamelotV3ExactInputSingleParams memory params) internal {
         ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
         IERC20 tokenIn = IERC20(params.tokenIn);
@@ -73,10 +79,8 @@ abstract contract CamelotV3Base {
         emit CamelotV3FacetTokensSwapped(params.tokenIn, params.tokenOut, params.amountIn, amountOut);
     }
 
-    /// @notice Camelot V3 base exact input swap
+    /// @notice Executes a multi-hop exact-input swap on Camelot V3
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
-    /// @dev Validates all pools in the path are registered, handles approvals,
-    ///      encodes the path, and executes the swap.
     function _camelotV3ExactInput(ICamelotV3.CamelotV3ExactInputParams memory params) internal {
         ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
         IERC20 tokenIn = IERC20(params.path[0]);
@@ -107,24 +111,23 @@ abstract contract CamelotV3Base {
         );
     }
 
-    /// @notice Camelot V3 base exact output single swap
+    /// @notice Executes a single-hop exact-output swap on Camelot V3
     /// @param params Single-hop swap parameters including tokens, amounts, and deadline
-    /// @dev Validates pool registration, handles token approvals, and executes swap.
-    ///      Uses SafeERC20 for secure token operations.
     function _camelotV3ExactOutputSingle(ICamelotV3.CamelotV3ExactOutputSingleParams memory params) internal {
         ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
-        IERC20 tokenOut = IERC20(params.tokenOut);
+        IERC20 tokenIn = IERC20(params.tokenIn);
+        address tokenOut = params.tokenOut;
 
         // Validate pool registration
-        _validatePool(params.tokenIn, params.tokenOut);
+        _validatePool(address(tokenIn), tokenOut);
 
-        // Approve the output tokens for the swap
-        tokenOut.forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountOut);
+        // Approve the input tokens for the swap
+        tokenIn.forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
         // Build swap parameters
         ICamelotRouterV3.ExactOutputSingleParams memory swapParams = ICamelotRouterV3.ExactOutputSingleParams({
-            tokenIn: params.tokenIn,
-            tokenOut: params.tokenOut,
+            tokenIn: address(tokenIn),
+            tokenOut: tokenOut,
             recipient: address(this),
             deadline: params.deadline,
             amountOut: params.amountOut,
@@ -136,22 +139,21 @@ abstract contract CamelotV3Base {
         uint256 amountIn = router.exactOutputSingle(swapParams);
 
         // Emit the tokens swapped event
-        emit CamelotV3FacetTokensSwapped(params.tokenIn, params.tokenOut, amountIn, params.amountOut);
+        emit CamelotV3FacetTokensSwapped(address(tokenIn), tokenOut, amountIn, params.amountOut);
     }
 
-    /// @notice Camelot V3 base exact output swap
+    /// @notice Executes a multi-hop exact-output swap on Camelot V3
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
-    /// @dev Validates all pools in the path are registered, handles approvals,
-    ///      encodes the path, and executes the swap.
     function _camelotV3ExactOutput(ICamelotV3.CamelotV3ExactOutputParams memory params) internal {
         ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
-        IERC20 tokenOut = IERC20(params.path[params.path.length - 1]);
+        IERC20 tokenIn = IERC20(params.path[0]);
+        address tokenOut = params.path[params.path.length - 1];
 
         // Validate all pools in the multi-hop path are registered
         _validateMultiHopPools(params.path);
 
-        // Approve the output tokens for the swap
-        tokenOut.forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountOut);
+        // Approve the input tokens for the swap
+        tokenIn.forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
         // Encode path (token, token, token, ...)
         bytes memory encodedPath = _encodePath(params.path);
@@ -169,21 +171,18 @@ abstract contract CamelotV3Base {
         uint256 amountIn = router.exactOutput(swapParams);
 
         // Emit the tokens swapped event
-        emit CamelotV3FacetTokensSwapped(
-            params.path[0], params.path[params.path.length - 1], amountIn, params.amountOut
-        );
+        emit CamelotV3FacetTokensSwapped(address(tokenIn), tokenOut, amountIn, params.amountOut);
     }
 
     /// @notice Validates that all pools in a multi-hop path exist and are registered
-    /// @param path Array of addresses describing the path
+    /// @param path Array of token addresses describing the swap path
     function _validateMultiHopPools(address[] memory path) internal view {
         for (uint256 i = 0; i < path.length - 1; i++) {
             _validatePool(path[i], path[i + 1]);
         }
     }
 
-    /// @notice Validates a pool registration
-    /// @dev Validates a pool registration by checking if the pool exists and is registered
+    /// @notice Validates that a pool exists and is registered in the pool registry
     /// @param tokenIn The input token address
     /// @param tokenOut The output token address
     function _validatePool(address tokenIn, address tokenOut) internal view {
@@ -208,10 +207,9 @@ abstract contract CamelotV3Base {
         }
     }
 
-    /// @notice Encodes a multi-hop path for Camelot V3 router
-    /// @dev Encodes path as: token0, token1, token2, ...
-    /// @param path Array of addresses describing the path
-    /// @return encodedPath Encoded path bytes
+    /// @notice Encodes a multi-hop path for the Camelot V3 router
+    /// @param path Array of token addresses describing the swap path
+    /// @return encodedPath ABI-packed encoded path bytes
     function _encodePath(address[] memory path) internal pure returns (bytes memory encodedPath) {
         encodedPath = abi.encodePacked(path[0]);
         for (uint256 i = 1; i < path.length; ++i) {

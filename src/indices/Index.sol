@@ -1,21 +1,12 @@
 //SPDX-License-Identifier: MIT
-pragma solidity >=0.8.31;
+pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title Index
-    @author BLOK Capital DAO
-    @notice Core index contract that manages component weights and connected gardens
-    @dev Implements a rebalance able index with configurable calculation methods.
-         Gardens (investment vehicles) connect to indices to track their composition.
-         Weights are automatically recalculated during rebalancing using the specified
-         calculation strategy (e.g., market cap weighted).
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -23,6 +14,8 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
+
+import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
 
 // ============================================================================
 // Errors
@@ -39,6 +32,10 @@ error Index_InvalidIndexCalculationAddress(address indexCalculationAddress);
 /// @notice Thrown when index component registry address is zero
 /// @param indexComponentRegistryAddress The invalid registry address
 error Index_InvalidIndexComponentRegistryAddress(address indexComponentRegistryAddress);
+
+/// @notice Thrown when garden factory address is zero
+/// @param gardenFactoryAddress The invalid garden factory address
+error Index_InvalidGardenFactoryAddress(address gardenFactoryAddress);
 
 /// @notice Thrown when calculated weights length doesn't match components length
 /// @param weightsLength Length of returned weights array
@@ -60,10 +57,42 @@ error Index_GardenNotConnected(address garden);
 /// @param symbol Symbol of the unregistered component
 error Index_ComponentNotRegistered(string symbol);
 
+/// @notice Thrown when a duplicate symbol is provided during index creation
+/// @param symbol The duplicate symbol
+error Index_DuplicateSymbol(string symbol);
+
+/// @notice Thrown when maximum connected gardens limit is reached
+error Index_MaxConnectedGardensReached();
+
+/// @notice Thrown when caller has no contract code (EOA)
+error Index_CallerNotContract();
+
+/// @notice Thrown when caller is not a registered garden
+/// @param caller Address of the caller that is not a registered garden
+error Index_CallerNotGarden(address caller);
+
+/**
+ * @title Index
+ * @notice The Index contract manages the composition and weights of components in a decentralized index. It allows for
+ * rebalancing based on a specified calculation strategy (e.g., market cap weighted) and tracks connected gardens that
+ * use this index for their portfolios. The contract includes access control for the owner, enforces a minimum rebalance
+ * interval, and provides functions for gardens to connect and disconnect from the index. It also includes comprehensive
+ * error handling for various edge cases related to index management and garden connections.
+ */
 contract Index is Ownable {
     /// @notice Minimum time interval between rebalances
     /// @dev Set to 1 hour to prevent excessive rebalancing and associated gas costs
     uint256 public constant REBALANCE_INTERVAL = 1 hours;
+
+    /// @notice Maximum number of gardens that can connect to this index
+    /// @dev Prevents unbounded set growth and gas DoS on getConnectedGardens()
+    uint256 public constant MAX_CONNECTED_GARDENS = 1000;
+
+    /// @notice Unique identifier for Index type in the garden factory
+    bytes32 public constant INDEX_TYPE = keccak256("INDEX");
+
+    /// @notice Emitted when index weights are recalculated
+    event WeightsUpdated(string[] symbols, uint256[] weights, uint256 timestamp);
 
     /// @notice Reference to the calculation strategy contract (e.g., market cap weighted)
     /// @dev Immutable to ensure index methodology remains consistent
@@ -72,6 +101,10 @@ contract Index is Ownable {
     /// @notice Reference to the component registry for validation
     /// @dev Immutable to ensure consistent component validation
     IndexComponentRegistry public immutable INDEX_COMPONENT_REGISTRY;
+
+    /// @notice Reference to the garden factory for registering this index
+    /// @dev Immutable to ensure consistent interaction with garden factory
+    IGardenFactory public immutable GARDEN_FACTORY;
 
     /// @notice Mapping of component addresses to their current weights
     /// @dev Weights are scaled to 1e18 (100% = 1e18)
@@ -99,6 +132,7 @@ contract Index is Ownable {
         address initialOwner,
         address indexCalculationAddress,
         address indexComponentRegistryAddress,
+        address gardenFactoryAddress,
         string[] memory symbols
     )
         Ownable(initialOwner)
@@ -110,16 +144,22 @@ contract Index is Ownable {
         if (indexComponentRegistryAddress == address(0)) {
             revert Index_InvalidIndexComponentRegistryAddress(indexComponentRegistryAddress);
         }
+        if (gardenFactoryAddress == address(0)) {
+            revert Index_InvalidGardenFactoryAddress(gardenFactoryAddress);
+        }
 
         INDEX_CALCULATION = IIndexCalculation(indexCalculationAddress);
         INDEX_COMPONENT_REGISTRY = IndexComponentRegistry(indexComponentRegistryAddress);
+        GARDEN_FACTORY = IGardenFactory(gardenFactoryAddress);
 
         for (uint256 i = 0; i < symbols.length; i++) {
             string memory symbol = symbols[i];
             if (!INDEX_COMPONENT_REGISTRY.isComponentRegistered(symbol)) {
                 revert Index_ComponentNotRegistered(symbol);
             }
-            EnumerableSet.add(_componentSymbols, symbol);
+            if (!EnumerableSet.add(_componentSymbols, symbol)) {
+                revert Index_DuplicateSymbol(symbol);
+            }
         }
 
         _rebalance();
@@ -140,6 +180,14 @@ contract Index is Ownable {
     /// @dev Allows gardens to track this index for portfolio management
     ///      Gardens must call this before using the index's weights
     function connectGardenToIndex() external {
+        bytes32 gardenType = GARDEN_FACTORY.getGardenType(msg.sender);
+
+        if (gardenType != INDEX_TYPE) {
+            revert Index_CallerNotGarden(msg.sender);
+        }
+        if (EnumerableSet.length(_connectedGardens) >= MAX_CONNECTED_GARDENS) {
+            revert Index_MaxConnectedGardensReached();
+        }
         if (EnumerableSet.contains(_connectedGardens, msg.sender)) {
             revert Index_GardenAlreadyConnected(msg.sender);
         }
@@ -214,5 +262,7 @@ contract Index is Ownable {
         }
 
         _lastRebalanceTimestamp = block.timestamp;
+
+        emit WeightsUpdated(symbols, weights, block.timestamp);
     }
 }

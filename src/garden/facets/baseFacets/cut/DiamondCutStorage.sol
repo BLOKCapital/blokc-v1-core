@@ -1,25 +1,22 @@
-// SPDX-License-Identifier: MIT License
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
+
+import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 
 /*###############################################################################
-
-    @title Diamond Cut Storage
-    @author BLOK Capital DAO
-    @notice Storage layout used by the Diamond Cut facet and helpers.
-    @dev Uses a fixed storage slot to ensure compatibility across diamond upgrades.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title DiamondCutStorage
+/// @author BLOK Capital DAO
+/// @notice Storage layout used by the Diamond Cut facet and helpers
+/// @dev Uses a fixed storage slot to ensure compatibility across diamond upgrades
 library DiamondCutStorage {
-    /// @notice Fixed storage slot for diamond-cut related persistent state.
-    bytes32 internal constant DIAMOND_CUT_STORAGE_POSITION = keccak256("garden.cut.storage");
-
     struct FacetAddressAndPosition {
         address facetAddress;
         uint96 functionSelectorPosition; // position in facetFunctionSelectors.functionSelectors array
@@ -41,11 +38,12 @@ library DiamondCutStorage {
 
     /**
      * @notice Returns a pointer to the diamond cut storage layout.
-     * @dev Consumers should call `DiamondCutStorage.layout()` to access and modify storage.
+     * @dev Storage slot is derived from keccak256(bytes(type(DiamondCutStorage).name)),
+     *      tying the slot deterministically to the library's identity.
      * @return l Storage pointer to Layout.
      */
     function layout() internal pure returns (Layout storage l) {
-        bytes32 position = DIAMOND_CUT_STORAGE_POSITION;
+        bytes32 position = LibStorageSlot.deriveStorageSlot(type(DiamondCutStorage).name);
 
         assembly {
             l.slot := position

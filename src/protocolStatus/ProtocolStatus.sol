@@ -1,17 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.31;
+pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title ProtocolStatus
-    @author BLOK Capital DAO
-    @notice Exposes functionality to manage the protocol status.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -19,23 +14,53 @@ import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
+/// @title IENSRegistry
+/// @notice Minimal interface for the ENS Registry to look up resolvers.
 interface IENSRegistry {
+    /// @notice Returns the resolver address for a given ENS node.
+    /// @param node The ENS namehash of the domain.
+    /// @return The resolver contract address.
     function resolver(bytes32 node) external view returns (address);
 }
 
+/// @title IENSResolver
+/// @notice Minimal interface for an ENS Resolver to look up addresses.
 interface IENSResolver {
+    /// @notice Returns the address associated with an ENS node.
+    /// @param node The ENS namehash of the domain.
+    /// @return The resolved Ethereum address.
     function addr(bytes32 node) external view returns (address);
 }
 
+/// @title ProtocolStatus
+/// @author BLOK Capital DAO
+/// @notice Manages protocol-level state (active / upgrades-disabled / inactive) and Security
+///         Council Members (SCMs) tracked via ENS. SCM authorization is verified on each
+///         restricted call with real-time ENS resolution and expiry checks.
+/// @dev SCMs are identified by ENS namehash. An SCM loses authorization immediately if:
+///      - Their ENS-resolved address changes (detected at call time or via `syncResolution`).
+///      - Their membership expires based on `expiryTimestamp`.
+///      The DAO (owner) can re-approve an SCM by extending their expiry.
 contract ProtocolStatus is IProtocolStatus, Ownable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     // ------------------------------------------------------------------------
     // STORAGE
     // ------------------------------------------------------------------------
+
+    /// @dev Current protocol state (ACTIVE, UPGRADES_DISABLED, or INACTIVE).
     State private _protocolStatus;
+
+    /// @notice The immutable ENS registry used for SCM address resolution.
     IENSRegistry public immutable ENS_REGISTRY;
 
+    /// @notice Internal representation of an SCM with mutable state fields.
+    /// @param namehash ENS namehash of the SCM.
+    /// @param ensName Human-readable ENS name.
+    /// @param expiryTimestamp Timestamp after which the membership is expired.
+    /// @param addedAt Timestamp when the SCM was added.
+    /// @param previousAddress The last DAO-approved resolved address.
+    /// @param status Current SCM status.
     struct ScmInternal {
         bytes32 namehash;
         string ensName;
@@ -45,34 +70,79 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         IProtocolStatus.ScmStatus status;
     }
 
+    /// @dev Set of registered SCM ENS namehashes.
     EnumerableSet.Bytes32Set private _namehashes;
+
+    /// @dev Mapping from ENS namehash to internal SCM data.
     mapping(bytes32 => ScmInternal) private _scm;
 
     // ------------------------------------------------------------------------
     // ERRORS
     // ------------------------------------------------------------------------
+    /// @notice Thrown when attempting to activate an already-active protocol.
     error ProtocolStatus_ProtocolIsAlreadyActive();
-    /// @notice Thrown when the protocol is already inactive
+
+    /// @notice Thrown when attempting to deactivate an already-inactive protocol.
     error ProtocolStatus_ProtocolIsAlreadyInactive();
-    /// @notice Thrown when the address is zero
+
+    /// @notice Thrown when a required address argument is the zero address.
     error ProtocolStatus_ZeroAddress();
-    /// @notice Thrown when the array is empty
+
+    /// @notice Thrown when constructor arrays have mismatched or empty lengths.
     error ProtocolStatus_EmptyArray();
+
+    /// @notice Thrown when attempting to add an ENS namehash that is already a member.
+    /// @param namehash The ENS namehash of the duplicate member.
+    /// @param name The human-readable ENS name.
     error ProtocolStatus_ENSAlreadyMember(bytes32 namehash, string name);
+
+    /// @notice Thrown when the ENS namehash does not resolve to a valid address.
+    /// @param namehash The ENS namehash that failed to resolve.
+    /// @param name The human-readable ENS name.
     error ProtocolStatus_ENSNotMember(bytes32 namehash, string name);
+
+    /// @notice Thrown when the ENS namehash is not a registered SCM.
+    /// @param namehash The ENS namehash that is not a member.
     error ProtocolStatus_NotMember(bytes32 namehash);
+
+    /// @notice Thrown when the caller is not authorized (neither owner nor active SCM).
     error ProtocolStatus_Unauthorized();
+
+    /// @notice Thrown when a provided expiry timestamp is in the past or not greater than the current one.
     error ProtocolStatus_InvalidExpiry();
+
+    /// @notice Thrown when attempting to disable upgrades while the protocol is not active.
     error ProtocolStatus_MustBeActiveToDisableUpgrades();
 
     // ------------------------------------------------------------------------
     // EVENTS (interface defines ScmAddressChanged with timestamp)
     // ------------------------------------------------------------------------
+    /// @notice Emitted when the protocol state transitions.
+    /// @param oldStatus The previous protocol state.
+    /// @param newStatus The new protocol state.
+    /// @param changedBy The address that triggered the change.
+    /// @param name The ENS name of the caller (empty for owner).
     event ProtocolStatusChanged(
         State indexed oldStatus, State indexed newStatus, address indexed changedBy, string name
     );
+
+    /// @notice Emitted when a new Security Council Member is added.
+    /// @param namehash The ENS namehash of the new SCM.
+    /// @param ensName The human-readable ENS name.
+    /// @param resolvedAddress The current ENS-resolved address.
+    /// @param expiry The membership expiry timestamp.
     event SecurityCouncilMemberAdded(bytes32 indexed namehash, string ensName, address resolvedAddress, uint256 expiry);
+
+    /// @notice Emitted when a Security Council Member is removed.
+    /// @param namehash The ENS namehash of the removed SCM.
+    /// @param ensName The human-readable ENS name.
     event SecurityCouncilMemberRemoved(bytes32 indexed namehash, string ensName);
+
+    /// @notice Emitted when an SCM's expiry is extended and membership re-approved.
+    /// @param namehash The ENS namehash of the SCM.
+    /// @param ensName The human-readable ENS name.
+    /// @param oldExpiry The previous expiry timestamp.
+    /// @param newExpiry The new expiry timestamp.
     event SecurityCouncilMemberExpiryExtended(
         bytes32 indexed namehash, string ensName, uint256 oldExpiry, uint256 newExpiry
     );
@@ -80,19 +150,18 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // ------------------------------------------------------------------------
     // MODIFIER
     // ------------------------------------------------------------------------
-    /**
-     * onlyAuthorized(actionName)
-     * - If owner: allowed
-     * - Otherwise: scans SCMs, performs ENS-change detection (stateful) and only allows call if caller
-     *   resolves to an ACTIVE SCM (not expired and not address-changed).
-     *
-     * This ensures address-rotations are detected at the time of the call and SCM loses power immediately.
-     */
+    /// @notice Restricts access to the owner or an active SCM whose ENS resolution is current.
+    /// @dev Performs real-time ENS resolution to detect address rotations. If the resolved
+    ///      address differs from the DAO-approved address, the SCM is marked `ADDRESS_CHANGED`
+    ///      and loses authorization immediately. Expired SCMs are also skipped.
+    /// @param actionName A human-readable action label emitted in `ScmAction` events.
     modifier onlyAuthorized(string memory actionName) {
         _onlyAuthorized(actionName);
         _;
     }
 
+    /// @dev Internal logic for the `onlyAuthorized` modifier.
+    /// @param actionName Label for the action being authorized.
     function _onlyAuthorized(string memory actionName) internal {
         if (msg.sender == owner()) {
             emit ScmAction(msg.sender, actionName);
@@ -140,10 +209,13 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // ------------------------------------------------------------------------
     // CONSTRUCTOR
     // ------------------------------------------------------------------------
-    /**
-     * @param _ensRegistry ENS registry address on Arbitrum chain
-     * @param initialNamehashes bootstrap (parallel arrays)
-     */
+    /// @notice Initializes the protocol with an ENS registry and optional bootstrap SCMs.
+    /// @dev The protocol starts in `INACTIVE` state. Bootstrap arrays must have equal length.
+    /// @param initialOwner The address that will own this contract.
+    /// @param _ensRegistry The ENS registry address used for SCM address resolution.
+    /// @param initialNamehashes Array of ENS namehashes for bootstrap SCMs.
+    /// @param initialNames Array of human-readable ENS names (parallel to namehashes).
+    /// @param initialExpiries Array of expiry timestamps (parallel to namehashes).
     constructor(
         address initialOwner,
         address _ensRegistry,
@@ -191,6 +263,8 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // ------------------------------------------------------------------------
     // DAO-ONLY MEMBERSHIP
     // ------------------------------------------------------------------------
+
+    /// @inheritdoc IProtocolStatus
     function addSecurityCouncilMemberByEns(
         bytes32 namehash,
         string calldata ensName,
@@ -221,6 +295,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         emit ScmAction(msg.sender, "add SCM");
     }
 
+    /// @inheritdoc IProtocolStatus
     function removeSecurityCouncilMemberByEns(bytes32 namehash) external override onlyOwner {
         if (!_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
 
@@ -232,9 +307,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         emit ScmAction(msg.sender, "remove SCM");
     }
 
-    /**
-     * DAO re-approval: extend expiry and mark ACTIVE (updates previousAddress to current resolver)
-     */
+    /// @inheritdoc IProtocolStatus
     function extendScmExpiry(bytes32 namehash, uint256 newExpiry) external override onlyOwner {
         if (!_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
         ScmInternal storage m = _scm[namehash];
@@ -255,6 +328,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // ------------------------------------------------------------------------
     // PROTOCOL MANAGEMENT
     // ------------------------------------------------------------------------
+    /// @inheritdoc IProtocolStatus
     function activateProtocol() external override onlyOwner {
         State currentStatus = _protocolStatus;
         if (currentStatus == State.ACTIVE) revert ProtocolStatus_ProtocolIsAlreadyActive();
@@ -263,6 +337,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         emit ScmAction(msg.sender, "activate protocol");
     }
 
+    /// @inheritdoc IProtocolStatus
     function deactivateProtocol() external override onlyAuthorized("deactivate protocol") {
         State currentStatus = _protocolStatus;
         if (currentStatus == State.INACTIVE) revert ProtocolStatus_ProtocolIsAlreadyInactive();
@@ -270,6 +345,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         emit ProtocolStatusChanged(currentStatus, State.INACTIVE, msg.sender, _getMemberName(msg.sender));
     }
 
+    /// @inheritdoc IProtocolStatus
     function disableUpgrades() external override onlyAuthorized("disable upgrades") {
         State currentStatus = _protocolStatus;
         if (currentStatus != State.ACTIVE) revert ProtocolStatus_MustBeActiveToDisableUpgrades();
@@ -278,9 +354,13 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     }
 
     // ------------------------------------------------------------------------
-    // SYNC (public) — proactive detection by worker/off-chain
-    // Anyone (worker/DAO/offchain) can call this to update state and emit events.
+    // SYNC
     // ------------------------------------------------------------------------
+
+    /// @notice Proactively syncs an SCM's ENS resolution and updates their status.
+    /// @dev Can be called by anyone (off-chain worker, DAO, etc.) to detect ENS
+    ///      address changes or expiry without waiting for the next authorized call.
+    /// @param namehash The ENS namehash of the SCM to sync.
     function syncResolution(bytes32 namehash) external {
         if (!_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
         ScmInternal storage m = _scm[namehash];
@@ -303,6 +383,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // ------------------------------------------------------------------------
     // VIEWS
     // ------------------------------------------------------------------------
+    /// @inheritdoc IProtocolStatus
     function getSecurityCouncilMembers() external view override returns (EnsMember[] memory) {
         uint256 count = _namehashes.length();
         EnsMember[] memory arr = new EnsMember[](count);
@@ -322,39 +403,47 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         return arr;
     }
 
+    /// @inheritdoc IProtocolStatus
     function getProtocolStatus() external view override returns (State) {
         return _protocolStatus;
     }
 
+    /// @inheritdoc IProtocolStatus
     function isSecurityCouncilMember(address member) external view override returns (bool) {
         return _isActiveScm(member);
     }
 
+    /// @inheritdoc IProtocolStatus
     function getMemberName(address member) external view override returns (string memory) {
         return _getMemberName(member);
     }
 
+    /// @inheritdoc IProtocolStatus
     function getResolvedAddress(bytes32 namehash) external view override returns (address) {
         if (!_namehashes.contains(namehash)) return address(0);
         return _resolve(namehash);
     }
 
+    /// @inheritdoc IProtocolStatus
     function getPreviousResolvedAddress(bytes32 namehash) external view override returns (address) {
         if (!_namehashes.contains(namehash)) return address(0);
         return _scm[namehash].previousAddress;
     }
 
+    /// @inheritdoc IProtocolStatus
     function getScmStatus(bytes32 namehash) external view override returns (ScmStatus) {
         if (!_namehashes.contains(namehash)) revert ProtocolStatus_NotMember(namehash);
         address r = _resolve(namehash);
         return _computeStatus(namehash, r);
     }
 
+    /// @inheritdoc IProtocolStatus
     function getExpiryTimestamp(bytes32 namehash) external view override returns (uint256) {
         if (!_namehashes.contains(namehash)) return 0;
         return _scm[namehash].expiryTimestamp;
     }
 
+    /// @inheritdoc IProtocolStatus
     function getEnsName(bytes32 namehash) external view override returns (string memory) {
         if (!_namehashes.contains(namehash)) return "";
         return _scm[namehash].ensName;
@@ -363,18 +452,21 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // ------------------------------------------------------------------------
     // INTERNAL HELPERS
     // ------------------------------------------------------------------------
+    /// @dev Resolves an ENS namehash to an address via the ENS registry and resolver.
+    /// @param n The ENS namehash to resolve.
+    /// @return The resolved address, or `address(0)` if no resolver is set.
     function _resolve(bytes32 n) internal view returns (address) {
         address resolver = ENS_REGISTRY.resolver(n);
         if (resolver == address(0)) return address(0);
         return IENSResolver(resolver).addr(n);
     }
 
-    /**
-     * _handleEnsChange:
-     * - emits ScmAddressChanged(namehash, ensName, oldAddr, newAddr, timestamp)
-     * - sets status = ADDRESS_CHANGED
-     * - does NOT overwrite previousAddress (keeps last DAO-approved address)
-     */
+    /// @dev Handles an ENS address change for an SCM by marking them as `ADDRESS_CHANGED`
+    ///      and emitting an event. Does NOT overwrite `previousAddress` (keeps the last
+    ///      DAO-approved address for comparison).
+    /// @param namehash The ENS namehash of the SCM.
+    /// @param m The SCM's internal storage reference.
+    /// @param newResolved The newly resolved address that differs from the approved one.
     function _handleEnsChange(bytes32 namehash, ScmInternal storage m, address newResolved) internal {
         address old = m.previousAddress;
         // mark as address changed
@@ -383,6 +475,10 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         emit ScmAddressChanged(namehash, m.ensName, old, newResolved, block.timestamp);
     }
 
+    /// @dev Computes the current SCM status by checking expiry and ENS resolution.
+    /// @param namehash The ENS namehash of the SCM.
+    /// @param resolved The currently resolved address from ENS.
+    /// @return The computed `ScmStatus`.
     function _computeStatus(bytes32 namehash, address resolved) internal view returns (ScmStatus) {
         ScmInternal storage s = _scm[namehash];
         if (block.timestamp >= s.expiryTimestamp) return ScmStatus.EXPIRED;
@@ -392,6 +488,9 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         return ScmStatus.ACTIVE;
     }
 
+    /// @dev Checks whether an address corresponds to an active (non-expired, non-changed) SCM.
+    /// @param addr The address to check.
+    /// @return `true` if the address is an active SCM.
     function _isActiveScm(address addr) internal view returns (bool) {
         uint256 len = _namehashes.length();
         for (uint256 i = 0; i < len; i++) {
@@ -407,6 +506,9 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         return false;
     }
 
+    /// @dev Returns the ENS name for a given address if it matches an SCM's resolved address.
+    /// @param addr The address to look up.
+    /// @return The ENS name, or an empty string if not found or if the address is the owner.
     function _getMemberName(address addr) internal view returns (string memory) {
         if (addr == owner()) return ""; // owner has no ENS name in this contract
         uint256 len = _namehashes.length();

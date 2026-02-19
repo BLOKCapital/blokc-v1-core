@@ -50,8 +50,8 @@ contract Deploy is BaseScript {
         UpgradeFacet upgradeFacet = new UpgradeFacet{ salt: salt }();
         bytes4[] memory upgradeSelectors = new bytes4[](3);
         upgradeSelectors[0] = upgradeFacet.upgrade.selector;
-        upgradeSelectors[1] = upgradeFacet.getCurrentVersion.selector;
-        upgradeSelectors[2] = upgradeFacet.upgradeDetails.selector;
+        upgradeSelectors[1] = upgradeFacet.upgradeDetails.selector;
+        upgradeSelectors[2] = upgradeFacet.getModuleVersion.selector;
         console2.log("UpgradeFacet deployed at:", address(upgradeFacet));
 
         address[4] memory baseFacets =
@@ -98,7 +98,6 @@ contract Deploy is BaseScript {
         gardenFactory = new GardenFactory{ salt: salt }(
             deployer, address(facetRegistry), address(protocolStatus), address(sbtRegistry)
         );
-
         console2.log("GardenFactory deployed at:", address(gardenFactory));
     }
 }

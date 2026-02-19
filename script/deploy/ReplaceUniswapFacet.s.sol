@@ -65,7 +65,9 @@ contract ReplaceUniswapV3Facet is BaseScript {
             functionSelectors: rewardCollectionFacetSelectors
         });
 
-        FacetRegistry(REGISTRY).upgradeFacetRegistry(facetCuts);
+        // TODO: Update moduleId to match the appropriate module
+        bytes32 moduleId = keccak256("DEX");
+        FacetRegistry(REGISTRY).upgradeModule(moduleId, facetCuts);
         console2.log("UniswapV3Facet replaced");
     }
 }

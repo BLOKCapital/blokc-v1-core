@@ -1,31 +1,59 @@
-//SPDX-License-Identifier: MIT
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IndexMath
-    @author BLOK Capital DAO
-    @notice Library for safe mathematical operations used in index calculations
-    @dev Uses WETH as base currency for all calculations (more efficient than USD)
-         All values are normalized to 18 decimals (WETH native precision)
+    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
+    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
+    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
+    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
 ################################################################################*/
 
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
+/// @title IndexMath
+/// @author BLOK Capital DAO
+/// @notice Library for safe mathematical operations used in index calculations
+/// @dev Uses WETH as base currency for all calculations (more efficient than USD).
+///      All values are normalized to 18 decimals (WETH native precision).
 library IndexMath {
+    /// @notice Thrown when division by zero is attempted
     error IndexMath_DivisionByZero();
+
+    /// @notice Thrown when an arithmetic overflow occurs
     error IndexMath_Overflow();
+
+    /// @notice Thrown when a price value is zero or negative
     error IndexMath_InvalidPrice();
+
+    /// @notice Thrown when a weight exceeds 100% or is otherwise invalid
     error IndexMath_InvalidWeight();
+
+    /// @notice Thrown when oracle price data is stale beyond the staleness threshold
+    /// @param updatedAt Timestamp of the last oracle update
+    /// @param currentTime Current block timestamp
     error IndexMath_StaleOraclePrice(uint256 updatedAt, uint256 currentTime);
+
+    /// @notice Thrown when oracle round data is incomplete
+    /// @param roundId Current round ID
+    /// @param answeredInRound Round ID in which the answer was computed
     error IndexMath_IncompleteOracleRound(uint80 roundId, uint80 answeredInRound);
 
+    /// @notice Precision constant (1e18 = 100%)
     uint256 internal constant PRECISION = 1e18;
-    uint256 internal constant MAX_WEIGHT = 1e18; // 100% in 18 decimals
-    uint256 internal constant MIN_WEIGHT = 1e14; // 0.01% minimum weight
+
+    /// @notice Maximum weight value (100% in 18 decimals)
+    uint256 internal constant MAX_WEIGHT = 1e18;
+
+    /// @notice Minimum weight value (0.01% in 18 decimals)
+    uint256 internal constant MIN_WEIGHT = 1e14;
+
+    /// @notice WETH token decimals
     uint256 internal constant WETH_DECIMALS = 18;
-    uint256 internal constant CHAINLINK_STALENESS_THRESHOLD = 3600; // 1 hour
+
+    /// @notice Maximum allowed staleness for Chainlink oracle data (1 hour)
+    uint256 internal constant CHAINLINK_STALENESS_THRESHOLD = 3600;
 
     /// @notice Safely calculate weight as a percentage of total with proper rounding
     /// @param part Individual market cap or value
@@ -44,6 +72,12 @@ library IndexMath {
         return weight;
     }
 
+    /// @notice Convert USD value to token amount using USD price feed
+    /// @param usdValue USD value to convert
+    /// @param priceInUsd Price per token from USD price feed
+    /// @param tokenDecimals Token decimals
+    /// @param priceDecimals Price feed decimals
+    /// @return tokenAmount Token amount in native decimals
     function usdToToken(
         uint256 usdValue,
         uint256 priceInUsd,
@@ -57,10 +91,10 @@ library IndexMath {
         if (priceInUsd == 0) revert IndexMath_InvalidPrice();
         if (usdValue == 0) return 0;
 
-        // Calculate: (usdValue * 10^tokenDecimals * 10^priceDecimals) / (price * 1e18)
-        uint256 numerator = usdValue * (10 ** uint256(tokenDecimals)) * (10 ** uint256(priceDecimals));
-
-        tokenAmount = Math.mulDiv(numerator, 1, priceInUsd * PRECISION, Math.Rounding.Floor);
+        // Calculate: (usdValue * 10^tokenDecimals * 10^priceDecimals) / (priceInUsd * 1e18)
+        // Chained Math.mulDiv to avoid intermediate overflow
+        uint256 intermediate = Math.mulDiv(usdValue, 10 ** uint256(tokenDecimals), priceInUsd, Math.Rounding.Floor);
+        tokenAmount = Math.mulDiv(intermediate, 10 ** uint256(priceDecimals), PRECISION, Math.Rounding.Floor);
 
         return tokenAmount;
     }
@@ -277,8 +311,12 @@ library IndexMath {
         if (amountIn == 0) return 0;
 
         // Calculate expected output: (amountIn * priceRatio * 10^decimalsOut) / 10^decimalsIn
+        // Chained Math.mulDiv to avoid intermediate overflow of priceRatio * 10^decimalsOut
         uint256 expectedOut = Math.mulDiv(
-            amountIn, priceRatio * (10 ** uint256(decimalsOut)), 10 ** uint256(decimalsIn), Math.Rounding.Floor
+            Math.mulDiv(amountIn, priceRatio, 10 ** uint256(decimalsIn), Math.Rounding.Floor),
+            10 ** uint256(decimalsOut),
+            1,
+            Math.Rounding.Floor
         );
 
         // Apply slippage tolerance
@@ -325,18 +363,18 @@ library IndexMath {
     /// @param price Price value from oracle
     /// @param updatedAt Timestamp when data was last updated
     /// @param answeredInRound Round ID in which the answer was computed
-    function validateOracleData(uint80 roundId, int256 price, uint256 updatedAt, uint80 answeredInRound) internal view {
-        // Check price is positive
-        if (price <= 0) revert IndexMath_InvalidPrice();
+    // function validateOracleData(uint80 roundId, int256 price, uint256 updatedAt, uint80 answeredInRound) internal view {
+    //     // Check price is positive
+    //     if (price <= 0) revert IndexMath_InvalidPrice();
 
-        // Check data is fresh (updated within threshold)
-        if (block.timestamp - updatedAt > CHAINLINK_STALENESS_THRESHOLD) {
-            revert IndexMath_StaleOraclePrice(updatedAt, block.timestamp);
-        }
+    //     // Check data is fresh (updated within threshold)
+    //     if (block.timestamp - updatedAt > CHAINLINK_STALENESS_THRESHOLD) {
+    //         revert IndexMath_StaleOraclePrice(updatedAt, block.timestamp);
+    //     }
 
-        // Check round is complete
-        if (answeredInRound < roundId) {
-            revert IndexMath_IncompleteOracleRound(roundId, answeredInRound);
-        }
-    }
+    //     // Check round is complete
+    //     if (answeredInRound < roundId) {
+    //         revert IndexMath_IncompleteOracleRound(roundId, answeredInRound);
+    //     }
+    // }
 }

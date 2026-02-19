@@ -1,20 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.31;
+pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title GardenFactory
-    @author BLOK Capital DAO
-    @notice Factory contract that deploys new garden (Diamond) contracts using CREATE2.
-    @dev This contract uses the Transparent Proxy pattern and is upgradeable.
-         It uses OpenZeppelin's upgradeable contracts library for security and reliability.
-         Each user can deploy up to 10 gardens, identified by indices 1-10.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -61,11 +53,23 @@ error GardenFactory_ProtocolIsInactive();
 /// @notice Thrown when the sbt registry is not set
 error GardenFactory_SBTRegistryNotSet();
 
+/// @notice Thrown when the garden type is not registered
+/// @param gardenType The unregistered garden type
+error GardenFactory_GardenTypeNotRegistered(bytes32 gardenType);
+
+/**
+ * @title GardenFactory
+ * @author BLOK Capital DAO
+ * @notice Factory contract that deploys new garden (Diamond) contracts using CREATE2.
+ * @dev Each user can deploy up to 10 gardens, with deterministic addresses based on the user, index, and factory
+ * address.
+ * The factory also keeps track of all deployed gardens and their associations with users.
+ */
 contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     // ========================================================================
-    // State Variables
+    //                            STATE VARIABLES
     // ========================================================================
 
     /// @notice The address of the facet registry contract
@@ -86,6 +90,18 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     /// @notice Mapping of user address to index (1-10) to garden address
     mapping(address user => mapping(uint256 index => address)) private _userIndexToGarden;
 
+    /// @notice Mapping of garden address to its garden type
+    mapping(address garden => bytes32 gardenType) private _gardenToType;
+
+    /// @notice Mapping of garden type to the set of gardens of that type
+    mapping(bytes32 gardenType => EnumerableSet.AddressSet) private _gardensByType;
+
+    /// @notice Mapping of user address to garden type to array of garden addresses
+    mapping(address user => mapping(bytes32 gardenType => address[])) private _userGardensByType;
+
+    /// @notice Mapping of garden address to its owner
+    mapping(address garden => address owner) private _gardenToOwner;
+
     // ========================================================================
     // Events
     // ========================================================================
@@ -101,7 +117,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     event FactoryInitialized(address indexed initialOwner);
 
     // ========================================================================
-    // Constructor
+    //                            CONSTRUCTOR
     // ========================================================================
 
     /// @notice Constructor
@@ -137,19 +153,15 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     // External Functions
     // ========================================================================
 
-    /// @notice Creates a new garden (Diamond) contract for the caller
-    /// @dev The garden is deployed using CREATE2 with a deterministic address based on the owner, index, and factory.
-    ///      Each user can deploy up to 10 gardens (indices 1-10). The garden is initialized with base facets
-    ///      retrieved from the facet registry.
-    /// @param index The per-user garden index (must be between 1 and 10, inclusive)
-    /// @param collection The SBT collection address to mint from
-    /// @return gardenAddress The address of the newly deployed garden contract
+    /// @inheritdoc IGardenFactory
     function createGarden(
         uint256 index,
         address collection,
-        uint256 tokenId
+        uint256 tokenId,
+        bytes32 gardenType
     )
         external
+        override
         nonReentrant
         returns (address gardenAddress)
     {
@@ -170,32 +182,19 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
             revert GardenFactory_IndexAlreadyUsed(owner, index);
         }
 
-        // Get base facets from registry
+        // Validate garden type is registered and get facet cuts for this type
         IFacetRegistry registry = IFacetRegistry(_facetRegistry);
-        address[4] memory baseFacets = registry.getBaseFacets();
-
-        // Validate all base facets are registered
-        for (uint256 i = 0; i < baseFacets.length; i++) {
-            if (baseFacets[i] == address(0)) {
-                revert GardenFactory_DefaultFacetNotRegistered();
-            }
+        if (!registry.isGardenTypeRegistered(gardenType)) {
+            revert GardenFactory_GardenTypeNotRegistered(gardenType);
         }
 
-        // Build diamond cut structure with all base facets
-        IDiamondCut.FacetCut[] memory diamondCut = new IDiamondCut.FacetCut[](baseFacets.length);
-        for (uint256 i = 0; i < baseFacets.length; i++) {
-            diamondCut[i] = IDiamondCut.FacetCut({
-                facetAddress: baseFacets[i],
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: registry.getFacetFunctionSelectors(baseFacets[i])
-            });
-        }
+        IDiamondCut.FacetCut[] memory diamondCut = registry.getBaseFacetCuts();
 
         // Generate deterministic salt for CREATE2 deployment
         bytes32 salt = keccak256(abi.encode(owner, index, address(this)));
 
-        // Deploy the Diamond contract using CREATE2
-        Garden garden = new Garden{ salt: salt }(diamondCut, owner, _facetRegistry, _protocolStatus);
+        // Deploy the Diamond contract using CREATE2 with garden type
+        Garden garden = new Garden{ salt: salt }(diamondCut, owner, _facetRegistry, _protocolStatus, gardenType);
 
         gardenAddress = address(garden);
 
@@ -203,6 +202,12 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         _gardens.add(gardenAddress);
         _userGardens[owner].push(gardenAddress);
         _userIndexToGarden[owner][index] = gardenAddress;
+
+        // Track garden type associations
+        _gardenToType[gardenAddress] = gardenType;
+        _gardensByType[gardenType].add(gardenAddress);
+        _userGardensByType[owner][gardenType].push(gardenAddress);
+        _gardenToOwner[gardenAddress] = owner;
 
         // Mint SBT if collection is provided
         // if (collection != address(0) && block.chainid == 42_161) {
@@ -212,24 +217,193 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         emit GardenCreated(gardenAddress, owner, index);
     }
 
-    /// @notice Returns all gardens created by this factory
-    /// @return gardens_ Array of all registered garden addresses
-    function getAllGardens() external view returns (address[] memory gardens_) {
-        gardens_ = _gardens.values();
+    /// @inheritdoc IGardenFactory
+    function getAllGardens() external view returns (address[] memory gardens) {
+        gardens = _gardens.values();
     }
 
-    /// @notice Returns all gardens created by a specific user
-    function getUserGardens(address user) external view returns (address[] memory gardens_) {
-        gardens_ = _userGardens[user];
+    /// @inheritdoc IGardenFactory
+    function getUserGardens(address user) external view returns (address[] memory gardens) {
+        gardens = _userGardens[user];
     }
 
-    /// @notice Returns the garden address associated with a specific user and index
+    /// @inheritdoc IGardenFactory
     function getGarden(address user, uint256 index) external view returns (address) {
         return _userIndexToGarden[user][index];
     }
 
-    /// @notice Checks if a garden address is registered in this factory
+    /// @inheritdoc IGardenFactory
     function isGardenRegistered(address garden) external view returns (bool) {
         return _gardens.contains(garden);
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getTotalGardens() external view returns (uint256 count) {
+        count = _gardens.length();
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getUserGardenCount(address user) external view returns (uint256 count) {
+        count = _userGardens[user].length;
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getUserAvailableIndices(address user) external view returns (uint256[] memory availableIndices) {
+        uint256 available;
+        for (uint256 i = 1; i <= 10; i++) {
+            if (_userIndexToGarden[user][i] == address(0)) {
+                available++;
+            }
+        }
+
+        availableIndices = new uint256[](available);
+        uint256 cursor;
+        for (uint256 i = 1; i <= 10; i++) {
+            if (_userIndexToGarden[user][i] == address(0)) {
+                availableIndices[cursor] = i;
+                cursor++;
+            }
+        }
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getUserUsedIndices(address user) external view returns (uint256[] memory usedIndices) {
+        uint256 used;
+        for (uint256 i = 1; i <= 10; i++) {
+            if (_userIndexToGarden[user][i] != address(0)) {
+                used++;
+            }
+        }
+
+        usedIndices = new uint256[](used);
+        uint256 cursor;
+        for (uint256 i = 1; i <= 10; i++) {
+            if (_userIndexToGarden[user][i] != address(0)) {
+                usedIndices[cursor] = i;
+                cursor++;
+            }
+        }
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getGardensByRange(uint256 offset, uint256 limit) external view returns (address[] memory gardens) {
+        uint256 total = _gardens.length();
+        if (offset >= total) {
+            return new address[](0);
+        }
+
+        uint256 end = offset + limit;
+        if (end > total) {
+            end = total;
+        }
+
+        uint256 count = end - offset;
+        gardens = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            gardens[i] = _gardens.at(offset + i);
+        }
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getFacetRegistry() external view returns (address) {
+        return _facetRegistry;
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getProtocolStatus() external view returns (address) {
+        return _protocolStatus;
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getSBTRegistry() external view returns (address) {
+        return address(_sbtRegistry);
+    }
+
+    /// @inheritdoc IGardenFactory
+    function isIndexAvailable(address user, uint256 index) external view returns (bool) {
+        if (index < 1 || index > 10) return false;
+        return _userIndexToGarden[user][index] == address(0);
+    }
+
+    // ========================================================================
+    //                       GARDEN TYPE VIEW FUNCTIONS
+    // ========================================================================
+
+    /// @inheritdoc IGardenFactory
+    function getGardenType(address garden) external view returns (bytes32) {
+        return _gardenToType[garden];
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getGardenOwner(address garden) external view returns (address) {
+        return _gardenToOwner[garden];
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getGardensByType(bytes32 gardenType) external view returns (address[] memory gardens) {
+        gardens = _gardensByType[gardenType].values();
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getGardensByTypeCount(bytes32 gardenType) external view returns (uint256 count) {
+        count = _gardensByType[gardenType].length();
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getGardensByTypeRange(
+        bytes32 gardenType,
+        uint256 offset,
+        uint256 limit
+    )
+        external
+        view
+        returns (address[] memory gardens)
+    {
+        uint256 total = _gardensByType[gardenType].length();
+        if (offset >= total) {
+            return new address[](0);
+        }
+
+        uint256 end = offset + limit;
+        if (end > total) {
+            end = total;
+        }
+
+        uint256 count = end - offset;
+        gardens = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            gardens[i] = _gardensByType[gardenType].at(offset + i);
+        }
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getUserGardensByType(address user, bytes32 gardenType) external view returns (address[] memory gardens) {
+        gardens = _userGardensByType[user][gardenType];
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getUserGardensByTypeCount(address user, bytes32 gardenType) external view returns (uint256 count) {
+        count = _userGardensByType[user][gardenType].length;
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getGardenInfo(address garden) external view returns (address owner, bytes32 gardenType, bool registered) {
+        owner = _gardenToOwner[garden];
+        gardenType = _gardenToType[garden];
+        registered = _gardens.contains(garden);
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getUserGardenInfos(address user)
+        external
+        view
+        returns (address[] memory gardens, bytes32[] memory gardenTypes)
+    {
+        gardens = _userGardens[user];
+        uint256 length = gardens.length;
+        gardenTypes = new bytes32[](length);
+        for (uint256 i = 0; i < length; i++) {
+            gardenTypes[i] = _gardenToType[gardens[i]];
+        }
     }
 }

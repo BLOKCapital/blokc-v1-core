@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title CamelotV2Base
-    @author BLOK Capital DAO
-    @notice Base contract for Camelot V2 integration (swaps)
-    @dev This contract provides the base functionality for Camelot V2 integration
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -21,43 +16,56 @@ import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.so
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @notice Camelot V2 facet insufficient amount out error
+/// @notice Thrown when the swap output amount is below the minimum acceptable threshold
 error CamelotV2Facet_InsufficientAmountOut();
-/// @notice Camelot V2 facet get pair failed error
+
+/// @notice Thrown when the factory getPair call fails
 error CamelotV2Facet_GetPairFailed();
-/// @notice Camelot V2 facet invalid pool address error
+
+/// @notice Thrown when the resolved pool address is the zero address
 error CamelotV2Facet_InvalidPoolAddress();
-/// @notice Camelot V2 facet unregistered pool error
+
+/// @notice Thrown when a pool along the swap path is not registered in the pool registry
 error CamelotV2Facet_UnregisteredPool();
 
+/**
+ * @title CamelotV2Base
+ * @notice Base contract that implements internal functions for swapping tokens through Camelot V2 on Arbitrum One. This
+ * contract is intended to be inherited by a CamelotV2Facet that exposes the swap functions with appropriate access
+ * control and user-facing error messages. It includes functions to perform single-hop and multi-hop exact-input and
+ * exact-output swaps, along with events for off-chain tracking of swap operations.
+ */
 abstract contract CamelotV2Base {
     using SafeERC20 for IERC20;
-    //Arbitrum One
+
+    /// @notice Camelot V2 router address on Arbitrum One
     address internal constant CAMELOT_V2_ROUTER_ADDRESS = 0xc873fEcbd354f5A56E00E710B90EF4201db2448d;
+
+    /// @notice Camelot V2 factory address on Arbitrum One
     address internal constant CAMELOT_V2_FACTORY_ADDRESS = 0x6EcCab422D763aC031210895C81787E87B43A652;
+
+    /// @notice Liquidity pool registry address on Arbitrum One
     address internal constant POOL_REGISTRY_ADDRESS = 0xBa7898DbE9C2be340197e1fffe85FC5a3B977744;
 
-    /// @notice Camelot V2 facet tokens swapped event
-    /// @param tokenIn The input token
-    /// @param tokenOut The output token
+    /// @notice Emitted when a Camelot V2 swap is successfully executed
+    /// @param tokenIn The input token address
+    /// @param tokenOut The output token address
     /// @param amountIn The amount of input tokens swapped
     /// @param amountOut The amount of output tokens received
     event CamelotV2FacetTokensSwapped(
         address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
     );
 
-    /// @notice Camelot V2 base exact input single swap
+    /// @notice Executes a Camelot V2 exact input single-hop swap
     /// @param amountIn The amount of input tokens to swap
     /// @param amountOutMin The minimum amount of output tokens to receive
     /// @param path The path of tokens to swap
-    /// @param to The address to receive the output tokens
     /// @param referrer The address of the referrer
     /// @param deadline The deadline for the swap
     function _camelotV2ExactInputSingle(
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
@@ -72,7 +80,9 @@ abstract contract CamelotV2Base {
 
         // Execute the swap
         ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
-            .swapExactTokensForTokensSupportingFeeOnTransferTokens(amountIn, amountOutMin, path, to, referrer, deadline);
+            .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountIn, amountOutMin, path, address(this), referrer, deadline
+            );
 
         // Get the amount of output tokens received
         uint256 amountOut = IERC20(path[path.length - 1]).balanceOf(address(this));
@@ -86,18 +96,16 @@ abstract contract CamelotV2Base {
         emit CamelotV2FacetTokensSwapped(path[0], path[path.length - 1], amountIn, amountOut);
     }
 
-    /// @notice Camelot V2 base exact input swap
+    /// @notice Executes a Camelot V2 exact input multi-hop swap
     /// @param amountInMax The maximum amount of input tokens to swap
     /// @param amountOutMin The minimum amount of output tokens to receive
     /// @param path The path of tokens to swap
-    /// @param to The address to receive the output tokens
     /// @param referrer The address of the referrer
     /// @param deadline The deadline for the swap
     function _camelotV2ExactInput(
         uint256 amountInMax,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
@@ -112,7 +120,9 @@ abstract contract CamelotV2Base {
 
         // Execute the swap
         ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
-            .swapExactETHForTokensSupportingFeeOnTransferTokens(amountOutMin, path, to, referrer, deadline);
+            .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountInMax, amountOutMin, path, address(this), referrer, deadline
+            );
 
         // Get the amount of output tokens received
         uint256 amountOut = IERC20(path[path.length - 1]).balanceOf(address(this));
@@ -127,18 +137,16 @@ abstract contract CamelotV2Base {
         emit CamelotV2FacetTokensSwapped(path[0], path[path.length - 1], amountInMax, amountOut);
     }
 
-    /// @notice Camelot V2 base exact output single swap
+    /// @notice Executes a Camelot V2 exact output single-hop swap to ETH
     /// @param amountIn The amount of input tokens to swap
     /// @param amountOutMin The minimum amount of output tokens to receive
     /// @param path The path of tokens to swap
-    /// @param to The address to receive the input tokens
     /// @param referrer The address of the referrer
     /// @param deadline The deadline for the swap
     function _camelotV2ExactOutputSingle(
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referrer,
         uint256 deadline
     )
@@ -152,7 +160,9 @@ abstract contract CamelotV2Base {
 
         // Execute the swap
         ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
-            .swapExactTokensForETHSupportingFeeOnTransferTokens(amountIn, amountOutMin, path, to, referrer, deadline);
+            .swapExactTokensForETHSupportingFeeOnTransferTokens(
+                amountIn, amountOutMin, path, address(this), referrer, deadline
+            );
 
         // Get the amount of output tokens received
         uint256 amountOut = address(this).balance;
@@ -167,9 +177,8 @@ abstract contract CamelotV2Base {
         emit CamelotV2FacetTokensSwapped(path[0], path[path.length - 1], amountIn, amountOut);
     }
 
-    /// @notice Camelot V2 base validate pools
-    /// @param path The path of tokens to swap
-    /// @dev This function validates the pools for the given path
+    /// @notice Validates that all pools along the swap path exist and are registered
+    /// @param path The array of token addresses forming the swap path
     function _validatePools(address[] calldata path) internal view {
         for (uint256 i = 0; i < path.length - 1; i++) {
             (bool ok, bytes memory data) = CAMELOT_V2_FACTORY_ADDRESS.staticcall(

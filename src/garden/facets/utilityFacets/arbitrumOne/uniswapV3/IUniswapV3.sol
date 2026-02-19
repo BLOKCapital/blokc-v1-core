@@ -3,20 +3,18 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IUniswapV3
-    @author BLOK Capital DAO
-    @notice Interface for Uniswap V3 integration (swaps and TWAP queries)
-    @dev This interface provides functions for executing token swaps on Uniswap V3
-         and querying TWAP (Time-Weighted Average Price) prices from pools.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title IUniswapV3
+/// @author BLOK Capital DAO
+/// @notice Interface for Uniswap V3 integration (swaps and TWAP queries)
+/// @dev Provides functions for executing token swaps on Uniswap V3
+///      and querying TWAP (Time-Weighted Average Price) prices from pools.
 interface IUniswapV3 {
     // ========================================================================
     // Structs
@@ -34,7 +32,7 @@ interface IUniswapV3 {
         uint256 deadline;
         address tokenIn;
         address tokenOut;
-        uint8 swapFee;
+        uint24 swapFee;
     }
 
     /// @notice Encodes a token + pool fee entry for multi-hop paths
@@ -42,7 +40,7 @@ interface IUniswapV3 {
     /// @param fee Fee tier (uint24) used by the following pool
     struct TokenWithFee {
         address token;
-        uint8 fee;
+        uint24 fee;
     }
 
     /// @notice Parameters for a multi-hop exact-input swap
@@ -70,7 +68,7 @@ interface IUniswapV3 {
         uint256 deadline;
         address tokenIn;
         address tokenOut;
-        uint8 swapFee;
+        uint24 swapFee;
     }
 
     /// @notice Parameters for a multi-hop exact-output swap

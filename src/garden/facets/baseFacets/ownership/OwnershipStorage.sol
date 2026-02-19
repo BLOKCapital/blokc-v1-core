@@ -1,25 +1,22 @@
-// SPDX-License-Identifier: MIT License
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
+
+import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 
 /*###############################################################################
-
-    @title OwnableStorage
-    @author BLOK Capital DAO
-    @notice Storage for the OwnershipFacet
-    @dev This storage is used to store the ownership of the contract
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title OwnershipStorage
+/// @author BLOK Capital DAO
+/// @notice Storage for the OwnershipFacet
+/// @dev Stores the owner address for ERC-173 contract ownership
 library OwnershipStorage {
-    /// @notice Fixed storage slot for ownable layout (unique label reduces collision risk).
-    bytes32 internal constant OWNERSHIP_STORAGE_SLOT_POSITION = keccak256("garden.ownership.storage");
-
     /// @notice Layout for the OwnershipStorage
     /// @dev The struct stores the address of the owner
     struct Layout {
@@ -28,9 +25,10 @@ library OwnershipStorage {
     }
 
     /// @notice Returns the storage pointer to the Ownership layout
+    /// @dev Storage slot is derived from keccak256(bytes(type(OwnershipStorage).name))
     /// @return l Storage reference to Layout
     function layout() internal pure returns (Layout storage l) {
-        bytes32 position = OWNERSHIP_STORAGE_SLOT_POSITION;
+        bytes32 position = LibStorageSlot.deriveStorageSlot(type(OwnershipStorage).name);
 
         assembly {
             l.slot := position
