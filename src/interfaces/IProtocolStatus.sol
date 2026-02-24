@@ -5,6 +5,7 @@ pragma solidity >=0.8.31;
  * @title IProtocolStatus
  * @notice Interface for managing protocol-level state and Security Council Members (SCMs) via ENS.
  * @dev Handles membership, ENS resolution tracking, upgrade locks, and protocol activation state.
+ *      ENS resolution is Ethereum mainnet only (EIP-137 legacy addr); no multicoin or L2 resolution.
  */
 interface IProtocolStatus {
     // =============================================================

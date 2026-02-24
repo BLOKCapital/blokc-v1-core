@@ -6,6 +6,8 @@ pragma solidity >=0.8.31;
     @title ProtocolStatus
     @author BLOK Capital DAO
     @notice Exposes functionality to manage the protocol status.
+    @dev ENS resolution is Ethereum mainnet only (EIP-137). Uses the legacy
+         addr(bytes32 node) resolver; multicoin / L2 resolution is not supported.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
@@ -19,10 +21,13 @@ import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
+/// @notice Ethereum mainnet ENS Registry (EIP-137). Pass the canonical registry address when deploying on Ethereum.
 interface IENSRegistry {
     function resolver(bytes32 node) external view returns (address);
 }
 
+/// @notice Ethereum mainnet ENS Resolver legacy interface (addr(bytes32) returns Ethereum address only).
+/// @dev Does not use EIP-2304 multicoin; resolution is Ethereum-only.
 interface IENSResolver {
     function addr(bytes32 node) external view returns (address);
 }
@@ -34,6 +39,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // STORAGE
     // ------------------------------------------------------------------------
     State private _protocolStatus;
+    /// @notice Ethereum mainnet ENS registry. Resolution is Ethereum-only (legacy addr(bytes32)).
     IENSRegistry public immutable ENS_REGISTRY;
 
     struct ScmInternal {
@@ -51,6 +57,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // ------------------------------------------------------------------------
     // ERRORS
     // ------------------------------------------------------------------------
+    /// @notice Thrown when the protocol is already active
     error ProtocolStatus_ProtocolIsAlreadyActive();
     /// @notice Thrown when the protocol is already inactive
     error ProtocolStatus_ProtocolIsAlreadyInactive();
@@ -141,7 +148,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     // CONSTRUCTOR
     // ------------------------------------------------------------------------
     /**
-     * @param _ensRegistry ENS registry address on Arbitrum chain
+     * @param _ensRegistry ENS registry address on Ethereum mainnet
      * @param initialNamehashes bootstrap (parallel arrays)
      */
     constructor(
@@ -361,8 +368,10 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     }
 
     // ------------------------------------------------------------------------
-    // INTERNAL HELPERS
+    // INTERNAL HELPERS (Ethereum mainnet ENS only)
     // ------------------------------------------------------------------------
+    /// @notice Resolves an ENS namehash to an Ethereum address via the legacy resolver (EIP-137).
+    /// @dev Ethereum mainnet only; multicoin/L2 resolution is not used.
     function _resolve(bytes32 n) internal view returns (address) {
         address resolver = ENS_REGISTRY.resolver(n);
         if (resolver == address(0)) return address(0);
