@@ -3,6 +3,12 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
+    @title ProtocolStatus
+    @author BLOK Capital DAO
+    @notice Exposes functionality to manage the protocol status.
+    @dev ENS resolution is Ethereum mainnet only (EIP-137). Uses the legacy
+         addr(bytes32 node) resolver; multicoin / L2 resolution is not supported.
+
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
@@ -15,7 +21,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @title IENSRegistry
-/// @notice Minimal interface for the ENS Registry to look up resolvers.
+/// @notice Ethereum mainnet ENS Registry (EIP-137). Pass the canonical registry address when deploying on Ethereum.
 interface IENSRegistry {
     /// @notice Returns the resolver address for a given ENS node.
     /// @param node The ENS namehash of the domain.
@@ -24,7 +30,8 @@ interface IENSRegistry {
 }
 
 /// @title IENSResolver
-/// @notice Minimal interface for an ENS Resolver to look up addresses.
+/// @notice Ethereum mainnet ENS Resolver legacy interface (addr(bytes32) returns Ethereum address only).
+/// @dev Does not use EIP-2304 multicoin; resolution is Ethereum-only.
 interface IENSResolver {
     /// @notice Returns the address associated with an ENS node.
     /// @param node The ENS namehash of the domain.
@@ -52,6 +59,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     State private _protocolStatus;
 
     /// @notice The immutable ENS registry used for SCM address resolution.
+    /// @notice Ethereum mainnet ENS registry. Resolution is Ethereum-only (legacy addr(bytes32)).
     IENSRegistry public immutable ENS_REGISTRY;
 
     /// @notice Internal representation of an SCM with mutable state fields.
@@ -450,8 +458,10 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     }
 
     // ------------------------------------------------------------------------
-    // INTERNAL HELPERS
+    // INTERNAL HELPERS (Ethereum mainnet ENS only)
     // ------------------------------------------------------------------------
+    /// @notice Resolves an ENS namehash to an Ethereum address via the legacy resolver (EIP-137).
+    /// @dev Ethereum mainnet only; multicoin/L2 resolution is not used.
     /// @dev Resolves an ENS namehash to an address via the ENS registry and resolver.
     /// @param n The ENS namehash to resolve.
     /// @return The resolved address, or `address(0)` if no resolver is set.
