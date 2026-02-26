@@ -26,6 +26,9 @@ error CirculatingSupply_InvalidUpdater();
 /// @notice Thrown when array lengths do not match
 error CirculatingSupply_LengthMismatch();
 
+/// @notice Thrown when a non-updater tries to call an updater-only function
+error CirculatingSupply_OnlyUpdater();
+
 /**
  * @title CirculatingSupply
  * @notice A simple contract to track the circulating supply of various tokens, allowing an authorized updater to set
@@ -35,9 +38,6 @@ error CirculatingSupply_LengthMismatch();
  * allowing off-chain services to listen for changes.
  */
 contract CirculatingSupply {
-    /// @notice Maximum allowed age for supply data before it is considered stale
-    uint256 public constant STALENESS_THRESHOLD = 24 hours;
-
     /// @notice Circulating supply for each token symbol (raw token units)
     mapping(string => uint256) public supply;
 
@@ -46,6 +46,9 @@ contract CirculatingSupply {
 
     /// @notice Address authorized to push supply updates
     address public updater;
+
+    /// @dev Sum of all token supplies. Anyone can read via getTotalSupply() (minimal gas).
+    uint256 private totalCirculatingSupply;
 
     /// @notice Emitted when a token's circulating supply is updated
     /// @param symbol Token symbol that was updated
@@ -56,33 +59,25 @@ contract CirculatingSupply {
 
     /// @notice Restricts access to the authorized updater
     modifier onlyUpdater() {
-        require(msg.sender == updater, "Not updater");
+        if (msg.sender != updater) {
+            revert CirculatingSupply_OnlyUpdater();
+        }
         _;
     }
 
-    /// @notice Sets the deployer as the initial updater
-    constructor() {
-        updater = msg.sender;
+    /// @notice Constructor sets the initial updater address
+    /// @param _updater Address authorized to push supply updates
+    constructor(address _updater) {
+        updater = _updater;
     }
 
-    /// @notice Transfers the updater role to a new address
-    /// @param newUpdater Address of the new updater
-    function setUpdater(address newUpdater) external {
-        require(msg.sender == updater, "Not updater");
-        if (newUpdater == address(0)) revert CirculatingSupply_InvalidUpdater();
-        address oldUpdater = updater;
-        updater = newUpdater;
-        emit UpdaterChanged(oldUpdater, newUpdater);
-    }
-
-    /// @notice Returns the circulating supply for a given token symbol
-    /// @param symbol Token symbol to query
-    /// @return The circulating supply in raw token units
+    ///@dev Anyone can call this to get the circulating supply for a token by symbol.
+    ///     Reverts if the adapter has never updated that symbol.
+    ///@param symbol Token symbol (e.g. "ETH", "BTC") as used when the adapter called updateBatch
+    ///@return Circulating supply in wei/smallest unit (uint256)
     function getSupply(string calldata symbol) external view returns (uint256) {
-        uint256 lastUpdatedAt = lastUpdated[symbol];
-        if (lastUpdatedAt == 0) revert CirculatingSupply_SupplyNotAvailable(symbol);
-        if (block.timestamp - lastUpdatedAt > STALENESS_THRESHOLD) {
-            revert CirculatingSupply_StaleSupplyData(symbol, lastUpdatedAt, block.timestamp);
+        if (lastUpdated[symbol] == 0) {
+            revert CirculatingSupply_SupplyNotAvailable(symbol);
         }
         return supply[symbol];
     }
@@ -94,6 +89,8 @@ contract CirculatingSupply {
         if (symbols.length != supplies.length) revert CirculatingSupply_LengthMismatch();
         uint256 time = block.timestamp;
         for (uint256 i = 0; i < symbols.length; i++) {
+            uint256 oldSupply = supply[symbols[i]];
+            totalCirculatingSupply = totalCirculatingSupply - oldSupply + supplies[i];
             supply[symbols[i]] = supplies[i];
             lastUpdated[symbols[i]] = time;
             emit SupplyUpdated(symbols[i], supplies[i], time);
