@@ -12,6 +12,7 @@ import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/unis
 import { CamelotV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/CamelotV2Facet.sol";
 import { CamelotV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/camelotV3Facet.sol";
 import { AaveV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Facet.sol";
+import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
@@ -22,9 +23,11 @@ contract RegisterUtilityFacets is BaseScript {
     bytes32 constant MODULE_WITHDRAW = keccak256("WITHDRAW");
     bytes32 constant MODULE_DEX = keccak256("DEX");
     bytes32 constant MODULE_YIELD = keccak256("YIELD");
+    bytes32 constant MODULE_INDEX = keccak256("INDEX");
 
     // Garden type IDs
     bytes32 constant YIELD_GARDEN = keccak256("YIELD");
+    bytes32 constant INDEX_GARDEN = keccak256("INDEX");
 
     function run() public broadcaster {
         setUp();
@@ -162,6 +165,45 @@ contract RegisterUtilityFacets is BaseScript {
             yieldGardenModules[2] = MODULE_DEX;
             registry.addGardenType(YIELD_GARDEN, yieldGardenModules);
             console2.log("YIELD_GARDEN type registered");
+        }
+
+        // =====================================================================
+        // INDEX module (IndexFacet)
+        // =====================================================================
+        IndexFacet indexFacet = new IndexFacet();
+        bytes4[] memory indexSelectors = new bytes4[](7);
+        indexSelectors[0] = indexFacet.connectToIndex.selector;
+        indexSelectors[1] = indexFacet.disconnectFromIndex.selector;
+        indexSelectors[2] = indexFacet.rebalanceIntent.selector;
+        indexSelectors[3] = indexFacet.rebalance.selector;
+        indexSelectors[4] = indexFacet.isConnectedToIndex.selector;
+        indexSelectors[5] = indexFacet.getConnectedIndex.selector;
+        indexSelectors[6] = indexFacet.hasPendingIntent.selector;
+        console2.log("IndexFacet deployed at:", address(indexFacet));
+
+        IDiamondCut.FacetCut[] memory indexCuts = new IDiamondCut.FacetCut[](1);
+        indexCuts[0] = IDiamondCut.FacetCut({
+            facetAddress: address(indexFacet), action: IDiamondCut.FacetCutAction.Add, functionSelectors: indexSelectors
+        });
+
+        if (!registry.isModuleRegistered(MODULE_INDEX)) {
+            registry.registerModule(MODULE_INDEX);
+            console2.log("INDEX module registered");
+        }
+        registry.upgradeModule(MODULE_INDEX, indexCuts);
+        console2.log("INDEX module upgraded with IndexFacet");
+
+        // =====================================================================
+        // Garden types
+        // =====================================================================
+        // INDEX_GARDEN allowed modules: BASE (implicit), DEX_MODULE, WITHDRAW_MODULE, INDEX_MODULE
+        if (!registry.isGardenTypeRegistered(INDEX_GARDEN)) {
+            bytes32[] memory indexGardenModules = new bytes32[](3);
+            indexGardenModules[0] = MODULE_DEX;
+            indexGardenModules[1] = MODULE_WITHDRAW;
+            indexGardenModules[2] = MODULE_INDEX;
+            registry.addGardenType(INDEX_GARDEN, indexGardenModules);
+            console2.log("INDEX_GARDEN type registered");
         }
     }
 }

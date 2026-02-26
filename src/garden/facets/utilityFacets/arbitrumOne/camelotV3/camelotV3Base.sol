@@ -42,7 +42,7 @@ abstract contract CamelotV3Base {
     address internal constant CAMELOT_V3_FACTORY_ADDRESS = 0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B;
 
     /// @notice Liquidity pool registry address on Arbitrum One
-    address internal constant POOL_REGISTRY_ADDRESS = 0x8f49107B2059e59fD93164C29c462f7EB4f310E4;
+    address internal constant POOL_REGISTRY_ADDRESS = 0xeADe4091f50B1fd0b6315c9028543f5177E59a56;
 
     /// @notice Emitted when a Camelot V3 swap is successfully executed
     /// @param tokenIn The input token address
