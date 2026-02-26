@@ -92,11 +92,13 @@ contract Deploy is BaseScript {
         protocolStatus.activateProtocol();
         console2.log("ProtocolStatus activated");
 
-        SBTRegistry sbtRegistry = new SBTRegistry(deployer);
-        console2.log("SBTRegistry deployed at:", address(sbtRegistry));
+        // SBTRegistry sbtRegistry = new SBTRegistry(deployer);
+        // console2.log("SBTRegistry deployed at:", address(sbtRegistry));
 
         gardenFactory = new GardenFactory{ salt: salt }(
-            deployer, address(facetRegistry), address(protocolStatus), address(sbtRegistry)
+            deployer,
+            address(facetRegistry),
+            address(protocolStatus) /* address(sbtRegistry) */
         );
         console2.log("GardenFactory deployed at:", address(gardenFactory));
     }

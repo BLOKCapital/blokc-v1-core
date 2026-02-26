@@ -65,6 +65,9 @@ error IndexFacet_IntentExpired();
 /// @notice Thrown when total garden value decreased beyond acceptable threshold
 error IndexFacet_ExcessiveValueLoss(uint256 valueBefore, uint256 valueAfter);
 
+/// @notice Thrown on reentrant call to _rebalance
+error IndexFacet_RebalanceReentrancy();
+
 /**
  * @title IndexBase
  * @author BLOK Capital DAO
@@ -92,6 +95,7 @@ abstract contract IndexBase {
     /// @notice Disconnects the garden from its currently connected index.
     function _disconnectFromIndex() internal {
         address indexAddress = IndexStorage.layout().indexAddress;
+        if (indexAddress == address(0)) revert IndexFacet_NotConnectedToIndex();
         Index(indexAddress).disconnectGardenFromIndex();
 
         // Clear the connected index address
@@ -137,6 +141,7 @@ abstract contract IndexBase {
         s.pendingIntent.currentValues = currentValues;
         s.pendingIntent.targetValues = targetValues;
         s.pendingIntent.tokenAddresses = tokenAddresses;
+        s.pendingIntent.weights = weights;
         s.lastIntentTimestamp = block.timestamp;
 
         emit IIndex.RebalanceIntentCreated(
@@ -146,12 +151,15 @@ abstract contract IndexBase {
 
     /// @notice Execute rebalance by calling DEX facets directly
     /// @dev CRE provides swap calls that target DEX facet functions on this Diamond.
-    ///      Each SwapCall contains:
-    ///      selector: The 4-byte function selector
-    ///      data: ABI-encoded function arguments
+    ///      Uses a custom rebalancing flag instead of OZ ReentrancyGuard to avoid
+    ///      conflicts with nonReentrant on DEX facets invoked via address(this).call().
     /// @param swapCalls Array of swap calls to execute
     function _rebalance(SwapCall[] calldata swapCalls) internal {
         IndexStorage.Layout storage s = IndexStorage.layout();
+
+        // Custom reentrancy guard (separate from OZ ReentrancyGuard to avoid conflict with DEX facets)
+        if (s.rebalancing) revert IndexFacet_RebalanceReentrancy();
+        s.rebalancing = true;
 
         // Check connected
         if (s.indexAddress == address(0)) {
@@ -171,6 +179,7 @@ abstract contract IndexBase {
         if (block.timestamp > s.lastIntentTimestamp + IndexStorage.INTENT_EXPIRY) {
             // Clear stale intent and revert
             s.pendingIntent.active = false;
+            s.rebalancing = false;
             revert IndexFacet_IntentExpired();
         }
 
@@ -179,11 +188,12 @@ abstract contract IndexBase {
         // Execute each swap call on the Diamond's DEX facets
         _executeSwapCalls(swapCalls);
 
-        // Verify final balances match targets within threshold
+        // Verify final balances match targets within threshold (uses fresh prices + stored weights)
         _verifyBalancesMatchTargets();
 
         uint256 valueAfter = _calculateTotalValue();
-        uint256 minAcceptableValue = (valueBefore * (10_000 - IndexStorage.MAX_VALUE_LOSS_BPS)) / 10_000;
+        uint256 minAcceptableValue =
+            Math.mulDiv(valueBefore, 10_000 - IndexStorage.MAX_VALUE_LOSS_BPS, 10_000, Math.Rounding.Floor);
 
         if (valueAfter < minAcceptableValue) {
             revert IndexFacet_ExcessiveValueLoss(valueBefore, valueAfter);
@@ -192,6 +202,7 @@ abstract contract IndexBase {
         // Clear pending state and update timestamp
         s.pendingIntent.active = false;
         s.lastRebalanceTimestamp = block.timestamp;
+        s.rebalancing = false;
 
         uint256 nextRebalanceTimestamp = block.timestamp + IndexStorage.REBALANCE_INTERVAL;
 
@@ -266,11 +277,12 @@ abstract contract IndexBase {
         for (uint256 i = 0; i < symbols.length; i++) {
             address token = componentRegistry.getComponentAddress(symbols[i]);
             address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(symbols[i]);
+            uint256 heartbeat = componentRegistry.getComponentHeartbeat(symbols[i]);
 
             tokenAddresses[i] = token;
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = _getPrice(priceFeed);
+            uint256 price = _getPrice(priceFeed, heartbeat);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             // Value in USD with 8 decimals (Chainlink standard)
@@ -280,43 +292,65 @@ abstract contract IndexBase {
 
         // Calculate target values based on weights
         for (uint256 i = 0; i < symbols.length; i++) {
-            targetValues[i] = (totalValueUsd * weights[i]) / IndexStorage.PRECISION;
+            targetValues[i] = Math.mulDiv(totalValueUsd, weights[i], IndexStorage.PRECISION, Math.Rounding.Floor);
         }
     }
 
     /// @dev Verifies that post-rebalance balances match target values within the allowed threshold.
+    /// @dev Uses fresh prices and stored weights to recalculate targets, avoiding price mismatch
+    ///      between intent creation and verification.
     /// @dev Reverts with `IndexFacet_BalanceOutsideThreshold` if any component exceeds the threshold.
     function _verifyBalancesMatchTargets() internal view {
         IndexStorage.Layout storage s = IndexStorage.layout();
         IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
-        for (uint256 i = 0; i < s.pendingIntent.symbols.length; i++) {
+        uint256 len = s.pendingIntent.symbols.length;
+
+        // First pass: calculate fresh total value with current prices
+        uint256 freshTotalValueUsd = 0;
+        uint256[] memory currentValues = new uint256[](len);
+
+        for (uint256 i = 0; i < len; i++) {
             string memory symbol = s.pendingIntent.symbols[i];
             address token = componentRegistry.getComponentAddress(symbol);
             address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(symbol);
+            uint256 heartbeat = componentRegistry.getComponentHeartbeat(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = _getPrice(priceFeed);
+            uint256 price = _getPrice(priceFeed, heartbeat);
             uint8 decimals = IERC20Metadata(token).decimals();
 
-            uint256 currentValue = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
-            uint256 targetValue = s.pendingIntent.targetValues[i];
+            currentValues[i] = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
+            freshTotalValueUsd += currentValues[i];
+        }
+
+        // Second pass: recalculate targets from stored weights and fresh total value, then verify
+        for (uint256 i = 0; i < len; i++) {
+            uint256 freshTargetValue = Math.mulDiv(
+                freshTotalValueUsd, s.pendingIntent.weights[i], IndexStorage.PRECISION, Math.Rounding.Floor
+            );
 
             // Calculate threshold
-            uint256 threshold = (targetValue * IndexStorage.BALANCE_THRESHOLD_BPS) / 10_000;
+            uint256 threshold =
+                Math.mulDiv(freshTargetValue, IndexStorage.BALANCE_THRESHOLD_BPS, 10_000, Math.Rounding.Ceil);
 
             // Verify within threshold (use abs diff to avoid underflow)
-            uint256 diff = currentValue > targetValue ? currentValue - targetValue : targetValue - currentValue;
+            uint256 diff = currentValues[i] > freshTargetValue
+                ? currentValues[i] - freshTargetValue
+                : freshTargetValue - currentValues[i];
             if (diff > threshold) {
-                revert IndexFacet_BalanceOutsideThreshold(symbol, currentValue, targetValue);
+                revert IndexFacet_BalanceOutsideThreshold(
+                    s.pendingIntent.symbols[i], currentValues[i], freshTargetValue
+                );
             }
         }
     }
 
     /// @dev Fetches and validates the latest price from a Chainlink price feed.
     /// @param priceFeed The address of the Chainlink AggregatorV3 price feed.
+    /// @param heartbeat The staleness threshold in seconds for this feed.
     /// @return The latest price as a `uint256`.
-    function _getPrice(address priceFeed) internal view returns (uint256) {
+    function _getPrice(address priceFeed, uint256 heartbeat) internal view returns (uint256) {
         (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) =
             AggregatorV3Interface(priceFeed).latestRoundData();
 
@@ -324,7 +358,7 @@ abstract contract IndexBase {
         if (price <= 0) revert IndexFacet_InvalidOracleData();
         if (updatedAt == 0) revert IndexFacet_InvalidOracleData();
         if (answeredInRound < roundId) revert IndexFacet_InvalidOracleData();
-        if (block.timestamp - updatedAt > 1 hours) revert IndexFacet_InvalidOracleData();
+        if (block.timestamp - updatedAt > heartbeat) revert IndexFacet_InvalidOracleData();
 
         return uint256(price);
     }
@@ -335,11 +369,13 @@ abstract contract IndexBase {
         IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
         for (uint256 i = 0; i < s.pendingIntent.symbols.length; i++) {
-            address token = componentRegistry.getComponentAddress(s.pendingIntent.symbols[i]);
-            address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(s.pendingIntent.symbols[i]);
+            string memory symbol = s.pendingIntent.symbols[i];
+            address token = componentRegistry.getComponentAddress(symbol);
+            address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(symbol);
+            uint256 heartbeat = componentRegistry.getComponentHeartbeat(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = _getPrice(priceFeed);
+            uint256 price = _getPrice(priceFeed, heartbeat);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             totalValueUsd += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);

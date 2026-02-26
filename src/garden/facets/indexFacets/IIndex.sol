@@ -25,6 +25,7 @@ struct SwapCall {
 /// @param currentValues Array of current token values in the garden (same order as symbols)
 /// @param targetValues Array of target token values based on the index (same order as symbols)
 /// @param tokenAddresses Array of token contract addresses (same order as symbols)
+/// @param weights Array of target weights from the index (normalized to 1e18), used for fresh target recalculation
 struct PendingIntent {
     bool active;
     uint256 totalValueUsd;
@@ -32,6 +33,7 @@ struct PendingIntent {
     uint256[] currentValues;
     uint256[] targetValues;
     address[] tokenAddresses;
+    uint256[] weights;
 }
 
 /// @title IIndex

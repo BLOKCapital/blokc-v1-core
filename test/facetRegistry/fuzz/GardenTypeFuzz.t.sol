@@ -18,7 +18,8 @@ contract GardenTypeFuzzTest is FacetRegistryTestBase {
         _registerModule(MODULE_3);
     }
 
-    // ─── addGardenType fuzzing ──────────────────────────────────────────
+    // ─── addGardenType fuzzing
+    // ──────────────────────────────────────────
 
     function testFuzz_addGardenType_arbitraryId(bytes32 gardenTypeId) public {
         vm.assume(gardenTypeId != bytes32(0));
@@ -42,9 +43,7 @@ contract GardenTypeFuzzTest is FacetRegistryTestBase {
         bytes32[] memory modules = new bytes32[](0);
         registry.addGardenType(gardenTypeId, modules);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_GardenTypeAlreadyExists.selector, gardenTypeId)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_GardenTypeAlreadyExists.selector, gardenTypeId));
         registry.addGardenType(gardenTypeId, modules);
     }
 
@@ -83,7 +82,8 @@ contract GardenTypeFuzzTest is FacetRegistryTestBase {
         assertEq(gtModules.length, expectedCount);
     }
 
-    // ─── BASE_MODULE always allowed ─────────────────────────────────────
+    // ─── BASE_MODULE always allowed
+    // ─────────────────────────────────────
 
     function testFuzz_baseModuleAlwaysAllowed(bytes32 gardenTypeId) public {
         vm.assume(gardenTypeId != bytes32(0));
@@ -100,13 +100,12 @@ contract GardenTypeFuzzTest is FacetRegistryTestBase {
         vm.assume(gardenTypeId != bytes32(0));
         // Don't register it
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_GardenTypeDoesNotExist.selector, gardenTypeId)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_GardenTypeDoesNotExist.selector, gardenTypeId));
         registry.removeAllowedModule(gardenTypeId, MODULE_1);
     }
 
-    // ─── removeAllowedModule for non-allowed module ─────────────────────
+    // ─── removeAllowedModule for non-allowed module
+    // ─────────────────────
 
     function testFuzz_removeAllowedModule_revert_notAllowed(bytes32 gardenTypeId) public {
         vm.assume(gardenTypeId != bytes32(0));
@@ -114,9 +113,7 @@ contract GardenTypeFuzzTest is FacetRegistryTestBase {
         bytes32[] memory modules = new bytes32[](0);
         registry.addGardenType(gardenTypeId, modules);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_ModuleNotAllowed.selector, gardenTypeId, MODULE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_ModuleNotAllowed.selector, gardenTypeId, MODULE_1));
         registry.removeAllowedModule(gardenTypeId, MODULE_1);
     }
 }

@@ -23,45 +23,94 @@ error Garden_CannotCallIfConnectedToIndex();
 /// @notice Thrown when a function is called while the garden is not an index garden
 error Garden_NotAnIndexGarden();
 
+/// @notice Thrown when a DEX function is called by someone other than the Garden itself while connected to an index
+error Garden_OnlyGardenCanCallDexWhenIndexConnected();
+
 /**
  * @title Facet
  * @notice Base contract for all facets in the garden diamond, providing common modifiers and access control logic.
- * This contract includes modifiers to restrict access to the garden owner and to prevent certain functions from
- * being called when the garden is connected to an index. It also allows for internal calls from the diamond itself
- * to support composability between facets.
+ * This contract includes modifiers to restrict access to the garden owner, to prevent certain functions from
+ * being called when the garden is connected to an index, and to enforce that DEX functions are only callable
+ * via Diamond self-calls when connected to an index (to preserve token ratios).
  */
 abstract contract Facet is ReentrancyGuard {
     /// @notice Restricts function access to the diamond contract owner
-    /// @dev Checks msg.sender against owner stored in OwnershipStorage
+    /// @dev Checks msg.sender against owner stored in OwnershipStorage.
     modifier onlyGardenOwner() {
         _onlyGardenOwner();
         _;
     }
 
     /// @notice Restricts function access if the garden is connected to an index
-    /// @dev Checks if the connected index is set in the diamond storage
+    /// @dev Checks if the connected index is set in the diamond storage.
+    ///      Used only by DiamondCutFacet and IndexFacet.connectToIndex.
     modifier ifIndexNotConnected() {
         _ifIndexNotConnected();
         _;
     }
 
+    /// @notice Restricts DEX function access to the garden itself when connected to an index, otherwise restricts to
+    /// garden owner @dev When connected to an index, only allows Diamond self-calls (msg.sender == address(this)) to
+    /// support internal facet composability (e.g. IndexFacet calling DEX facets during rebalance). When not connected
+    /// to an index, checks msg.sender against owner stored in OwnershipStorage.
+    modifier onlyGardenCanCallDexWhenIndexConnected() {
+        _onlyGardenCanCallDexWhenIndexConnected();
+        _;
+    }
+
+    /// @notice Restricts function access to the garden owner unless the garden is connected to an index
+    /// @dev When connected to an index, allows all callers. When not connected to an index, checks msg.sender against
+    /// owner stored in OwnershipStorage.
+    modifier onlyOwnerUnlessIndexConnected() {
+        _onlyOwnerUnlessIndexConnected();
+        _;
+    }
+
     /// @notice Checks if the caller is the garden owner
-    /// @dev Also allows Diamond self-calls (msg.sender == address(this)) to support
-    ///      internal facet composability (e.g. IndexFacet calling DEX facets during rebalance)
+    /// @dev Does NOT allow Diamond self-calls. For internal facet composability
+    ///      (e.g. IndexFacet calling DEX facets during rebalance), use
+    ///      onlyGardenCanCallDexWhenIndexConnected instead.
     function _onlyGardenOwner() internal view {
-        if (msg.sender != OwnershipStorage.layout().owner && msg.sender != address(this)) {
+        if (msg.sender != OwnershipStorage.layout().owner) {
             revert Garden_UnauthorizedCaller();
         }
     }
 
     /// @notice Checks if the garden is not connected to an index
-    /// @dev Skips the check for Diamond self-calls to support internal facet composability
-    ///      (e.g. IndexFacet calling DEX facets during rebalance)
+    /// @dev Blocks all external callers when connected to an index.
+    ///      Used by DiamondCutFacet and IndexFacet.connectToIndex only.
     function _ifIndexNotConnected() internal view {
         if (msg.sender == address(this)) return;
         LibDiamond.Layout storage ld = LibDiamond.layout();
         if (ld.isConnectedToIndex) {
             revert Garden_CannotCallIfConnectedToIndex();
+        }
+    }
+
+    /// @notice Checks if the caller is the garden itself when connected to an index,
+    ///          otherwise checks if caller is garden owner
+    function _onlyGardenCanCallDexWhenIndexConnected() internal view {
+        LibDiamond.Layout storage ld = LibDiamond.layout();
+        if (ld.isConnectedToIndex) {
+            if (msg.sender != address(this)) {
+                revert Garden_OnlyGardenCanCallDexWhenIndexConnected();
+            }
+        } else {
+            if (msg.sender != OwnershipStorage.layout().owner) {
+                revert Garden_UnauthorizedCaller();
+            }
+        }
+    }
+
+    /// @notice Checks if the caller is the garden owner unless the garden is connected to an index
+    function _onlyOwnerUnlessIndexConnected() internal view {
+        LibDiamond.Layout storage ld = LibDiamond.layout();
+        if (ld.isConnectedToIndex) {
+            return;
+        } else {
+            if (msg.sender != OwnershipStorage.layout().owner) {
+                revert Garden_UnauthorizedCaller();
+            }
         }
     }
 }

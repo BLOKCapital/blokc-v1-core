@@ -24,7 +24,8 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
         _addFacetToModule(MODULE_1, address(facetE), selectorsE);
     }
 
-    // ─── Success Cases ──────────────────────────────────────────────────
+    // ─── Success Cases
+    // ──────────────────────────────────────────────────
 
     function test_replaceFacetInModule_success() public {
         // Replace selectorsE from facetE to facetF in MODULE_1
@@ -83,8 +84,7 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
         _replaceFacetInModule(MODULE_1, address(facetF), selectorsE);
 
         uint256 mVersion = registry.getModuleVersion(MODULE_1);
-        IDiamondCut.FacetCut[] memory cuts =
-            registry.getModuleFacetCutsByVersionRange(MODULE_1, mVersion, mVersion);
+        IDiamondCut.FacetCut[] memory cuts = registry.getModuleFacetCutsByVersionRange(MODULE_1, mVersion, mVersion);
         assertEq(cuts[0].facetAddress, address(facetF));
         assertEq(uint8(cuts[0].action), uint8(IDiamondCut.FacetCutAction.Replace));
     }
@@ -92,9 +92,7 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
     function test_replaceFacetInModule_emitsEvent() public {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(facetF),
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: selectorsE
+            facetAddress: address(facetF), action: IDiamondCut.FacetCutAction.Replace, functionSelectors: selectorsE
         });
 
         vm.expectEmit(true, true, false, true);
@@ -136,7 +134,8 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
         assertEq(remainingSels.length, 1);
     }
 
-    // ─── Revert Cases ───────────────────────────────────────────────────
+    // ─── Revert Cases
+    // ───────────────────────────────────────────────────
 
     function test_replaceFacetInModule_revert_emptySelectorArray() public {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
@@ -153,9 +152,7 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
     function test_replaceFacetInModule_revert_zeroFacetAddress() public {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: selectorsE
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Replace, functionSelectors: selectorsE
         });
 
         vm.expectRevert(abi.encodeWithSelector(FacetRegistry_FacetAddressIsZero.selector));
@@ -166,9 +163,7 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
         address notContract = address(0xDEAD);
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: notContract,
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: selectorsE
+            facetAddress: notContract, action: IDiamondCut.FacetCutAction.Replace, functionSelectors: selectorsE
         });
 
         vm.expectRevert(abi.encodeWithSelector(FacetRegistry_FacetIsNotContract.selector, notContract));
@@ -183,9 +178,7 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
             functionSelectors: selectorsF // selectorsF not registered yet
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_SelectorNotRegistered.selector, selectorsF[0])
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_SelectorNotRegistered.selector, selectorsF[0]));
         registry.upgradeModule(MODULE_1, cuts);
     }
 
@@ -193,9 +186,7 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
         // Try to replace selectorsE with facetE itself (same facet)
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(facetE),
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: selectorsE
+            facetAddress: address(facetE), action: IDiamondCut.FacetCutAction.Replace, functionSelectors: selectorsE
         });
 
         vm.expectRevert(
@@ -213,14 +204,10 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
         // Try to replace selectorsF (in MODULE_2) from within MODULE_1 context
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(facetG),
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: selectorsF
+            facetAddress: address(facetG), action: IDiamondCut.FacetCutAction.Replace, functionSelectors: selectorsF
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_FacetNotInModule.selector, address(facetF), MODULE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_FacetNotInModule.selector, address(facetF), MODULE_1));
         registry.upgradeModule(MODULE_1, cuts);
     }
 
@@ -231,20 +218,17 @@ contract UpgradeModuleReplaceTest is FacetRegistryTestBase {
         // Try to replace MODULE_1 selectors with facetF (which belongs to MODULE_2)
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(facetF),
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: selectorsE
+            facetAddress: address(facetF), action: IDiamondCut.FacetCutAction.Replace, functionSelectors: selectorsE
         });
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                FacetRegistry_FacetBelongsToAnotherModule.selector, address(facetF), MODULE_2
-            )
+            abi.encodeWithSelector(FacetRegistry_FacetBelongsToAnotherModule.selector, address(facetF), MODULE_2)
         );
         registry.upgradeModule(MODULE_1, cuts);
     }
 
-    // ─── Events ─────────────────────────────────────────────────────────
+    // ─── Events
+    // ─────────────────────────────────────────────────────────
 
     event ModuleFunctionsReplaced(bytes32 indexed moduleId, address indexed facetAddress, bytes4[] functionSelectors);
 }

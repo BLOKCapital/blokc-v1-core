@@ -26,7 +26,8 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
     //                          addGardenType
     // ═══════════════════════════════════════════════════════════════════════
 
-    // ─── Success Cases ──────────────────────────────────────────────────
+    // ─── Success Cases
+    // ──────────────────────────────────────────────────
 
     function test_addGardenType_withModules() public {
         bytes32[] memory modules = new bytes32[](2);
@@ -75,7 +76,8 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
         assertTrue(registry.isModuleAllowedForGardenType(GARDEN_TYPE_1, BASE_MODULE));
     }
 
-    // ─── Revert Cases ───────────────────────────────────────────────────
+    // ─── Revert Cases
+    // ───────────────────────────────────────────────────
 
     function test_addGardenType_revert_zeroId() public {
         bytes32[] memory modules = new bytes32[](0);
@@ -87,9 +89,7 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
     function test_addGardenType_revert_alreadyExists() public {
         _addGardenTypeEmpty(GARDEN_TYPE_1);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_GardenTypeAlreadyExists.selector, GARDEN_TYPE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_GardenTypeAlreadyExists.selector, GARDEN_TYPE_1));
         _addGardenTypeEmpty(GARDEN_TYPE_1);
     }
 
@@ -97,9 +97,7 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
         bytes32[] memory modules = new bytes32[](1);
         modules[0] = BASE_MODULE;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_CannotAddBaseModule.selector, GARDEN_TYPE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_CannotAddBaseModule.selector, GARDEN_TYPE_1));
         registry.addGardenType(GARDEN_TYPE_1, modules);
     }
 
@@ -108,9 +106,7 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
         bytes32[] memory modules = new bytes32[](1);
         modules[0] = nonExistent;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_ModuleDoesNotExist.selector, nonExistent)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_ModuleDoesNotExist.selector, nonExistent));
         registry.addGardenType(GARDEN_TYPE_1, modules);
     }
 
@@ -119,9 +115,7 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
         modules[0] = MODULE_1;
         modules[1] = MODULE_1;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_ModuleAlreadyAllowed.selector, GARDEN_TYPE_1, MODULE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_ModuleAlreadyAllowed.selector, GARDEN_TYPE_1, MODULE_1));
         registry.addGardenType(GARDEN_TYPE_1, modules);
     }
 
@@ -137,7 +131,8 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
     //                        addAllowedModule
     // ═══════════════════════════════════════════════════════════════════════
 
-    // ─── Success Cases ──────────────────────────────────────────────────
+    // ─── Success Cases
+    // ──────────────────────────────────────────────────
 
     function test_addAllowedModule_success() public {
         _addGardenTypeEmpty(GARDEN_TYPE_1);
@@ -169,21 +164,18 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
         registry.addAllowedModule(GARDEN_TYPE_1, MODULE_1);
     }
 
-    // ─── Revert Cases ───────────────────────────────────────────────────
+    // ─── Revert Cases
+    // ───────────────────────────────────────────────────
 
     function test_addAllowedModule_revert_gardenTypeDoesNotExist() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_GardenTypeDoesNotExist.selector, GARDEN_TYPE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_GardenTypeDoesNotExist.selector, GARDEN_TYPE_1));
         registry.addAllowedModule(GARDEN_TYPE_1, MODULE_1);
     }
 
     function test_addAllowedModule_revert_baseModule() public {
         _addGardenTypeEmpty(GARDEN_TYPE_1);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_CannotAddBaseModule.selector, GARDEN_TYPE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_CannotAddBaseModule.selector, GARDEN_TYPE_1));
         registry.addAllowedModule(GARDEN_TYPE_1, BASE_MODULE);
     }
 
@@ -191,9 +183,7 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
         _addGardenTypeEmpty(GARDEN_TYPE_1);
         bytes32 nonExistent = keccak256("NONEXISTENT");
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_ModuleDoesNotExist.selector, nonExistent)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_ModuleDoesNotExist.selector, nonExistent));
         registry.addAllowedModule(GARDEN_TYPE_1, nonExistent);
     }
 
@@ -201,9 +191,7 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
         _addGardenTypeEmpty(GARDEN_TYPE_1);
         registry.addAllowedModule(GARDEN_TYPE_1, MODULE_1);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_ModuleAlreadyAllowed.selector, GARDEN_TYPE_1, MODULE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_ModuleAlreadyAllowed.selector, GARDEN_TYPE_1, MODULE_1));
         registry.addAllowedModule(GARDEN_TYPE_1, MODULE_1);
     }
 
@@ -219,7 +207,8 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
     //                       removeAllowedModule
     // ═══════════════════════════════════════════════════════════════════════
 
-    // ─── Success Cases ──────────────────────────────────────────────────
+    // ─── Success Cases
+    // ──────────────────────────────────────────────────
 
     function test_removeAllowedModule_success() public {
         bytes32[] memory modules = new bytes32[](2);
@@ -320,21 +309,18 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
         assertTrue(registry.isModuleAllowedForGardenType(GARDEN_TYPE_1, MODULE_1));
     }
 
-    // ─── Revert Cases ───────────────────────────────────────────────────
+    // ─── Revert Cases
+    // ───────────────────────────────────────────────────
 
     function test_removeAllowedModule_revert_gardenTypeDoesNotExist() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_GardenTypeDoesNotExist.selector, GARDEN_TYPE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_GardenTypeDoesNotExist.selector, GARDEN_TYPE_1));
         registry.removeAllowedModule(GARDEN_TYPE_1, MODULE_1);
     }
 
     function test_removeAllowedModule_revert_moduleNotAllowed() public {
         _addGardenTypeEmpty(GARDEN_TYPE_1);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_ModuleNotAllowed.selector, GARDEN_TYPE_1, MODULE_1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_ModuleNotAllowed.selector, GARDEN_TYPE_1, MODULE_1));
         registry.removeAllowedModule(GARDEN_TYPE_1, MODULE_1);
     }
 
@@ -348,7 +334,8 @@ contract GardenTypeManagementTest is FacetRegistryTestBase {
         registry.removeAllowedModule(GARDEN_TYPE_1, MODULE_1);
     }
 
-    // ─── Events ─────────────────────────────────────────────────────────
+    // ─── Events
+    // ─────────────────────────────────────────────────────────
 
     event GardenTypeAdded(bytes32 indexed gardenTypeId, bytes32[] allowedModules);
     event AllowedModuleAdded(bytes32 indexed gardenTypeId, bytes32 indexed moduleId);

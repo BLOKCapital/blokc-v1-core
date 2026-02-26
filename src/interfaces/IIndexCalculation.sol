@@ -19,5 +19,5 @@ interface IIndexCalculation {
     /// @notice Returns the normalized weights for assets
     /// @param symbols Array of component symbols
     /// @return weights Array of weights normalized to 1e18 (100%)
-    function getWeights(string[] memory symbols) external  returns (uint256[] memory weights);
+    function getWeights(string[] memory symbols) external returns (uint256[] memory weights);
 }

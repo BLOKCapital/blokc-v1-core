@@ -5,9 +5,7 @@ import { FacetRegistryTestBase, MockFacetE, MockFacetF } from "../FacetRegistryT
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
-import {
-    FacetRegistry_GardenTypeDoesNotExist
-} from "src/facetRegistry/FacetRegistry.sol";
+import { FacetRegistry_GardenTypeDoesNotExist } from "src/facetRegistry/FacetRegistry.sol";
 
 contract GardenTypeViewsTest is FacetRegistryTestBase {
     function setUp() public override {

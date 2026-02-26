@@ -119,9 +119,7 @@ contract GlobalViewsTest is FacetRegistryTestBase {
 
     function test_getFacetCutsByVersionRange_revert_endVersionOutOfBounds() public {
         uint256 current = registry.getCurrentVersion();
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_VersionOutOfBounds.selector, current + 1, current)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_VersionOutOfBounds.selector, current + 1, current));
         registry.getFacetCutsByVersionRange(1, current + 1);
     }
 

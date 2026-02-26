@@ -4,13 +4,11 @@ pragma solidity >=0.8.31;
 import { FacetRegistryTestBase } from "../FacetRegistryTestBase.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {
-    FacetRegistry_ModuleIdIsZero,
-    FacetRegistry_ModuleAlreadyExists
-} from "src/facetRegistry/FacetRegistry.sol";
+import { FacetRegistry_ModuleIdIsZero, FacetRegistry_ModuleAlreadyExists } from "src/facetRegistry/FacetRegistry.sol";
 
 contract RegisterModuleTest is FacetRegistryTestBase {
-    // ─── Success Cases ──────────────────────────────────────────────────
+    // ─── Success Cases
+    // ──────────────────────────────────────────────────
 
     function test_registerModule_success() public {
         _registerModule(MODULE_1);
@@ -61,7 +59,8 @@ contract RegisterModuleTest is FacetRegistryTestBase {
         assertEq(registry.getCurrentVersion(), versionBefore);
     }
 
-    // ─── Revert Cases ───────────────────────────────────────────────────
+    // ─── Revert Cases
+    // ───────────────────────────────────────────────────
 
     function test_registerModule_revert_zeroModuleId() public {
         vm.expectRevert(abi.encodeWithSelector(FacetRegistry_ModuleIdIsZero.selector));
@@ -86,7 +85,8 @@ contract RegisterModuleTest is FacetRegistryTestBase {
         registry.registerModule(MODULE_1);
     }
 
-    // ─── Events ─────────────────────────────────────────────────────────
+    // ─── Events
+    // ─────────────────────────────────────────────────────────
 
     event ModuleRegistered(bytes32 indexed moduleId);
 }

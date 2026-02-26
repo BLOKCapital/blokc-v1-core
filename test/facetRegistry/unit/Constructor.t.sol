@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.31;
 
-import {
-    FacetRegistryTestBase,
-    MockFacetA,
-    MockFacetB,
-    MockFacetC,
-    MockFacetD
-} from "../FacetRegistryTestBase.sol";
+import { FacetRegistryTestBase, MockFacetA, MockFacetB, MockFacetC, MockFacetD } from "../FacetRegistryTestBase.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
@@ -22,7 +16,8 @@ import {
 } from "src/facetRegistry/FacetRegistry.sol";
 
 contract ConstructorTest is FacetRegistryTestBase {
-    // ─── Success Cases ──────────────────────────────────────────────────
+    // ─── Success Cases
+    // ──────────────────────────────────────────────────
 
     function test_constructor_setsOwner() public view {
         assertEq(registry.owner(), owner);
@@ -125,11 +120,11 @@ contract ConstructorTest is FacetRegistryTestBase {
         assertTrue(registry.isFacetRegistered(address(facetD)));
     }
 
-    // ─── Revert Cases ───────────────────────────────────────────────────
+    // ─── Revert Cases
+    // ───────────────────────────────────────────────────
 
     function test_constructor_revert_incorrectSelectorArrayLength() public {
-        address[4] memory baseFacets =
-            [address(facetA), address(facetB), address(facetC), address(facetD)];
+        address[4] memory baseFacets = [address(facetA), address(facetB), address(facetC), address(facetD)];
 
         bytes4[][] memory sels = new bytes4[][](3); // wrong length
         sels[0] = selectorsA;
@@ -141,8 +136,7 @@ contract ConstructorTest is FacetRegistryTestBase {
     }
 
     function test_constructor_revert_zeroAddressBaseFacet() public {
-        address[4] memory baseFacets =
-            [address(0), address(facetB), address(facetC), address(facetD)];
+        address[4] memory baseFacets = [address(0), address(facetB), address(facetC), address(facetD)];
 
         bytes4[][] memory sels = new bytes4[][](4);
         sels[0] = selectorsA;
@@ -155,8 +149,7 @@ contract ConstructorTest is FacetRegistryTestBase {
     }
 
     function test_constructor_revert_zeroAddressBaseFacet_middlePosition() public {
-        address[4] memory baseFacets =
-            [address(facetA), address(facetB), address(0), address(facetD)];
+        address[4] memory baseFacets = [address(facetA), address(facetB), address(0), address(facetD)];
 
         bytes4[][] memory sels = new bytes4[][](4);
         sels[0] = selectorsA;
@@ -169,8 +162,7 @@ contract ConstructorTest is FacetRegistryTestBase {
     }
 
     function test_constructor_revert_duplicateBaseFacets() public {
-        address[4] memory baseFacets =
-            [address(facetA), address(facetA), address(facetC), address(facetD)];
+        address[4] memory baseFacets = [address(facetA), address(facetA), address(facetC), address(facetD)];
 
         bytes4[][] memory sels = new bytes4[][](4);
         sels[0] = selectorsA;
@@ -178,15 +170,12 @@ contract ConstructorTest is FacetRegistryTestBase {
         sels[2] = selectorsC;
         sels[3] = selectorsD;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_DuplicateBaseFacetAddress.selector, address(facetA))
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_DuplicateBaseFacetAddress.selector, address(facetA)));
         new FacetRegistry(owner, baseFacets, sels);
     }
 
     function test_constructor_revert_duplicateBaseFacets_nonAdjacent() public {
-        address[4] memory baseFacets =
-            [address(facetA), address(facetB), address(facetC), address(facetA)];
+        address[4] memory baseFacets = [address(facetA), address(facetB), address(facetC), address(facetA)];
 
         bytes4[][] memory sels = new bytes4[][](4);
         sels[0] = selectorsA;
@@ -194,15 +183,12 @@ contract ConstructorTest is FacetRegistryTestBase {
         sels[2] = selectorsC;
         sels[3] = selectorsD;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_DuplicateBaseFacetAddress.selector, address(facetA))
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_DuplicateBaseFacetAddress.selector, address(facetA)));
         new FacetRegistry(owner, baseFacets, sels);
     }
 
     function test_constructor_revert_emptySelectorsForBaseFacet() public {
-        address[4] memory baseFacets =
-            [address(facetA), address(facetB), address(facetC), address(facetD)];
+        address[4] memory baseFacets = [address(facetA), address(facetB), address(facetC), address(facetD)];
 
         bytes4[][] memory sels = new bytes4[][](4);
         sels[0] = selectorsA;
@@ -210,16 +196,13 @@ contract ConstructorTest is FacetRegistryTestBase {
         sels[2] = selectorsC;
         sels[3] = selectorsD;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_BaseFacetSelectorsEmpty.selector, address(facetB))
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_BaseFacetSelectorsEmpty.selector, address(facetB)));
         new FacetRegistry(owner, baseFacets, sels);
     }
 
     function test_constructor_revert_facetIsNotContract() public {
         address notAContract = address(0x1234);
-        address[4] memory baseFacets =
-            [notAContract, address(facetB), address(facetC), address(facetD)];
+        address[4] memory baseFacets = [notAContract, address(facetB), address(facetC), address(facetD)];
 
         bytes4[][] memory sels = new bytes4[][](4);
         sels[0] = selectorsA;
@@ -227,15 +210,12 @@ contract ConstructorTest is FacetRegistryTestBase {
         sels[2] = selectorsC;
         sels[3] = selectorsD;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_FacetIsNotContract.selector, notAContract)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_FacetIsNotContract.selector, notAContract));
         new FacetRegistry(owner, baseFacets, sels);
     }
 
     function test_constructor_revert_duplicateSelectorsAcrossBaseFacets() public {
-        address[4] memory baseFacets =
-            [address(facetA), address(facetB), address(facetC), address(facetD)];
+        address[4] memory baseFacets = [address(facetA), address(facetB), address(facetC), address(facetD)];
 
         bytes4[][] memory sels = new bytes4[][](4);
         sels[0] = selectorsA;
@@ -244,9 +224,7 @@ contract ConstructorTest is FacetRegistryTestBase {
         sels[3] = selectorsD;
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                FacetRegistry_CannotAddFunctionThatAlreadyExists.selector, selectorsA[0]
-            )
+            abi.encodeWithSelector(FacetRegistry_CannotAddFunctionThatAlreadyExists.selector, selectorsA[0])
         );
         new FacetRegistry(owner, baseFacets, sels);
     }

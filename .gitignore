@@ -3,6 +3,8 @@ cache
 node_modules
 out
 artifacts
+build-info
+
 
 # files
 *.env

@@ -34,7 +34,7 @@ contract UpgradeFacet is IUpgrade, UpgradeBase, Facet {
     }
 
     /// @inheritdoc IUpgrade
-    function upgrade(bytes32 _hashData) external onlyGardenOwner ifIndexNotConnected nonReentrant {
+    function upgrade(bytes32 _hashData) external onlyOwnerUnlessIndexConnected nonReentrant {
         _upgrade(_hashData);
     }
 

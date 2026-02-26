@@ -27,9 +27,8 @@ contract CamelotV3Facet is ICamelotV3, CamelotV3Base, Facet {
     function camelotV3ExactInputSingle(CamelotV3ExactInputSingleParams memory params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256 amountOut)
     {
         _camelotV3ExactInputSingle(params);
@@ -39,9 +38,8 @@ contract CamelotV3Facet is ICamelotV3, CamelotV3Base, Facet {
     function camelotV3ExactInput(CamelotV3ExactInputParams memory params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256 amountOut)
     {
         _camelotV3ExactInput(params);
@@ -51,9 +49,8 @@ contract CamelotV3Facet is ICamelotV3, CamelotV3Base, Facet {
     function camelotV3ExactOutputSingle(CamelotV3ExactOutputSingleParams memory params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256 amountIn)
     {
         _camelotV3ExactOutputSingle(params);
@@ -63,9 +60,8 @@ contract CamelotV3Facet is ICamelotV3, CamelotV3Base, Facet {
     function camelotV3ExactOutput(CamelotV3ExactOutputParams memory params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256 amountIn)
     {
         _camelotV3ExactOutput(params);

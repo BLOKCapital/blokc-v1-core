@@ -5,19 +5,20 @@ import { FacetRegistryTestBase } from "../FacetRegistryTestBase.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
-import {
-    FacetRegistry_ModuleIdIsZero,
-    FacetRegistry_ModuleAlreadyExists
-} from "src/facetRegistry/FacetRegistry.sol";
+import { FacetRegistry_ModuleIdIsZero, FacetRegistry_ModuleAlreadyExists } from "src/facetRegistry/FacetRegistry.sol";
 
 /// @dev Minimal mock that always deploys with some code
 contract FuzzMockFacet {
     uint256 private _x;
-    function setX(uint256 x) external { _x = x; }
+
+    function setX(uint256 x) external {
+        _x = x;
+    }
 }
 
 contract ModuleFuzzTest is FacetRegistryTestBase {
-    // ─── registerModule fuzzing ─────────────────────────────────────────
+    // ─── registerModule fuzzing
+    // ─────────────────────────────────────────
 
     function testFuzz_registerModule_arbitraryId(bytes32 moduleId) public {
         vm.assume(moduleId != bytes32(0));
@@ -45,7 +46,8 @@ contract ModuleFuzzTest is FacetRegistryTestBase {
         registry.registerModule(moduleId);
     }
 
-    // ─── upgradeModule Add fuzzing ──────────────────────────────────────
+    // ─── upgradeModule Add fuzzing
+    // ──────────────────────────────────────
 
     function testFuzz_addFacetToModule_versionIncrement(uint8 numAdds) public {
         numAdds = uint8(bound(numAdds, 1, 10));
@@ -65,9 +67,7 @@ contract ModuleFuzzTest is FacetRegistryTestBase {
             // but the facet is a real contract
             IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
             cuts[0] = IDiamondCut.FacetCut({
-                facetAddress: address(mock),
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: sels
+                facetAddress: address(mock), action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels
             });
             registry.upgradeModule(MODULE_1, cuts);
         }
@@ -100,7 +100,8 @@ contract ModuleFuzzTest is FacetRegistryTestBase {
         assertEq(allAddrs.length, 4 + numFacets);
     }
 
-    // ─── upgradeModule Replace fuzzing ──────────────────────────────────
+    // ─── upgradeModule Replace fuzzing
+    // ──────────────────────────────────
 
     function testFuzz_replaceFacet_selectorMapping(uint8 numSelectors) public {
         numSelectors = uint8(bound(numSelectors, 1, 5));
@@ -128,7 +129,8 @@ contract ModuleFuzzTest is FacetRegistryTestBase {
         assertFalse(registry.isFacetRegistered(address(original)));
     }
 
-    // ─── upgradeModule Remove fuzzing ───────────────────────────────────
+    // ─── upgradeModule Remove fuzzing
+    // ───────────────────────────────────
 
     function testFuzz_removeFacet_cleansUpState(uint8 numSelectors) public {
         numSelectors = uint8(bound(numSelectors, 1, 5));
@@ -153,14 +155,13 @@ contract ModuleFuzzTest is FacetRegistryTestBase {
         assertEq(registry.getFacetModule(address(mock)), bytes32(0));
     }
 
-    // ─── Helpers ────────────────────────────────────────────────────────
+    // ─── Helpers
+    // ────────────────────────────────────────────────────────
 
     function _addFacetToModuleRaw(bytes32 moduleId, address facet, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: facet,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: sels
+            facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }
@@ -168,9 +169,7 @@ contract ModuleFuzzTest is FacetRegistryTestBase {
     function _replaceFacetInModuleRaw(bytes32 moduleId, address newFacet, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: newFacet,
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: sels
+            facetAddress: newFacet, action: IDiamondCut.FacetCutAction.Replace, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }

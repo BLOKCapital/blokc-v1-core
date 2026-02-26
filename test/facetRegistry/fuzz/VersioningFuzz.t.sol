@@ -12,11 +12,15 @@ import {
 /// @dev Minimal mock that always deploys with some code
 contract VersionFuzzMockFacet {
     uint256 private _x;
-    function setX(uint256 x) external { _x = x; }
+
+    function setX(uint256 x) external {
+        _x = x;
+    }
 }
 
 contract VersioningFuzzTest is FacetRegistryTestBase {
-    // ─── Global version range queries ───────────────────────────────────
+    // ─── Global version range queries
+    // ───────────────────────────────────
 
     function testFuzz_getFacetCutsByVersionRange_valid(uint256 start, uint256 end) public view {
         uint256 current = registry.getCurrentVersion();
@@ -46,21 +50,19 @@ contract VersioningFuzzTest is FacetRegistryTestBase {
         uint256 current = registry.getCurrentVersion();
         end = bound(end, current + 1, current + 100);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_VersionOutOfBounds.selector, end, current)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_VersionOutOfBounds.selector, end, current));
         registry.getFacetCutsByVersionRange(1, end);
     }
 
-    // ─── Module version range queries ───────────────────────────────────
+    // ─── Module version range queries
+    // ───────────────────────────────────
 
     function testFuzz_getModuleFacetCutsByVersionRange_valid(uint256 start, uint256 end) public view {
         uint256 current = registry.getModuleVersion(BASE_MODULE);
         start = bound(start, 1, current);
         end = bound(end, start, current);
 
-        IDiamondCut.FacetCut[] memory cuts =
-            registry.getModuleFacetCutsByVersionRange(BASE_MODULE, start, end);
+        IDiamondCut.FacetCut[] memory cuts = registry.getModuleFacetCutsByVersionRange(BASE_MODULE, start, end);
         assertEq(cuts.length, end - start + 1);
     }
 
@@ -74,13 +76,12 @@ contract VersioningFuzzTest is FacetRegistryTestBase {
         uint256 current = registry.getModuleVersion(BASE_MODULE);
         end = bound(end, current + 1, current + 100);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_VersionOutOfBounds.selector, end, current)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_VersionOutOfBounds.selector, end, current));
         registry.getModuleFacetCutsByVersionRange(BASE_MODULE, 1, end);
     }
 
-    // ─── Version monotonicity ───────────────────────────────────────────
+    // ─── Version monotonicity
+    // ───────────────────────────────────────────
 
     function testFuzz_versionAlwaysIncreases(uint8 numOps) public {
         numOps = uint8(bound(numOps, 1, 15));
@@ -97,9 +98,7 @@ contract VersioningFuzzTest is FacetRegistryTestBase {
 
             IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
             cuts[0] = IDiamondCut.FacetCut({
-                facetAddress: address(mock),
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: sels
+                facetAddress: address(mock), action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels
             });
             registry.upgradeModule(MODULE_1, cuts);
 
@@ -114,7 +113,8 @@ contract VersioningFuzzTest is FacetRegistryTestBase {
         }
     }
 
-    // ─── Global and module version sync ─────────────────────────────────
+    // ─── Global and module version sync
+    // ─────────────────────────────────
 
     function testFuzz_globalAndModuleVersionSync(uint8 numOps) public {
         numOps = uint8(bound(numOps, 1, 10));
@@ -128,9 +128,7 @@ contract VersioningFuzzTest is FacetRegistryTestBase {
 
             IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
             cuts[0] = IDiamondCut.FacetCut({
-                facetAddress: address(mock),
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: sels
+                facetAddress: address(mock), action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels
             });
             registry.upgradeModule(MODULE_1, cuts);
         }

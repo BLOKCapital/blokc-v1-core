@@ -64,6 +64,9 @@ error Index_DuplicateSymbol(string symbol);
 /// @notice Thrown when maximum connected gardens limit is reached
 error Index_MaxConnectedGardensReached();
 
+/// @notice Thrown when calculated weights do not sum to approximately 1e18
+error Index_InvalidWeightSum(uint256 weightSum);
+
 /// @notice Thrown when caller has no contract code (EOA)
 error Index_CallerNotContract();
 
@@ -257,8 +260,15 @@ contract Index is Ownable {
             revert Index_WeightsMismatch(weights.length, symbols.length);
         }
 
+        uint256 weightSum = 0;
         for (uint256 i = 0; i < symbols.length; i++) {
             _componentWeights[symbols[i]] = weights[i];
+            weightSum += weights[i];
+        }
+
+        // Validate weights sum to ~100% (allow 0.01% tolerance for rounding)
+        if (weightSum < 1e18 - 1e14 || weightSum > 1e18) {
+            revert Index_InvalidWeightSum(weightSum);
         }
 
         _lastRebalanceTimestamp = block.timestamp;
