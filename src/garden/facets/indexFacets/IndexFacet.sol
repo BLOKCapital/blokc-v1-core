@@ -41,7 +41,9 @@ contract IndexFacet is IIndex, IndexBase, Facet {
     }
 
     /// @inheritdoc IIndex
-    function rebalance(SwapCall[] calldata swapCalls) external nonReentrant {
+    /// @dev Does NOT use nonReentrant to avoid conflict with DEX facets' nonReentrant
+    ///      during address(this).call(). Uses custom rebalancing flag in IndexStorage instead.
+    function rebalance(SwapCall[] calldata swapCalls) external {
         _rebalance(swapCalls);
     }
 

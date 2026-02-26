@@ -70,8 +70,7 @@ contract ModuleViewsTest is FacetRegistryTestBase {
 
     function test_getModuleFacetCutsByVersionRange_singleVersion() public view {
         uint256 mVersion = registry.getModuleVersion(MODULE_1);
-        IDiamondCut.FacetCut[] memory cuts =
-            registry.getModuleFacetCutsByVersionRange(MODULE_1, mVersion, mVersion);
+        IDiamondCut.FacetCut[] memory cuts = registry.getModuleFacetCutsByVersionRange(MODULE_1, mVersion, mVersion);
         assertEq(cuts.length, 1);
         assertEq(cuts[0].facetAddress, address(facetE));
     }
@@ -79,16 +78,14 @@ contract ModuleViewsTest is FacetRegistryTestBase {
     function test_getModuleFacetCutsByVersionRange_multipleVersions() public {
         _addFacetToModule(MODULE_1, address(facetF), selectorsF);
 
-        IDiamondCut.FacetCut[] memory cuts =
-            registry.getModuleFacetCutsByVersionRange(MODULE_1, 1, 2);
+        IDiamondCut.FacetCut[] memory cuts = registry.getModuleFacetCutsByVersionRange(MODULE_1, 1, 2);
         assertEq(cuts.length, 2);
         assertEq(cuts[0].facetAddress, address(facetE));
         assertEq(cuts[1].facetAddress, address(facetF));
     }
 
     function test_getModuleFacetCutsByVersionRange_baseModule() public view {
-        IDiamondCut.FacetCut[] memory cuts =
-            registry.getModuleFacetCutsByVersionRange(BASE_MODULE, 1, 4);
+        IDiamondCut.FacetCut[] memory cuts = registry.getModuleFacetCutsByVersionRange(BASE_MODULE, 1, 4);
         assertEq(cuts.length, 4);
     }
 
@@ -110,9 +107,7 @@ contract ModuleViewsTest is FacetRegistryTestBase {
 
     function test_getModuleFacetCutsByVersionRange_revert_versionOutOfBounds() public {
         uint256 mVersion = registry.getModuleVersion(MODULE_1);
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_VersionOutOfBounds.selector, mVersion + 1, mVersion)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_VersionOutOfBounds.selector, mVersion + 1, mVersion));
         registry.getModuleFacetCutsByVersionRange(MODULE_1, 1, mVersion + 1);
     }
 

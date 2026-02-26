@@ -75,7 +75,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 Router02 address on Arbitrum One
     address internal constant UNISWAP_V2_ROUTER_ADDRESS = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
     /// @notice Pool Registry address on Arbitrum One
-    address internal constant POOL_REGISTRY_ADDRESS = 0xBa7898DbE9C2be340197e1fffe85FC5a3B977744;
+    address internal constant POOL_REGISTRY_ADDRESS = 0x8f49107B2059e59fD93164C29c462f7EB4f310E4;
 
     /// @notice Uniswap V2 Factory address on Arbitrum One
     address internal constant UNISWAP_V2_FACTORY_ADDRESS = 0xf1D7CC64Fb4452F05c498126312eBE29f30Fbcf9;

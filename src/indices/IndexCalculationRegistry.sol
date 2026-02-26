@@ -78,6 +78,9 @@ contract IndexCalculationRegistry is Ownable {
     /// @param indexCalculationAddress Address of the calculation contract to register
     /// @dev Only callable by owner. Assigns a unique ID and records registration timestamp
     function registerIndexCalculation(address indexCalculationAddress) external onlyOwner {
+        if (indexCalculationAddress == address(0)) {
+            revert IndexCalculationRegistry_InvalidIndexCalculationAddress(indexCalculationAddress);
+        }
         if (_indexCalculationAddresses.contains(indexCalculationAddress)) {
             revert IndexCalculationRegistry_IndexCalculationAlreadyRegistered(indexCalculationAddress);
         }

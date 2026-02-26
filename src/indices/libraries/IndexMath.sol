@@ -30,16 +30,6 @@ library IndexMath {
     /// @notice Thrown when a weight exceeds 100% or is otherwise invalid
     error IndexMath_InvalidWeight();
 
-    /// @notice Thrown when oracle price data is stale beyond the staleness threshold
-    /// @param updatedAt Timestamp of the last oracle update
-    /// @param currentTime Current block timestamp
-    error IndexMath_StaleOraclePrice(uint256 updatedAt, uint256 currentTime);
-
-    /// @notice Thrown when oracle round data is incomplete
-    /// @param roundId Current round ID
-    /// @param answeredInRound Round ID in which the answer was computed
-    error IndexMath_IncompleteOracleRound(uint80 roundId, uint80 answeredInRound);
-
     /// @notice Precision constant (1e18 = 100%)
     uint256 internal constant PRECISION = 1e18;
 
@@ -51,9 +41,6 @@ library IndexMath {
 
     /// @notice WETH token decimals
     uint256 internal constant WETH_DECIMALS = 18;
-
-    /// @notice Maximum allowed staleness for Chainlink oracle data (1 hour)
-    uint256 internal constant CHAINLINK_STALENESS_THRESHOLD = 3600;
 
     /// @notice Safely calculate weight as a percentage of total with proper rounding
     /// @param part Individual market cap or value
@@ -93,8 +80,10 @@ library IndexMath {
 
         // Calculate: (usdValue * 10^tokenDecimals * 10^priceDecimals) / (priceInUsd * 1e18)
         // Chained Math.mulDiv to avoid intermediate overflow
-        uint256 intermediate = Math.mulDiv(usdValue, 10 ** uint256(tokenDecimals), priceInUsd, Math.Rounding.Floor);
-        tokenAmount = Math.mulDiv(intermediate, 10 ** uint256(priceDecimals), PRECISION, Math.Rounding.Floor);
+        // Step 1: strip 1e18 precision from usdValue while scaling to token decimals
+        uint256 intermediate = Math.mulDiv(usdValue, 10 ** uint256(tokenDecimals), PRECISION, Math.Rounding.Floor);
+        // Step 2: scale by price feed decimals and divide by price
+        tokenAmount = Math.mulDiv(intermediate, 10 ** uint256(priceDecimals), priceInUsd, Math.Rounding.Floor);
 
         return tokenAmount;
     }
@@ -119,11 +108,12 @@ library IndexMath {
         if (priceInUsd == 0) revert IndexMath_InvalidPrice();
         if (tokenAmount == 0) return 0;
 
-        // Calculate: (tokenAmount * price * 1e18) / (10^tokenDecimals * 10^priceDecimals)
-        uint256 scaledAmount = Math.mulDiv(tokenAmount, priceInUsd, 1, Math.Rounding.Floor);
-        uint256 denominator = (10 ** uint256(tokenDecimals)) * (10 ** uint256(priceDecimals));
-
-        usdValue = Math.mulDiv(scaledAmount, PRECISION, denominator, Math.Rounding.Floor);
+        // Calculate: (tokenAmount * priceInUsd * 1e18) / (10^tokenDecimals * 10^priceDecimals)
+        // Chained Math.mulDiv to avoid intermediate overflow
+        // Step 1: (tokenAmount * priceInUsd) / 10^tokenDecimals
+        uint256 intermediate = Math.mulDiv(tokenAmount, priceInUsd, 10 ** uint256(tokenDecimals), Math.Rounding.Floor);
+        // Step 2: normalize to 1e18 precision
+        usdValue = Math.mulDiv(intermediate, PRECISION, 10 ** uint256(priceDecimals), Math.Rounding.Floor);
 
         return usdValue;
     }
@@ -276,7 +266,7 @@ library IndexMath {
     /// @return minAmount Minimum acceptable amount after slippage
     function applySlippageDown(uint256 amount, uint256 slippageBps) internal pure returns (uint256 minAmount) {
         if (slippageBps >= 10_000) revert IndexMath_InvalidWeight(); // Can't have 100% or more slippage
-        minAmount = (amount * (10_000 - slippageBps)) / 10_000;
+        minAmount = Math.mulDiv(amount, 10_000 - slippageBps, 10_000, Math.Rounding.Floor);
     }
 
     /// @notice Apply slippage tolerance upward (for maximum acceptable inputs)
@@ -285,7 +275,7 @@ library IndexMath {
     /// @return maxAmount Maximum acceptable amount after slippage
     function applySlippageUp(uint256 amount, uint256 slippageBps) internal pure returns (uint256 maxAmount) {
         if (slippageBps >= 10_000) revert IndexMath_InvalidWeight(); // Sanity check
-        maxAmount = (amount * (10_000 + slippageBps)) / 10_000;
+        maxAmount = Math.mulDiv(amount, 10_000 + slippageBps, 10_000, Math.Rounding.Ceil);
     }
 
     /// @notice Calculate minimum output with price conversion and slippage protection
@@ -310,12 +300,13 @@ library IndexMath {
         if (priceRatio == 0) revert IndexMath_InvalidPrice();
         if (amountIn == 0) return 0;
 
-        // Calculate expected output: (amountIn * priceRatio * 10^decimalsOut) / 10^decimalsIn
-        // Chained Math.mulDiv to avoid intermediate overflow of priceRatio * 10^decimalsOut
+        // Calculate expected output: (amountIn * priceRatio * 10^decimalsOut) / (10^decimalsIn * 1e18)
+        // priceRatio is scaled to 1e18, so we must divide it out
+        // Chained Math.mulDiv to avoid intermediate overflow
         uint256 expectedOut = Math.mulDiv(
             Math.mulDiv(amountIn, priceRatio, 10 ** uint256(decimalsIn), Math.Rounding.Floor),
             10 ** uint256(decimalsOut),
-            1,
+            PRECISION,
             Math.Rounding.Floor
         );
 
@@ -357,24 +348,4 @@ library IndexMath {
     {
         return tokenToWeth(balance, priceInWeth, tokenDecimals);
     }
-
-    /// @notice Validate Chainlink oracle data for freshness and completeness
-    /// @param roundId Round ID from latestRoundData
-    /// @param price Price value from oracle
-    /// @param updatedAt Timestamp when data was last updated
-    /// @param answeredInRound Round ID in which the answer was computed
-    // function validateOracleData(uint80 roundId, int256 price, uint256 updatedAt, uint80 answeredInRound) internal view {
-    //     // Check price is positive
-    //     if (price <= 0) revert IndexMath_InvalidPrice();
-
-    //     // Check data is fresh (updated within threshold)
-    //     if (block.timestamp - updatedAt > CHAINLINK_STALENESS_THRESHOLD) {
-    //         revert IndexMath_StaleOraclePrice(updatedAt, block.timestamp);
-    //     }
-
-    //     // Check round is complete
-    //     if (answeredInRound < roundId) {
-    //         revert IndexMath_IncompleteOracleRound(roundId, answeredInRound);
-    //     }
-    // }
 }

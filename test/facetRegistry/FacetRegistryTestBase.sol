@@ -11,41 +11,75 @@ import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 // ═══════════════════════════════════════════════════════════════════════
 
 contract MockFacetA {
-    function funcA1() external pure returns (uint256) { return 1; }
-    function funcA2() external pure returns (uint256) { return 2; }
+    function funcA1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function funcA2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract MockFacetB {
-    function funcB1() external pure returns (uint256) { return 1; }
-    function funcB2() external pure returns (uint256) { return 2; }
+    function funcB1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function funcB2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract MockFacetC {
-    function funcC1() external pure returns (uint256) { return 1; }
-    function funcC2() external pure returns (uint256) { return 2; }
+    function funcC1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function funcC2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract MockFacetD {
-    function funcD1() external pure returns (uint256) { return 1; }
-    function funcD2() external pure returns (uint256) { return 2; }
+    function funcD1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function funcD2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract MockFacetE {
-    function funcE1() external pure returns (uint256) { return 1; }
-    function funcE2() external pure returns (uint256) { return 2; }
+    function funcE1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function funcE2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract MockFacetF {
-    function funcF1() external pure returns (uint256) { return 1; }
-    function funcF2() external pure returns (uint256) { return 2; }
+    function funcF1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function funcF2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract MockFacetG {
-    function funcG1() external pure returns (uint256) { return 1; }
+    function funcG1() external pure returns (uint256) {
+        return 1;
+    }
 }
 
 contract MockFacetH {
-    function funcH1() external pure returns (uint256) { return 1; }
+    function funcH1() external pure returns (uint256) {
+        return 1;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -137,8 +171,7 @@ abstract contract FacetRegistryTestBase is Test {
     }
 
     function _deployRegistry(address _owner) internal returns (FacetRegistry) {
-        address[4] memory baseFacets =
-            [address(facetA), address(facetB), address(facetC), address(facetD)];
+        address[4] memory baseFacets = [address(facetA), address(facetB), address(facetC), address(facetD)];
 
         bytes4[][] memory baseFacetSelectors = new bytes4[][](4);
         baseFacetSelectors[0] = selectorsA;
@@ -149,7 +182,8 @@ abstract contract FacetRegistryTestBase is Test {
         return new FacetRegistry(_owner, baseFacets, baseFacetSelectors);
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── Helpers
+    // ──────────────────────────────────────────────────────────
 
     function _registerModule(bytes32 moduleId) internal {
         registry.registerModule(moduleId);
@@ -158,9 +192,7 @@ abstract contract FacetRegistryTestBase is Test {
     function _addFacetToModule(bytes32 moduleId, address facet, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: facet,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: sels
+            facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }
@@ -168,9 +200,7 @@ abstract contract FacetRegistryTestBase is Test {
     function _replaceFacetInModule(bytes32 moduleId, address newFacet, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: newFacet,
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: sels
+            facetAddress: newFacet, action: IDiamondCut.FacetCutAction.Replace, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }
@@ -178,9 +208,7 @@ abstract contract FacetRegistryTestBase is Test {
     function _removeFacetFromModule(bytes32 moduleId, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: sels
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }
@@ -194,7 +222,8 @@ abstract contract FacetRegistryTestBase is Test {
         registry.addGardenType(gardenTypeId, empty);
     }
 
-    // ── Storage Slot Collision Guard ─────────────────────────────────────
+    // ── Storage Slot Collision Guard
+    // ─────────────────────────────────────
 
     /**
      * @notice Verifies there are no storage slot collisions in src/.
@@ -233,18 +262,14 @@ abstract contract FacetRegistryTestBase is Test {
         bytes memory result = vm.ffi(cmd);
 
         assertTrue(
-            result.length > 0,
-            "Expected collision guard to catch the duplicate GmxV2Storage declaration in test/mock/"
+            result.length > 0, "Expected collision guard to catch the duplicate GmxV2Storage declaration in test/mock/"
         );
 
-        assertEq(
-            string(result),
-            "GmxV2Storage",
-            "Expected the collision to be specifically GmxV2Storage"
-        );
+        assertEq(string(result), "GmxV2Storage", "Expected the collision to be specifically GmxV2Storage");
     }
 
-    // ── Deployed Storage Library Rename Guard ────────────────────────────
+    // ── Deployed Storage Library Rename Guard
+    // ────────────────────────────
 
     /**
      * @notice Verifies that no deployed storage library has been renamed.

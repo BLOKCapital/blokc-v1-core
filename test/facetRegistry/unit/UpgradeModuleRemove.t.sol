@@ -20,7 +20,8 @@ contract UpgradeModuleRemoveTest is FacetRegistryTestBase {
         _addFacetToModule(MODULE_1, address(facetE), selectorsE);
     }
 
-    // ─── Success Cases ──────────────────────────────────────────────────
+    // ─── Success Cases
+    // ──────────────────────────────────────────────────
 
     function test_removeFacetFromModule_success() public {
         _removeFacetFromModule(MODULE_1, selectorsE);
@@ -72,8 +73,7 @@ contract UpgradeModuleRemoveTest is FacetRegistryTestBase {
         _removeFacetFromModule(MODULE_1, selectorsE);
 
         uint256 mVersion = registry.getModuleVersion(MODULE_1);
-        IDiamondCut.FacetCut[] memory cuts =
-            registry.getModuleFacetCutsByVersionRange(MODULE_1, mVersion, mVersion);
+        IDiamondCut.FacetCut[] memory cuts = registry.getModuleFacetCutsByVersionRange(MODULE_1, mVersion, mVersion);
         assertEq(cuts[0].facetAddress, address(0));
         assertEq(uint8(cuts[0].action), uint8(IDiamondCut.FacetCutAction.Remove));
     }
@@ -81,9 +81,7 @@ contract UpgradeModuleRemoveTest is FacetRegistryTestBase {
     function test_removeFacetFromModule_emitsEvent() public {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: selectorsE
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: selectorsE
         });
 
         vm.expectEmit(true, false, false, true);
@@ -150,14 +148,13 @@ contract UpgradeModuleRemoveTest is FacetRegistryTestBase {
         assertFalse(registry.isSelectorRegistered(selectorsE[0]));
     }
 
-    // ─── Revert Cases ───────────────────────────────────────────────────
+    // ─── Revert Cases
+    // ───────────────────────────────────────────────────
 
     function test_removeFacetFromModule_revert_emptySelectorArray() public {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: new bytes4[](0)
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: new bytes4[](0)
         });
 
         vm.expectRevert(abi.encodeWithSelector(FacetRegistry_SelectorArrayEmpty.selector));
@@ -167,14 +164,10 @@ contract UpgradeModuleRemoveTest is FacetRegistryTestBase {
     function test_removeFacetFromModule_revert_nonZeroFacetAddress() public {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(facetE),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: selectorsE
+            facetAddress: address(facetE), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: selectorsE
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_RemoveFacetAddressMustBeZero.selector, address(facetE))
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_RemoveFacetAddressMustBeZero.selector, address(facetE)));
         registry.upgradeModule(MODULE_1, cuts);
     }
 
@@ -186,9 +179,7 @@ contract UpgradeModuleRemoveTest is FacetRegistryTestBase {
             functionSelectors: selectorsF // not registered
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_SelectorNotRegistered.selector, selectorsF[0])
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_SelectorNotRegistered.selector, selectorsF[0]));
         registry.upgradeModule(MODULE_1, cuts);
     }
 
@@ -196,18 +187,15 @@ contract UpgradeModuleRemoveTest is FacetRegistryTestBase {
         // facetE is in MODULE_1, try to remove from MODULE_2
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: selectorsE
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: selectorsE
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(FacetRegistry_FacetNotInModule.selector, address(facetE), MODULE_2)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FacetRegistry_FacetNotInModule.selector, address(facetE), MODULE_2));
         registry.upgradeModule(MODULE_2, cuts);
     }
 
-    // ─── Events ─────────────────────────────────────────────────────────
+    // ─── Events
+    // ─────────────────────────────────────────────────────────
 
     event ModuleFunctionsRemoved(bytes32 indexed moduleId, bytes4[] functionSelectors);
 }

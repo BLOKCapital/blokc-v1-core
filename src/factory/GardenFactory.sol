@@ -79,7 +79,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     address private _protocolStatus;
 
     /// @notice The address of the SBT registry
-    ISBTRegistry private _sbtRegistry;
+    // ISBTRegistry private _sbtRegistry;
 
     /// @notice The set of all gardens created by this factory
     EnumerableSet.AddressSet private _gardens;
@@ -125,18 +125,18 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     /// @param initialOwner The initial owner of the factory
     /// @param facetRegistry The address of the facet registry contract
     /// @param protocolStatus The address of the protocol status contract
-    /// @param sbtRegistry The address of the SBT registry contract
+    // /// @param sbtRegistry The address of the SBT registry contract
     constructor(
         address initialOwner,
         address facetRegistry,
-        address protocolStatus,
-        address sbtRegistry
+        address protocolStatus
+        // address sbtRegistry
     )
         Ownable(initialOwner)
     {
         _facetRegistry = facetRegistry;
         _protocolStatus = protocolStatus;
-        _sbtRegistry = ISBTRegistry(sbtRegistry);
+        // _sbtRegistry = ISBTRegistry(sbtRegistry);
 
         if (_facetRegistry == address(0)) {
             revert GardenFactory_FacetRegistryNotSet();
@@ -144,9 +144,9 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         if (_protocolStatus == address(0)) {
             revert GardenFactory_ProtocolStatusNotSet();
         }
-        if (sbtRegistry == address(0)) {
-            revert GardenFactory_SBTRegistryNotSet();
-        }
+        // if (sbtRegistry == address(0)) {
+        //     revert GardenFactory_SBTRegistryNotSet();
+        // }
     }
 
     // ========================================================================
@@ -156,8 +156,8 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     /// @inheritdoc IGardenFactory
     function createGarden(
         uint256 index,
-        address collection,
-        uint256 tokenId,
+        // address collection,
+        // uint256 tokenId,
         bytes32 gardenType
     )
         external
@@ -314,10 +314,10 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         return _protocolStatus;
     }
 
-    /// @inheritdoc IGardenFactory
-    function getSBTRegistry() external view returns (address) {
-        return address(_sbtRegistry);
-    }
+    // /// @inheritdoc IGardenFactory
+    // function getSBTRegistry() external view returns (address) {
+    //     return address(_sbtRegistry);
+    // }
 
     /// @inheritdoc IGardenFactory
     function isIndexAvailable(address user, uint256 index) external view returns (bool) {

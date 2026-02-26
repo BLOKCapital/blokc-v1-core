@@ -5,13 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { FacetRegistryHandler } from "./FacetRegistryHandler.sol";
-import {
-    FacetRegistryTestBase,
-    MockFacetA,
-    MockFacetB,
-    MockFacetC,
-    MockFacetD
-} from "../FacetRegistryTestBase.sol";
+import { FacetRegistryTestBase, MockFacetA, MockFacetB, MockFacetC, MockFacetD } from "../FacetRegistryTestBase.sol";
 
 contract FacetRegistryInvariantTest is FacetRegistryTestBase {
     FacetRegistryHandler public handler;

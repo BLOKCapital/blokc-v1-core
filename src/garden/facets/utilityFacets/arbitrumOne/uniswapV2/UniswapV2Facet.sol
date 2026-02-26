@@ -41,9 +41,8 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     function uniswapV2SwapExactTokensForTokens(UniswapV2SwapExactTokensForTokensParams calldata params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
         return _uniswapV2SwapExactTokensForTokens(params);
@@ -53,9 +52,8 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     function uniswapV2SwapTokensForExactTokens(UniswapV2SwapTokensForExactTokensParams calldata params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
         return _uniswapV2SwapTokensForExactTokens(params);
@@ -66,9 +64,8 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         external
         payable
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
         return _uniswapV2SwapExactETHForTokens(params);
@@ -78,9 +75,8 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     function uniswapV2SwapTokensForExactETH(UniswapV2SwapTokensForExactETHParams calldata params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
         return _uniswapV2SwapTokensForExactETH(params);
@@ -90,9 +86,8 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     function uniswapV2SwapExactTokensForETH(UniswapV2SwapExactTokensForETHParams calldata params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
         return _uniswapV2SwapExactTokensForETH(params);
@@ -103,9 +98,8 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         external
         payable
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
         returns (uint256[] memory amounts)
     {
         return _uniswapV2SwapETHForExactTokens(params);
@@ -115,9 +109,8 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     function uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(UniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(params);
     }
@@ -127,9 +120,8 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         external
         payable
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(params);
     }
@@ -138,9 +130,8 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     function uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(UniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(params);
     }

@@ -43,9 +43,8 @@ contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     function uniswapV3ExactInputSingle(UniswapV3ExactInputSingleParams memory params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _uniswapV3ExactInputSingle(params);
     }
@@ -57,9 +56,8 @@ contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     function uniswapV3ExactInput(UniswapV3ExactInputParams memory params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _uniswapV3ExactInput(params);
     }
@@ -71,9 +69,8 @@ contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     function uniswapV3ExactOutputSingle(UniswapV3ExactOutputSingleParams memory params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _uniswapV3ExactOutputSingle(params);
     }
@@ -85,9 +82,8 @@ contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     function uniswapV3ExactOutput(UniswapV3ExactOutputParams memory params)
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _uniswapV3ExactOutput(params);
     }

@@ -12,7 +12,7 @@ contract CreateGarden is BaseScript {
         setUp();
 
         address factoryAddress = 0xb2f6612C527a85CA3C5C3EEC5fb4F4Cfe42CEE79;
-        address gardenAddress = GardenFactory(factoryAddress).createGarden(1, keccak256("YIELD"));
+        address gardenAddress = GardenFactory(factoryAddress).createGarden(2, keccak256("INDEX"));
         console2.log("Garden deployed at:", gardenAddress);
 
         // Install utility modules via upgrade (required after BASE-only deployment)

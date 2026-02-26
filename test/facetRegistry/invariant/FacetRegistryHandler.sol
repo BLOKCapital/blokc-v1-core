@@ -8,7 +8,10 @@ import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 /// @dev Minimal mock that always deploys with some code
 contract HandlerMockFacet {
     uint256 private _x;
-    function setX(uint256 x) external { _x = x; }
+
+    function setX(uint256 x) external {
+        _x = x;
+    }
 }
 
 /// @title Handler for FacetRegistry invariant testing
@@ -77,9 +80,7 @@ contract FacetRegistryHandler is Test {
 
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: facetAddr,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: sels
+            facetAddress: facetAddr, action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels
         });
 
         registry.upgradeModule(moduleId, cuts);

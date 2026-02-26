@@ -19,7 +19,7 @@ import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant FACET_REGISTRY = 0xFF40dB2925234c5B797B200F61a2922AF5561652;
+    address constant FACET_REGISTRY = 0xf56e5573210Eaec46E29B4C5B9F8670b76730b6b;
 
     // Module IDs
     bytes32 constant MODULE_WITHDRAW = keccak256("WITHDRAW");
@@ -148,21 +148,21 @@ contract RegisterUtilityFacets is BaseScript {
         aaveSelectors[2] = aaveV3Facet.aaveV3Withdraw.selector;
         console2.log("AaveV3Facet deployed at:", address(aaveV3Facet));
 
-        PendleV2Facet pendleFacet = new PendleV2Facet();
-        bytes4[] memory pendleSelectors = new bytes4[](2);
-        pendleSelectors[0] = pendleFacet.pendleV2SwapExactTokenForPt.selector;
-        pendleSelectors[1] = pendleFacet.pendleV2SwapExactPtForToken.selector;
-        console2.log("PendleV2Facet deployed at:", address(pendleFacet));
+        // PendleV2Facet pendleFacet = new PendleV2Facet();
+        // bytes4[] memory pendleSelectors = new bytes4[](2);
+        // pendleSelectors[0] = pendleFacet.pendleV2SwapExactTokenForPt.selector;
+        // pendleSelectors[1] = pendleFacet.pendleV2SwapExactPtForToken.selector;
+        // console2.log("PendleV2Facet deployed at:", address(pendleFacet));
 
-        IDiamondCut.FacetCut[] memory yieldCuts = new IDiamondCut.FacetCut[](2);
+        IDiamondCut.FacetCut[] memory yieldCuts = new IDiamondCut.FacetCut[](1);
         yieldCuts[0] = IDiamondCut.FacetCut({
             facetAddress: address(aaveV3Facet), action: IDiamondCut.FacetCutAction.Add, functionSelectors: aaveSelectors
         });
-        yieldCuts[1] = IDiamondCut.FacetCut({
-            facetAddress: address(pendleFacet),
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: pendleSelectors
-        });
+        // yieldCuts[1] = IDiamondCut.FacetCut({
+        //     facetAddress: address(pendleFacet),
+        //     action: IDiamondCut.FacetCutAction.Add,
+        //     functionSelectors: pendleSelectors
+        // });
 
         if (!registryView.isModuleRegistered(MODULE_YIELD)) {
             registry.registerModule(MODULE_YIELD);
@@ -174,41 +174,41 @@ contract RegisterUtilityFacets is BaseScript {
         // =====================================================================
         // INDEX module (IndexFacet)
         // =====================================================================
-        IndexFacet indexFacet = new IndexFacet();
-        bytes4[] memory indexSelectors = new bytes4[](7);
-        indexSelectors[0] = indexFacet.connectToIndex.selector;
-        indexSelectors[1] = indexFacet.disconnectFromIndex.selector;
-        indexSelectors[2] = indexFacet.rebalanceIntent.selector;
-        indexSelectors[3] = indexFacet.rebalance.selector;
-        indexSelectors[4] = indexFacet.isConnectedToIndex.selector;
-        indexSelectors[5] = indexFacet.getConnectedIndex.selector;
-        indexSelectors[6] = indexFacet.hasPendingIntent.selector;
-        console2.log("IndexFacet deployed at:", address(indexFacet));
+        // IndexFacet indexFacet = new IndexFacet();
+        // bytes4[] memory indexSelectors = new bytes4[](7);
+        // indexSelectors[0] = indexFacet.connectToIndex.selector;
+        // indexSelectors[1] = indexFacet.disconnectFromIndex.selector;
+        // indexSelectors[2] = indexFacet.rebalanceIntent.selector;
+        // indexSelectors[3] = indexFacet.rebalance.selector;
+        // indexSelectors[4] = indexFacet.isConnectedToIndex.selector;
+        // indexSelectors[5] = indexFacet.getConnectedIndex.selector;
+        // indexSelectors[6] = indexFacet.hasPendingIntent.selector;
+        // console2.log("IndexFacet deployed at:", address(indexFacet));
 
-        IDiamondCut.FacetCut[] memory indexCuts = new IDiamondCut.FacetCut[](1);
-        indexCuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(indexFacet), action: IDiamondCut.FacetCutAction.Add, functionSelectors: indexSelectors
-        });
+        // IDiamondCut.FacetCut[] memory indexCuts = new IDiamondCut.FacetCut[](1);
+        // indexCuts[0] = IDiamondCut.FacetCut({
+        //     facetAddress: address(indexFacet), action: IDiamondCut.FacetCutAction.Add, functionSelectors:
+        // indexSelectors });
 
-        if (!registryView.isModuleRegistered(MODULE_INDEX)) {
-            registry.registerModule(MODULE_INDEX);
-            console2.log("INDEX module registered");
-        }
-        registry.upgradeModule(MODULE_INDEX, indexCuts);
-        console2.log("INDEX module upgraded with IndexFacet");
+        // if (!registryView.isModuleRegistered(MODULE_INDEX)) {
+        //     registry.registerModule(MODULE_INDEX);
+        //     console2.log("INDEX module registered");
+        // }
+        // registry.upgradeModule(MODULE_INDEX, indexCuts);
+        // console2.log("INDEX module upgraded with IndexFacet");
 
         // =====================================================================
         // Garden types
         // =====================================================================
         // INDEX_GARDEN allowed modules: BASE (implicit), DEX_MODULE, WITHDRAW_MODULE, INDEX_MODULE
-        if (!registryView.isGardenTypeRegistered(INDEX_GARDEN)) {
-            bytes32[] memory indexGardenModules = new bytes32[](3);
-            indexGardenModules[0] = MODULE_DEX;
-            indexGardenModules[1] = MODULE_WITHDRAW;
-            indexGardenModules[2] = MODULE_INDEX;
-            registry.addGardenType(INDEX_GARDEN, indexGardenModules);
-            console2.log("INDEX_GARDEN type registered");
-        }
+        // if (!registryView.isGardenTypeRegistered(INDEX_GARDEN)) {
+        //     bytes32[] memory indexGardenModules = new bytes32[](3);
+        //     indexGardenModules[0] = MODULE_DEX;
+        //     indexGardenModules[1] = MODULE_WITHDRAW;
+        //     indexGardenModules[2] = MODULE_INDEX;
+        //     registry.addGardenType(INDEX_GARDEN, indexGardenModules);
+        //     console2.log("INDEX_GARDEN type registered");
+        // }
 
         // YIELD_GARDEN allowed modules: BASE (implicit), YIELD_MODULE, WITHDRAW_MODULE, DEX_MODULE
         if (!registryView.isGardenTypeRegistered(YIELD_GARDEN)) {

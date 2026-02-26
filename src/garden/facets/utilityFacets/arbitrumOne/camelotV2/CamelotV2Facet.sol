@@ -33,9 +33,8 @@ contract CamelotV2Facet is ICamelotV2, CamelotV2Base, Facet {
     )
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _camelotV2ExactInputSingle(amountIn, amountOutMin, path, referrer, deadline);
     }
@@ -50,9 +49,8 @@ contract CamelotV2Facet is ICamelotV2, CamelotV2Base, Facet {
     )
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _camelotV2ExactInput(amountInMax, amountOutMin, path, referrer, deadline);
     }
@@ -67,9 +65,8 @@ contract CamelotV2Facet is ICamelotV2, CamelotV2Base, Facet {
     )
         external
         override
-        onlyGardenOwner
+        onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
-        ifIndexNotConnected
     {
         _camelotV2ExactOutputSingle(amountIn, amountOutMin, path, referrer, deadline);
     }

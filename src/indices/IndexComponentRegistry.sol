@@ -14,6 +14,7 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 // ============================================================================
 // Errors
 // ============================================================================
@@ -224,7 +225,7 @@ contract IndexComponentRegistry is Ownable {
 
     function _isValidResponse(FeedResponse memory _response) internal view returns (bool isValidResponse) {
         isValidResponse = (_response.success) && (_response.roundId != 0) && (_response.timestamp != 0)
-            && (_response.timestamp <= block.timestamp) && (_response.answer != 0);
+            && (_response.timestamp <= block.timestamp) && (_response.answer > 0);
     }
 
     function _isPriceStale(uint256 _priceTimestamp, uint256 _heartbeat) internal view returns (bool isPriceStale) {
@@ -272,13 +273,12 @@ contract IndexComponentRegistry is Ownable {
     {
         uint256 minPrice = Math.min(uint256(_currResponse.answer), uint256(_prevResponse.answer));
         uint256 maxPrice = Math.max(uint256(_currResponse.answer), uint256(_prevResponse.answer));
-        // q
         /*
          * Use the larger price as the denominator:
          * - If price decreased, the percentage deviation is in relation to the previous price.
          * - If price increased, the percentage deviation is in relation to the current price.
          */
-        uint256 percentDeviation = ((maxPrice - minPrice) * 1e4) / maxPrice;
+        uint256 percentDeviation = Math.mulDiv(maxPrice - minPrice, 1e4, maxPrice, Math.Rounding.Floor);
 
         isPriceChangeAboveMaxDeviation = percentDeviation > MAX_PRICE_DEVIATION_FROM_PREVIOUS_ROUND;
     }
@@ -289,9 +289,9 @@ contract IndexComponentRegistry is Ownable {
 
     function _storePrice(address _token, uint256 _price, uint256 _timestamp, uint80 roundId) internal {
         OracleRecord storage record = oracleRecords[_token];
-        record.price = uint96(_price);
-        record.timestamp = uint32(_timestamp);
-        record.lastUpdated = uint32(block.timestamp);
+        record.price = SafeCast.toUint96(_price);
+        record.timestamp = SafeCast.toUint32(_timestamp);
+        record.lastUpdated = SafeCast.toUint32(block.timestamp);
         record.roundId = roundId;
     }
 
@@ -337,9 +337,17 @@ contract IndexComponentRegistry is Ownable {
         if (tokenAddress == address(0)) revert IndexComponentRegistry_ComponentNotRegistered();
         return tokenAddress;
     }
+
+    /// @notice Returns the heartbeat (staleness threshold) for a specific component
+    /// @param symbol The component symbol
+    /// @return The heartbeat in seconds
+    function getComponentHeartbeat(string memory symbol) public view returns (uint256) {
+        if (_components[symbol].tokenAddress == address(0)) revert IndexComponentRegistry_ComponentNotRegistered();
+        return _components[symbol].heartbeat;
+    }
+
     function getOracleRecord(string memory symbol) public view returns (OracleRecord memory) {
         address _token = _components[symbol].tokenAddress;
         return oracleRecords[_token];
     }
-    
 }

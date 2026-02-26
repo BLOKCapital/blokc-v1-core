@@ -78,6 +78,11 @@ error IndexFactory_TooManyComponents(uint256 componentCount, uint256 maxComponen
 /// @notice Thrown when attempting to create an index with an empty name
 error IndexFactory_InvalidIndexName();
 
+/// @notice Thrown when attempting to remove an index that still has connected gardens
+/// @param indexAddress The index address
+/// @param connectedCount Number of connected gardens
+error IndexFactory_IndexHasConnectedGardens(address indexAddress, uint256 connectedCount);
+
 /**
  * @title IndexFactory
  * @notice Factory contract for deploying new Index contracts with specified parameters. This contract validates that
@@ -164,7 +169,7 @@ contract IndexFactory is Ownable {
             revert IndexFactory_InvalidComponentRegistryAddress(componentRegistry);
         }
         if (gardenFactory == address(0)) {
-            revert IndexFactory_InvalidGardenFactoryAddress(GARDEN_FACTORY);
+            revert IndexFactory_InvalidGardenFactoryAddress(gardenFactory);
         }
         INDEX_CALCULATION_REGISTRY = indexCalculationRegistry;
         COMPONENT_REGISTRY = componentRegistry;
@@ -240,8 +245,13 @@ contract IndexFactory is Ownable {
     /// @dev Only callable by owner. Does not destroy the Index contract itself.
     function removeIndex(address indexAddress) external onlyOwner {
         if (!_indexAddresses.contains(indexAddress)) revert IndexFactory_IndexNotRegistered(indexAddress);
-        _indexAddresses.remove(indexAddress);
 
+        uint256 connectedCount = Index(indexAddress).getConnectedGardens().length;
+        if (connectedCount > 0) {
+            revert IndexFactory_IndexHasConnectedGardens(indexAddress, connectedCount);
+        }
+
+        _indexAddresses.remove(indexAddress);
         delete _indexInfo[indexAddress];
     }
 
