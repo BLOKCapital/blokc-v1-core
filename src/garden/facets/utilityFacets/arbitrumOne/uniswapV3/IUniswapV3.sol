@@ -3,20 +3,18 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IUniswapV3
-    @author BLOK Capital DAO
-    @notice Interface for Uniswap V3 integration (swaps and TWAP queries)
-    @dev This interface provides functions for executing token swaps on Uniswap V3
-         and querying TWAP (Time-Weighted Average Price) prices from pools.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title IUniswapV3
+/// @author BLOK Capital DAO
+/// @notice Interface for Uniswap V3 integration (swaps and TWAP queries)
+/// @dev Provides functions for executing token swaps on Uniswap V3
+///      and querying TWAP (Time-Weighted Average Price) prices from pools.
 interface IUniswapV3 {
     // ========================================================================
     // Structs
@@ -34,6 +32,7 @@ interface IUniswapV3 {
         uint256 deadline;
         address tokenIn;
         address tokenOut;
+        uint24 swapFee;
     }
 
     /// @notice Encodes a token + pool fee entry for multi-hop paths
@@ -69,6 +68,7 @@ interface IUniswapV3 {
         uint256 deadline;
         address tokenIn;
         address tokenOut;
+        uint24 swapFee;
     }
 
     /// @notice Parameters for a multi-hop exact-output swap
@@ -97,27 +97,27 @@ interface IUniswapV3 {
 
     /// @notice Executes a single-hop exact-input swap on Uniswap V3
     /// @dev Swaps an exact amount of input token for output token using a single pool.
-    ///      Pool must be registered in the PoolRegistry. All operations are restricted
+    ///      Pool must be registered in the LiquidityPoolRegistry. All operations are restricted
     ///      to the diamond owner.
     /// @param params Swap parameters including tokens, amounts, fees, and deadline
     function uniswapV3ExactInputSingle(UniswapV3ExactInputSingleParams calldata params) external;
 
     /// @notice Executes a multi-hop exact-input swap on Uniswap V3
     /// @dev Swaps an exact amount of input token across multiple pools in a path.
-    ///      All pools in the path must be registered in the PoolRegistry.
+    ///      All pools in the path must be registered in the LiquidityPoolRegistry.
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
     function uniswapV3ExactInput(UniswapV3ExactInputParams calldata params) external;
 
     /// @notice Executes a single-hop exact-output swap on Uniswap V3
     /// @dev Swaps an exact amount of output token for input token using a single pool.
-    ///      Pool must be registered in the PoolRegistry. All operations are restricted
+    ///      Pool must be registered in the LiquidityPoolRegistry. All operations are restricted
     ///      to the diamond owner.
     /// @param params Swap parameters including tokens, amounts, fees, and deadline
     function uniswapV3ExactOutputSingle(UniswapV3ExactOutputSingleParams calldata params) external;
 
     /// @notice Executes a multi-hop exact-output swap on Uniswap V3
     /// @dev Swaps an exact amount of output token across multiple pools in a path.
-    ///      All pools in the path must be registered in the PoolRegistry.
+    ///      All pools in the path must be registered in the LiquidityPoolRegistry.
     /// @param params Multi-hop swap parameters including path, amounts, and deadline
     function uniswapV3ExactOutput(UniswapV3ExactOutputParams calldata params) external;
 

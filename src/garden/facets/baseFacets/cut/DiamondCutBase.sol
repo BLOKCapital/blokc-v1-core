@@ -3,16 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title DiamondCutBase
-    @author BLOK Capital DAO
-    @notice Base contract for DiamondCutFacet
-    @dev This base contract allows applying diamond cuts to the diamond
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -83,9 +77,20 @@ error InitializationFunctionReverted(address _initializationContractAddress, byt
 /// @param facetAddress The invalid facet address
 error DiamondCut_FacetIsNotContract(address facetAddress);
 
+/// @notice Thrown when a facet's module is not allowed for the garden's type
+/// @param gardenType The garden type identifier
+/// @param moduleId The module that is not allowed
+error DiamondCut_ModuleNotAllowedForGardenType(bytes32 gardenType, bytes32 moduleId);
+
 /// @notice Thrown when the function selector array is empty
 error DiamondCut_SelectorArrayEmpty();
 
+/**
+ * @title DiamondCutBase
+ * @notice Base contract that implements internal functions for adding, replacing, and removing facet functions
+ * according to the EIP-2535 Diamond Standard. This contract is intended to be inherited by a DiamondCutFacet that
+ * exposes the diamondCut function with appropriate access control and restrictions.
+ */
 contract DiamondCutBase {
     /// @notice Emitted when functions are added to a facet
     /// @param facetAddress The address of the facet
@@ -131,6 +136,9 @@ contract DiamondCutBase {
                 revert DiamondCut_IncorrectFacetCutAction(action);
             }
         }
+
+        // Emit EIP-2535 standard event
+        emit IDiamondCut.DiamondCut(_diamondCut, _init, _calldata);
     }
 
     // ========================================================================
@@ -160,22 +168,21 @@ contract DiamondCutBase {
             revert DiamondCut_FacetNotRegistered(_facetAddress);
         }
 
+        // Ensure facet's module is allowed for this garden's type
+        bytes32 gardenType = ld.gardenType;
+        if (gardenType != bytes32(0)) {
+            bytes32 moduleId = IFacetRegistry(facetRegistry).getFacetModule(_facetAddress);
+            if (!IFacetRegistry(facetRegistry).isModuleAllowedForGardenType(gardenType, moduleId)) {
+                revert DiamondCut_ModuleNotAllowedForGardenType(gardenType, moduleId);
+            }
+        }
+
         uint96 selectorPosition = uint96(ds.facetFunctionSelectors[_facetAddress].functionSelectors.length);
         // Add new facet address if it does not exist
         if (selectorPosition == 0) {
             addFacet(ds, _facetAddress);
         }
 
-        // Check for duplicate selectors within the input array
-        for (uint256 i; i < _functionSelectors.length; i++) {
-            for (uint256 j = i + 1; j < _functionSelectors.length; j++) {
-                if (_functionSelectors[i] == _functionSelectors[j]) {
-                    revert DiamondCut_CannotAddFunctionThatAlreadyExists(_functionSelectors[i]);
-                }
-            }
-        }
-
-        // Process each selector
         for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
 
@@ -221,22 +228,21 @@ contract DiamondCutBase {
             revert DiamondCut_FacetNotRegistered(_facetAddress);
         }
 
+        // Ensure facet's module is allowed for this garden's type
+        bytes32 gardenType = ld.gardenType;
+        if (gardenType != bytes32(0)) {
+            bytes32 moduleId = IFacetRegistry(facetRegistry).getFacetModule(_facetAddress);
+            if (!IFacetRegistry(facetRegistry).isModuleAllowedForGardenType(gardenType, moduleId)) {
+                revert DiamondCut_ModuleNotAllowedForGardenType(gardenType, moduleId);
+            }
+        }
+
         uint96 selectorPosition = uint96(ds.facetFunctionSelectors[_facetAddress].functionSelectors.length);
         // Add new facet address if it does not exist
         if (selectorPosition == 0) {
             addFacet(ds, _facetAddress);
         }
 
-        // Check for duplicate selectors within the input array
-        for (uint256 i; i < _functionSelectors.length; i++) {
-            for (uint256 j = i + 1; j < _functionSelectors.length; j++) {
-                if (_functionSelectors[i] == _functionSelectors[j]) {
-                    revert DiamondCut_CannotReplaceFunctionWithSameFunction(_facetAddress, _functionSelectors[i]);
-                }
-            }
-        }
-
-        // Process each selector
         for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
 
@@ -273,8 +279,6 @@ contract DiamondCutBase {
             revert DiamondCut_SelectorArrayEmpty();
         }
         DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
-        LibDiamond.Layout storage ld = LibDiamond.layout();
-        address facetRegistry = ld.facetRegistry;
         // For remove operations, facet address must be zero
         if (_facetAddress != address(0)) {
             revert DiamondCut_RemoveFacetAddressMustBeZero(_facetAddress);

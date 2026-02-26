@@ -3,17 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title UpgradeFacet
-    @author BLOK Capital DAO
-    @notice Facet that manages Diamond upgrades by syncing with the FacetRegistry.
-    @dev This facet allows upgrading the diamond to match the latest state of the
-         FacetRegistry.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -25,34 +18,28 @@ import { IUpgrade } from "src/garden/facets/baseFacets/upgrade/IUpgrade.sol";
 import { UpgradeBase } from "src/garden/facets/baseFacets/upgrade/UpgradeBase.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
+/**
+ * @title UpgradeFacet
+ * @author Blok Capital DAO
+ * @notice Facet that implements the IUpgrade interface to allow upgrading the diamond to the latest facets from the
+ * FacetRegistry. This facet is intended to be included in the base set of facets for all gardens to provide a
+ * standardized upgrade mechanism. It inherits from UpgradeBase which contains the internal logic for performing the
+ * upgrade, while UpgradeFacet itself provides the external interface with appropriate access control and user-facing
+ * error messages.
+ */
 contract UpgradeFacet is IUpgrade, UpgradeBase, Facet {
-    /// @notice Retrieves the upgrade details including facet cuts, diamond version, registry version, and hash data
-    /// @return facetCuts Array of facet cuts required for the upgrade
-    /// @return diamondVersion The current diamond version
-    /// @return registryVersion The current registry version
-    /// @return hashData Hash of the facet cuts and registry version for verification
-    function upgradeDetails()
-        external
-        view
-        returns (
-            IDiamondCut.FacetCut[] memory facetCuts,
-            uint256 diamondVersion,
-            uint256 registryVersion,
-            bytes32 hashData
-        )
-    {
-        (facetCuts, diamondVersion, registryVersion, hashData) = _upgradeDetails();
+    /// @inheritdoc IUpgrade
+    function upgradeDetails() external view returns (IDiamondCut.FacetCut[] memory facetCuts, bytes32 hashData) {
+        (facetCuts, hashData) = _upgradeDetails();
     }
 
-    /// @notice Upgrades the diamond to the latest version
-    /// @param _hashData The hash of the upgrade details from upgradeDetails() for verification
-    function upgrade(bytes32 _hashData) external onlyGardenOwner ifIndexNotConnected {
+    /// @inheritdoc IUpgrade
+    function upgrade(bytes32 _hashData) external onlyOwnerUnlessIndexConnected nonReentrant {
         _upgrade(_hashData);
     }
 
-    /// @notice Returns the current upgrade version tracked in facet storage
-    /// @return currentVersion The current upgrade version (usually mirrors the FacetRegistry version applied)
-    function getCurrentVersion() external view returns (uint256 currentVersion) {
-        currentVersion = _getCurrentVersion();
+    /// @inheritdoc IUpgrade
+    function getModuleVersion(bytes32 moduleId) external view returns (uint256 version) {
+        version = _getModuleVersion(moduleId);
     }
 }

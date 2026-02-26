@@ -3,6 +3,8 @@ cache
 node_modules
 out
 artifacts
+build-info
+
 
 # files
 *.env
@@ -11,6 +13,11 @@ artifacts
 .pnp.*
 lcov.info
 yarn.lock
+slither-output.json
+audit-report.md
+audit-report-v2.md
+audit-report-claude.md
+SECURITY_AUDIT_FINDINGS.md
 
 # broadcasts
 !broadcast

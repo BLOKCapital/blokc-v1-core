@@ -3,21 +3,22 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title OwnershipBase
-    @author BLOK Capital DAO
-    @notice Base contract for OwnershipFacet
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
 import { OwnershipStorage } from "./OwnershipStorage.sol";
 import { IERC173 } from "src/interfaces/IERC173.sol";
 
+/**
+ * @title OwnershipBase
+ * @notice Base contract that implements internal functions for ownership management according to the ERC-173 standard.
+ * This contract is intended to be inherited by an OwnershipFacet that exposes the ownership functions with appropriate
+ * access control.
+ */
 abstract contract OwnershipBase is IERC173 {
     /// @notice Transfers ownership of the contract to a new address
     /// @param _newOwner The address of the new owner

@@ -3,17 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title UniswapFacet
-    @author BLOK Capital DAO
-    @notice Facet exposing Uniswap V3 swap and TWAP functions
-    @dev This facet provides integration with Uniswap V3 for token swaps and price
-         oracle queries. All swap operations are protected by owner-only access control.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -28,11 +21,19 @@ import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV
 import { UniswapV3Base } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Base.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
+/**
+ * @title UniswapV3Facet
+ * @notice Facet for Uniswap V3 interactions on Arbitrum One, enabling token swaps and price oracle queries.
+ * This contract implements the IUniswapV3 interface and inherits from UniswapV3Base for shared logic. It provides
+ * external functions for executing exact input/output swaps (both single and multi-hop) and fetching TWAP prices.
+ * The contract ensures that only the garden owner can execute swaps, validates pool registrations, and uses
+ * SafeERC20 for secure token operations.
+ */
 contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     using SafeERC20 for IERC20;
 
     // ========================================================================
-    // External Functions (State-Changing)
+    // External Functions
     // ========================================================================
 
     /// @notice Executes a single-hop exact-input swap on Uniswap V3
@@ -42,8 +43,8 @@ contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     function uniswapV3ExactInputSingle(UniswapV3ExactInputSingleParams memory params)
         external
         override
-        onlyGardenOwner
-        ifIndexNotConnected
+        onlyGardenCanCallDexWhenIndexConnected
+        nonReentrant
     {
         _uniswapV3ExactInputSingle(params);
     }
@@ -55,8 +56,8 @@ contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     function uniswapV3ExactInput(UniswapV3ExactInputParams memory params)
         external
         override
-        onlyGardenOwner
-        ifIndexNotConnected
+        onlyGardenCanCallDexWhenIndexConnected
+        nonReentrant
     {
         _uniswapV3ExactInput(params);
     }
@@ -68,8 +69,8 @@ contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     function uniswapV3ExactOutputSingle(UniswapV3ExactOutputSingleParams memory params)
         external
         override
-        onlyGardenOwner
-        ifIndexNotConnected
+        onlyGardenCanCallDexWhenIndexConnected
+        nonReentrant
     {
         _uniswapV3ExactOutputSingle(params);
     }
@@ -81,8 +82,8 @@ contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     function uniswapV3ExactOutput(UniswapV3ExactOutputParams memory params)
         external
         override
-        onlyGardenOwner
-        ifIndexNotConnected
+        onlyGardenCanCallDexWhenIndexConnected
+        nonReentrant
     {
         _uniswapV3ExactOutput(params);
     }

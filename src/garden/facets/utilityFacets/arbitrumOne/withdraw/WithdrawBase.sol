@@ -3,19 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title WithdrawBase
-    @author BLOK Capital DAO
-    @notice Base contract providing USDC withdrawal functionality
-    @dev This base contract provides the common functionality for the WithdrawFacet.
-         It includes the USDC withdrawal functionality and the SafeERC20 library for
-         secure token transfers.
-
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -44,7 +35,11 @@ error WithdrawFacet_InsufficientUSDCBalance(uint256 requested, uint256 available
 
 /**
  * @title WithdrawBase
- * @notice Facet providing USDC withdrawal functionality
+ * @notice Base contract for USDC withdrawals on Arbitrum One, providing shared logic for validating and executing
+ * withdrawals. This abstract contract is inherited by the WithdrawFacet which implements the external function. It
+ * includes an internal function for withdrawing USDC to the owner address, validating the amount, owner, and
+ * contract balance. The contract uses SafeERC20 for secure token transfers and emits an event upon successful
+ * withdrawal.
  */
 abstract contract WithdrawBase is IWithdraw {
     using SafeERC20 for IERC20;

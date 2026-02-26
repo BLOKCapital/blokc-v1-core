@@ -1,20 +1,12 @@
-//SPDX-License-Identifier: MIT
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title IndexCalculationRegistry
-    @author BLOK Capital DAO
-    @notice Registry for approved index calculation strategies
-    @dev Manages a whitelist of calculation contracts (e.g., MarketCapWeighted)
-         that can be used by indices. Only registered calculations can be used
-         when deploying new indices through IndexFactory.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -41,6 +33,15 @@ error IndexCalculationRegistry_IndexCalculationAlreadyRegistered(address indexCa
 /// @param indexCalculationAddress The unregistered calculation address
 error IndexCalculationRegistry_IndexCalculationNotRegistered(address indexCalculationAddress);
 
+/**
+ * @title IndexCalculationRegistry
+ * @notice Registry contract for managing index calculation strategies. This contract allows the owner to register and
+ * unregister index calculation contracts, which can be used by Index contracts to determine component weights during
+ * rebalancing. The registry maintains a mapping of registered calculation addresses to their metadata, including a
+ * unique ID and registration timestamp. It also provides functions for retrieving registered calculations and their
+ * metadata, as well as checking if a calculation is registered. The contract uses OpenZeppelin's Ownable for access
+ * control and EnumerableSet for efficient management of registered calculation addresses.
+ */
 contract IndexCalculationRegistry is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -77,6 +78,9 @@ contract IndexCalculationRegistry is Ownable {
     /// @param indexCalculationAddress Address of the calculation contract to register
     /// @dev Only callable by owner. Assigns a unique ID and records registration timestamp
     function registerIndexCalculation(address indexCalculationAddress) external onlyOwner {
+        if (indexCalculationAddress == address(0)) {
+            revert IndexCalculationRegistry_InvalidIndexCalculationAddress(indexCalculationAddress);
+        }
         if (_indexCalculationAddresses.contains(indexCalculationAddress)) {
             revert IndexCalculationRegistry_IndexCalculationAlreadyRegistered(indexCalculationAddress);
         }

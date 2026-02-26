@@ -1,71 +1,26 @@
-// SPDX-License-Identifier: MIT License
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title IPoolRegistry
-    @author BLOK Capital DAO
-    @notice Interface for the PoolRegistry contract
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
 ################################################################################*/
 
+/// @title IPoolRegistry
+/// @author BLOK Capital DAO
+/// @notice Interface for a minimal pool registry that resolves pool addresses by identifier.
 interface IPoolRegistry {
-    /// @notice Simple metadata stored per pool address.
-    struct PoolInfo {
-        address poolAddress;
-        bytes32 dexId; // 32 bytes: compact identifier (keccak256("UNISWAP_V3"))
-        bytes32 poolId;
-        bytes32 reversedPoolId;
-        string pairName;
-        address quoteToken;
-        address baseToken;
-        bool active;
-    }
-    /// @notice Registers a new liquidity pool.
-    /// @param poolAddress Address of the pool to add.
-    /// @param protocolId Protocol ID of the pool.
-    /// @param pairName Human-readable pair name of the pool.
+    /// @notice Returns the pool address associated with a given pool ID
+    /// @param poolId The unique identifier for the pool
+    /// @return pool The address of the pool
+    function poolAddressById(bytes32 poolId) external view returns (address pool);
 
-    function addPool(
-        address poolAddress,
-        address quoteToken,
-        address baseToken,
-        bytes32 protocolId,
-        string calldata pairName
-    )
-        external;
-
-    /// @notice Removes a pool from the registry.
-    /// @param poolAddress Address of the pool to remove.
-    function removePool(address poolAddress) external;
-
-    /// @notice Returns the information of a registered pool.
-    /// @param poolAddress The address of the pool.
-    /// @return PoolInfo The details of the pool.
-    function poolDetails(address poolAddress) external view returns (PoolInfo memory);
-
-    /// @notice Returns the addresses of all registered pools.
-    /// @return pools The addresses of all registered pools.
-    function poolAddresses() external view returns (address[] memory pools);
-
-    /// @notice Checks if a pool is registered.
-    /// @param poolAddress The address of the pool to check.
-    /// @return True if the pool is registered, false otherwise.
+    /// @notice Checks if a pool is registered in the registry
+    /// @param poolAddress The address of the pool to check
+    /// @return True if the pool is registered
     function isPoolRegistered(address poolAddress) external view returns (bool);
-
-    /// @notice Gets the pool address by its pool ID.
-    /// @param poolId The pool ID (keccak256 of token addresses).
-    /// @return The address of the pool.
-    function poolAddressById(bytes32 poolId) external view returns (address);
-
-    /// @notice Checks if a pool is active.
-    /// @param poolAddress The address of the pool to check.
-    /// @return True if the pool is active, false otherwise.
-    function isPoolActive(address poolAddress) external view returns (bool);
 }

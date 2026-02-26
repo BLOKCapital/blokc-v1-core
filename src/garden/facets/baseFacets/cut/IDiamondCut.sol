@@ -3,21 +3,19 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title IDiamondCut
-    @author BLOK Capital DAO (based on EIP-2535 by Nick Mudge)
-    @notice Interface for the diamondCut function for managing diamond facets
-    @dev This interface is required by EIP-2535. It provides the ability to add,
-         replace, and remove facets from the diamond. All operations are protected
-         by owner-only access control.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
 
-
  ###############################################################################*/
 
+/// @title IDiamondCut
+/// @author BLOK Capital DAO (based on EIP-2535 by Nick Mudge)
+/// @notice Interface for the diamondCut function for managing diamond facets
+/// @dev This interface is required by EIP-2535. It provides the ability to add,
+///      replace, and remove facets from the diamond. All operations are protected
+///      by owner-only access control.
 interface IDiamondCut {
     /// @notice The action to perform on the diamond facet
     /// @dev Add=0, Replace=1, Remove=2
@@ -36,6 +34,12 @@ interface IDiamondCut {
         FacetCutAction action;
         bytes4[] functionSelectors;
     }
+
+    /// @notice EIP-2535 standard event emitted when diamond cut is performed
+    /// @param _diamondCut The facet cuts applied
+    /// @param _init The initialization contract address
+    /// @param _calldata The initialization calldata
+    event DiamondCut(FacetCut[] _diamondCut, address _init, bytes _calldata);
 
     /// @notice Add/replace/remove any number of functions and optionally execute
     ///         a function with delegatecall

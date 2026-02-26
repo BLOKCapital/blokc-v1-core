@@ -2,85 +2,222 @@
 pragma solidity >=0.8.31;
 
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
+import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 
 import { WithdrawFacet } from "src/garden/facets/utilityFacets/arbitrumOne/withdraw/WithdrawFacet.sol";
+import { UniswapV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/UniswapV2Facet.sol";
 import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
+import { CamelotV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/CamelotV2Facet.sol";
+import { CamelotV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/camelotV3Facet.sol";
 import { AaveV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Facet.sol";
-import {
-    RewardCollectionFacet
-} from "src/garden/facets/utilityFacets/arbitrumOne/rewardCollection/RewardCollectionFacet.sol";
+import { PendleV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/pendleV2/PendleV2Facet.sol";
+import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant FACET_REGISTRY = 0x51Fb0731E6fE1F7DC520ac970A6Ef6980f70c126;
+    address constant FACET_REGISTRY = 0xf56e5573210Eaec46E29B4C5B9F8670b76730b6b;
+
+    // Module IDs
+    bytes32 constant MODULE_WITHDRAW = keccak256("WITHDRAW");
+    bytes32 constant MODULE_DEX = keccak256("DEX");
+    bytes32 constant MODULE_YIELD = keccak256("YIELD");
+    bytes32 constant MODULE_INDEX = keccak256("INDEX");
+
+    // Garden type IDs
+    bytes32 constant INDEX_GARDEN = keccak256("INDEX");
+    bytes32 constant YIELD_GARDEN = keccak256("YIELD");
 
     function run() public broadcaster {
         setUp();
-        // --- Register utility facets ---
+
+        FacetRegistry registry = FacetRegistry(FACET_REGISTRY);
+        IFacetRegistry registryView = IFacetRegistry(FACET_REGISTRY);
+
+        // =====================================================================
+        // Withdraw module
+        // =====================================================================
         WithdrawFacet withdrawFacet = new WithdrawFacet();
         bytes4[] memory withdrawFacetSelectors = new bytes4[](1);
         withdrawFacetSelectors[0] = withdrawFacet.withdrawUsdc.selector;
-
         console2.log("WithdrawFacet deployed at:", address(withdrawFacet));
 
-        UniswapV3Facet uniswapFacet = new UniswapV3Facet();
-        bytes4[] memory uniswapFacetSelectors = new bytes4[](6);
-        uniswapFacetSelectors[0] = UniswapV3Facet.uniswapV3ExactInputSingle.selector;
-        uniswapFacetSelectors[1] = UniswapV3Facet.uniswapV3ExactInput.selector;
-        uniswapFacetSelectors[2] = UniswapV3Facet.uniswapV3ExactOutputSingle.selector;
-        uniswapFacetSelectors[3] = UniswapV3Facet.uniswapV3ExactOutput.selector;
-        uniswapFacetSelectors[4] = UniswapV3Facet.getSqrtTwapX96.selector;
-        uniswapFacetSelectors[5] = UniswapV3Facet.getCombinedTwapX96.selector;
-
-        console2.log("UniswapV3Facet deployed at:", address(uniswapFacet));
-
-        AaveV3Facet aaveFacet = new AaveV3Facet();
-        bytes4[] memory aaveFacetSelectors = new bytes4[](3);
-        aaveFacetSelectors[0] = AaveV3Facet.getReserveDataAaveV3.selector;
-        aaveFacetSelectors[1] = AaveV3Facet.lendAaveV3.selector;
-        aaveFacetSelectors[2] = AaveV3Facet.withdrawAaveV3.selector;
-
-        console2.log("AaveV3Facet deployed at:", address(aaveFacet));
-
-        RewardCollectionFacet rewardCollectionFacet = new RewardCollectionFacet();
-        bytes4[] memory rewardCollectionFacetSelectors = new bytes4[](8);
-        rewardCollectionFacetSelectors[0] = RewardCollectionFacet.name.selector;
-        rewardCollectionFacetSelectors[1] = RewardCollectionFacet.symbol.selector;
-        rewardCollectionFacetSelectors[2] = RewardCollectionFacet.tokenURI.selector;
-        rewardCollectionFacetSelectors[3] = RewardCollectionFacet.transferFrom.selector;
-        rewardCollectionFacetSelectors[4] = RewardCollectionFacet.mint.selector;
-        rewardCollectionFacetSelectors[5] = RewardCollectionFacet.burn.selector;
-        rewardCollectionFacetSelectors[6] = RewardCollectionFacet.ownerOf.selector;
-        rewardCollectionFacetSelectors[7] = RewardCollectionFacet.balanceOf.selector;
-        console2.log("RewardCollectionFacet deployed at:", address(rewardCollectionFacet));
-
-        IDiamondCut.FacetCut[] memory facetCuts = new IDiamondCut.FacetCut[](4);
-        facetCuts[0] = IDiamondCut.FacetCut({
+        IDiamondCut.FacetCut[] memory withdrawCuts = new IDiamondCut.FacetCut[](1);
+        withdrawCuts[0] = IDiamondCut.FacetCut({
             facetAddress: address(withdrawFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: withdrawFacetSelectors
         });
-        facetCuts[1] = IDiamondCut.FacetCut({
-            facetAddress: address(uniswapFacet),
+
+        if (!registryView.isModuleRegistered(MODULE_WITHDRAW)) {
+            registry.registerModule(MODULE_WITHDRAW);
+            console2.log("WITHDRAW module registered");
+        }
+        registry.upgradeModule(MODULE_WITHDRAW, withdrawCuts);
+        console2.log("WITHDRAW module upgraded with WithdrawFacet");
+
+        // =====================================================================
+        // DEX module (Uniswap V2, Uniswap V3, Camelot V2, Camelot V3)
+        // =====================================================================
+
+        // Uniswap V2
+        UniswapV2Facet uniswapV2Facet = new UniswapV2Facet();
+        bytes4[] memory uniswapV2Selectors = new bytes4[](13);
+        uniswapV2Selectors[0] = uniswapV2Facet.uniswapV2SwapExactTokensForTokens.selector;
+        uniswapV2Selectors[1] = uniswapV2Facet.uniswapV2SwapTokensForExactTokens.selector;
+        uniswapV2Selectors[2] = uniswapV2Facet.uniswapV2SwapExactETHForTokens.selector;
+        uniswapV2Selectors[3] = uniswapV2Facet.uniswapV2SwapTokensForExactETH.selector;
+        uniswapV2Selectors[4] = uniswapV2Facet.uniswapV2SwapExactTokensForETH.selector;
+        uniswapV2Selectors[5] = uniswapV2Facet.uniswapV2SwapETHForExactTokens.selector;
+        uniswapV2Selectors[6] = uniswapV2Facet.uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens.selector;
+        uniswapV2Selectors[7] = uniswapV2Facet.uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens.selector;
+        uniswapV2Selectors[8] = uniswapV2Facet.uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens.selector;
+        uniswapV2Selectors[9] = uniswapV2Facet.uniswapV2GetAmountOut.selector;
+        uniswapV2Selectors[10] = uniswapV2Facet.uniswapV2GetAmountIn.selector;
+        uniswapV2Selectors[11] = uniswapV2Facet.uniswapV2GetAmountsOut.selector;
+        uniswapV2Selectors[12] = uniswapV2Facet.uniswapV2GetAmountsIn.selector;
+        console2.log("UniswapV2Facet deployed at:", address(uniswapV2Facet));
+
+        // Uniswap V3
+        UniswapV3Facet uniswapV3Facet = new UniswapV3Facet();
+        bytes4[] memory uniswapV3Selectors = new bytes4[](6);
+        uniswapV3Selectors[0] = uniswapV3Facet.uniswapV3ExactInputSingle.selector;
+        uniswapV3Selectors[1] = uniswapV3Facet.uniswapV3ExactInput.selector;
+        uniswapV3Selectors[2] = uniswapV3Facet.uniswapV3ExactOutputSingle.selector;
+        uniswapV3Selectors[3] = uniswapV3Facet.uniswapV3ExactOutput.selector;
+        uniswapV3Selectors[4] = uniswapV3Facet.getSqrtTwapX96.selector;
+        uniswapV3Selectors[5] = uniswapV3Facet.getCombinedTwapX96.selector;
+        console2.log("UniswapV3Facet deployed at:", address(uniswapV3Facet));
+
+        // Camelot V2
+        CamelotV2Facet camelotV2Facet = new CamelotV2Facet();
+        bytes4[] memory camelotV2Selectors = new bytes4[](3);
+        camelotV2Selectors[0] = camelotV2Facet.camelotV2ExactInputSingle.selector;
+        camelotV2Selectors[1] = camelotV2Facet.camelotV2ExactInput.selector;
+        camelotV2Selectors[2] = camelotV2Facet.camelotV2ExactOutputSingle.selector;
+        console2.log("CamelotV2Facet deployed at:", address(camelotV2Facet));
+
+        // Camelot V3
+        CamelotV3Facet camelotV3Facet = new CamelotV3Facet();
+        bytes4[] memory camelotV3Selectors = new bytes4[](4);
+        camelotV3Selectors[0] = camelotV3Facet.camelotV3ExactInputSingle.selector;
+        camelotV3Selectors[1] = camelotV3Facet.camelotV3ExactInput.selector;
+        camelotV3Selectors[2] = camelotV3Facet.camelotV3ExactOutputSingle.selector;
+        camelotV3Selectors[3] = camelotV3Facet.camelotV3ExactOutput.selector;
+        console2.log("CamelotV3Facet deployed at:", address(camelotV3Facet));
+
+        IDiamondCut.FacetCut[] memory dexCuts = new IDiamondCut.FacetCut[](4);
+        dexCuts[0] = IDiamondCut.FacetCut({
+            facetAddress: address(uniswapV2Facet),
             action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: uniswapFacetSelectors
+            functionSelectors: uniswapV2Selectors
         });
-        facetCuts[2] = IDiamondCut.FacetCut({
-            facetAddress: address(aaveFacet),
+        dexCuts[1] = IDiamondCut.FacetCut({
+            facetAddress: address(uniswapV3Facet),
             action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: aaveFacetSelectors
+            functionSelectors: uniswapV3Selectors
         });
-        facetCuts[3] = IDiamondCut.FacetCut({
-            facetAddress: address(rewardCollectionFacet),
+        dexCuts[2] = IDiamondCut.FacetCut({
+            facetAddress: address(camelotV2Facet),
             action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: rewardCollectionFacetSelectors
+            functionSelectors: camelotV2Selectors
+        });
+        dexCuts[3] = IDiamondCut.FacetCut({
+            facetAddress: address(camelotV3Facet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: camelotV3Selectors
         });
 
-        FacetRegistry(FACET_REGISTRY).upgradeFacetRegistry(facetCuts);
-        console2.log("Utility facets registered");
+        if (!registryView.isModuleRegistered(MODULE_DEX)) {
+            registry.registerModule(MODULE_DEX);
+            console2.log("DEX module registered");
+        }
+        registry.upgradeModule(MODULE_DEX, dexCuts);
+        console2.log("DEX module upgraded with UniswapV2, UniswapV3, CamelotV2, CamelotV3 facets");
+
+        // =====================================================================
+        // YIELD module (Aave V3, Pendle V2)
+        // =====================================================================
+        AaveV3Facet aaveV3Facet = new AaveV3Facet();
+        bytes4[] memory aaveSelectors = new bytes4[](3);
+        aaveSelectors[0] = aaveV3Facet.aaveV3GetReserveData.selector;
+        aaveSelectors[1] = aaveV3Facet.aaveV3Lend.selector;
+        aaveSelectors[2] = aaveV3Facet.aaveV3Withdraw.selector;
+        console2.log("AaveV3Facet deployed at:", address(aaveV3Facet));
+
+        // PendleV2Facet pendleFacet = new PendleV2Facet();
+        // bytes4[] memory pendleSelectors = new bytes4[](2);
+        // pendleSelectors[0] = pendleFacet.pendleV2SwapExactTokenForPt.selector;
+        // pendleSelectors[1] = pendleFacet.pendleV2SwapExactPtForToken.selector;
+        // console2.log("PendleV2Facet deployed at:", address(pendleFacet));
+
+        IDiamondCut.FacetCut[] memory yieldCuts = new IDiamondCut.FacetCut[](1);
+        yieldCuts[0] = IDiamondCut.FacetCut({
+            facetAddress: address(aaveV3Facet), action: IDiamondCut.FacetCutAction.Add, functionSelectors: aaveSelectors
+        });
+        // yieldCuts[1] = IDiamondCut.FacetCut({
+        //     facetAddress: address(pendleFacet),
+        //     action: IDiamondCut.FacetCutAction.Add,
+        //     functionSelectors: pendleSelectors
+        // });
+
+        if (!registryView.isModuleRegistered(MODULE_YIELD)) {
+            registry.registerModule(MODULE_YIELD);
+            console2.log("YIELD module registered");
+        }
+        registry.upgradeModule(MODULE_YIELD, yieldCuts);
+        console2.log("YIELD module upgraded with AaveV3 and PendleV2 facets");
+
+        // =====================================================================
+        // INDEX module (IndexFacet)
+        // =====================================================================
+        // IndexFacet indexFacet = new IndexFacet();
+        // bytes4[] memory indexSelectors = new bytes4[](7);
+        // indexSelectors[0] = indexFacet.connectToIndex.selector;
+        // indexSelectors[1] = indexFacet.disconnectFromIndex.selector;
+        // indexSelectors[2] = indexFacet.rebalanceIntent.selector;
+        // indexSelectors[3] = indexFacet.rebalance.selector;
+        // indexSelectors[4] = indexFacet.isConnectedToIndex.selector;
+        // indexSelectors[5] = indexFacet.getConnectedIndex.selector;
+        // indexSelectors[6] = indexFacet.hasPendingIntent.selector;
+        // console2.log("IndexFacet deployed at:", address(indexFacet));
+
+        // IDiamondCut.FacetCut[] memory indexCuts = new IDiamondCut.FacetCut[](1);
+        // indexCuts[0] = IDiamondCut.FacetCut({
+        //     facetAddress: address(indexFacet), action: IDiamondCut.FacetCutAction.Add, functionSelectors:
+        // indexSelectors });
+
+        // if (!registryView.isModuleRegistered(MODULE_INDEX)) {
+        //     registry.registerModule(MODULE_INDEX);
+        //     console2.log("INDEX module registered");
+        // }
+        // registry.upgradeModule(MODULE_INDEX, indexCuts);
+        // console2.log("INDEX module upgraded with IndexFacet");
+
+        // =====================================================================
+        // Garden types
+        // =====================================================================
+        // INDEX_GARDEN allowed modules: BASE (implicit), DEX_MODULE, WITHDRAW_MODULE, INDEX_MODULE
+        // if (!registryView.isGardenTypeRegistered(INDEX_GARDEN)) {
+        //     bytes32[] memory indexGardenModules = new bytes32[](3);
+        //     indexGardenModules[0] = MODULE_DEX;
+        //     indexGardenModules[1] = MODULE_WITHDRAW;
+        //     indexGardenModules[2] = MODULE_INDEX;
+        //     registry.addGardenType(INDEX_GARDEN, indexGardenModules);
+        //     console2.log("INDEX_GARDEN type registered");
+        // }
+
+        // YIELD_GARDEN allowed modules: BASE (implicit), YIELD_MODULE, WITHDRAW_MODULE, DEX_MODULE
+        if (!registryView.isGardenTypeRegistered(YIELD_GARDEN)) {
+            bytes32[] memory yieldGardenModules = new bytes32[](3);
+            yieldGardenModules[0] = MODULE_YIELD;
+            yieldGardenModules[1] = MODULE_WITHDRAW;
+            yieldGardenModules[2] = MODULE_DEX;
+            registry.addGardenType(YIELD_GARDEN, yieldGardenModules);
+            console2.log("YIELD_GARDEN type registered");
+        }
     }
 }

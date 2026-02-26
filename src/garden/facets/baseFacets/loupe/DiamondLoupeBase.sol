@@ -3,11 +3,6 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title DiamondLoupeBase
-    @author BLOK Capital DAO
-    @notice Base contract for DiamondLoupeFacet
-    @dev This base contract allows querying the diamond facets and their function selectors
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
@@ -19,6 +14,14 @@ import { IDiamondLoupe } from "src/garden/facets/baseFacets/loupe/IDiamondLoupe.
 import { DiamondLoupeStorage } from "src/garden/facets/baseFacets/loupe/DiamondLoupeStorage.sol";
 import { DiamondCutStorage } from "src/garden/facets/baseFacets/cut/DiamondCutStorage.sol";
 
+/**
+ * @title DiamondLoupeBase
+ * @notice Base contract that implements internal functions for the IDiamondLoupe interface to query diamond facets and
+ * selectors
+ * according to the EIP-2535 Diamond Standard. This contract is intended to be inherited by a DiamondLoupeFacet that
+ * exposes the
+ * loupe functions with appropriate access control.
+ */
 abstract contract DiamondLoupeBase is IDiamondLoupe {
     /// @notice Retrieves all the facets and their function selectors
     /// @return facets_ Array of facets and their function selectors

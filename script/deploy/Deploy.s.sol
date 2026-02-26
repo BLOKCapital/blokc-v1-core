@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.31;
 
-import { PoolRegistry } from "src/liquidityPoolRegistry/PoolRegistry.sol";
+import { LiquidityPoolRegistry } from "src/liquidityPoolRegistry/LiquidityPoolRegistry.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 import { DiamondCutFacet } from "src/garden/facets/baseFacets/cut/DiamondCutFacet.sol";
@@ -17,7 +17,7 @@ import { SBTRegistry } from "src/GardenSBT/CollectionRegistry/SBTRegistry.sol";
 contract Deploy is BaseScript {
     FacetRegistry internal facetRegistry;
 
-    PoolRegistry internal poolRegistry;
+    LiquidityPoolRegistry internal liquidityPoolRegistry;
 
     GardenFactory internal gardenFactory;
 
@@ -25,7 +25,7 @@ contract Deploy is BaseScript {
 
     function run() public broadcaster {
         setUp();
-        
+
         // Register default facets
         DiamondCutFacet cutFacet = new DiamondCutFacet{ salt: salt }();
         bytes4[] memory cutSelectors = new bytes4[](1);
@@ -50,8 +50,8 @@ contract Deploy is BaseScript {
         UpgradeFacet upgradeFacet = new UpgradeFacet{ salt: salt }();
         bytes4[] memory upgradeSelectors = new bytes4[](3);
         upgradeSelectors[0] = upgradeFacet.upgrade.selector;
-        upgradeSelectors[1] = upgradeFacet.getCurrentVersion.selector;
-        upgradeSelectors[2] = upgradeFacet.upgradeDetails.selector;
+        upgradeSelectors[1] = upgradeFacet.upgradeDetails.selector;
+        upgradeSelectors[2] = upgradeFacet.getModuleVersion.selector;
         console2.log("UpgradeFacet deployed at:", address(upgradeFacet));
 
         address[4] memory baseFacets =
@@ -92,13 +92,14 @@ contract Deploy is BaseScript {
         protocolStatus.activateProtocol();
         console2.log("ProtocolStatus activated");
 
-        SBTRegistry sbtRegistry = new SBTRegistry(deployer);
-        console2.log("SBTRegistry deployed at:", address(sbtRegistry));
+        // SBTRegistry sbtRegistry = new SBTRegistry(deployer);
+        // console2.log("SBTRegistry deployed at:", address(sbtRegistry));
 
         gardenFactory = new GardenFactory{ salt: salt }(
-            deployer, address(facetRegistry), address(protocolStatus), address(sbtRegistry)
+            deployer,
+            address(facetRegistry),
+            address(protocolStatus) /* address(sbtRegistry) */
         );
-
         console2.log("GardenFactory deployed at:", address(gardenFactory));
     }
 }

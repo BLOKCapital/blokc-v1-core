@@ -1,20 +1,12 @@
-//SPDX-License-Identifier: MIT
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
 
 /*###############################################################################
-
-    @title IndexFactory
-    @author BLOK Capital DAO
-    @notice Factory for deploying and managing Index contracts
-    @dev Creates new Index instances with validated calculation strategies and components.
-         Maintains a registry of all deployed indices for tracking and governance.
-         Enforces maximum component limits and validates against calculation/component registries.
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -64,6 +56,10 @@ error IndexFactory_InvalidIndexCalculationRegistryAddress(address indexCalculati
 /// @param componentRegistryAddress The invalid registry address
 error IndexFactory_InvalidComponentRegistryAddress(address componentRegistryAddress);
 
+/// @notice Thrown when GardenFactory address is zero during construction
+/// @param gardenFactoryAddress The invalid garden factory address
+error IndexFactory_InvalidGardenFactoryAddress(address gardenFactoryAddress);
+
 /// @notice Thrown when garden is already connected to index
 /// @param garden The garden address
 /// @param indexAddress The index address
@@ -79,6 +75,22 @@ error IndexFactory_GardenNotConnectedToIndex(address garden, address indexAddres
 /// @param maxComponents The maximum allowed components
 error IndexFactory_TooManyComponents(uint256 componentCount, uint256 maxComponents);
 
+/// @notice Thrown when attempting to create an index with an empty name
+error IndexFactory_InvalidIndexName();
+
+/// @notice Thrown when attempting to remove an index that still has connected gardens
+/// @param indexAddress The index address
+/// @param connectedCount Number of connected gardens
+error IndexFactory_IndexHasConnectedGardens(address indexAddress, uint256 connectedCount);
+
+/**
+ * @title IndexFactory
+ * @notice Factory contract for deploying new Index contracts with specified parameters. This contract validates that
+ * the provided index calculation strategy and components are registered in their respective registries before
+ * deployment.It also manages metadata for deployed indices and allows gardens to connect and disconnect from indices.
+ * The factory enforces a maximum number of components per index and includes comprehensive error handling for various
+ * edge cases related to index deployment and garden connections.
+ */
 contract IndexFactory is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -120,6 +132,10 @@ contract IndexFactory is Ownable {
     /// @dev Immutable to ensure consistent component validation
     address private immutable COMPONENT_REGISTRY;
 
+    /// @notice Reference to the GardenFactory for validating garden connections
+    /// @dev Immutable to ensure consistent validation of garden types
+    address private immutable GARDEN_FACTORY;
+
     /// @notice Counter for assigning unique IDs to deployed indices
     /// @dev Incremented for each new index deployment
     uint256 private _indexIdCounter;
@@ -140,7 +156,8 @@ contract IndexFactory is Ownable {
     constructor(
         address initialOwner,
         address indexCalculationRegistry,
-        address componentRegistry
+        address componentRegistry,
+        address gardenFactory
     )
         Ownable(initialOwner)
     {
@@ -151,8 +168,12 @@ contract IndexFactory is Ownable {
         if (componentRegistry == address(0)) {
             revert IndexFactory_InvalidComponentRegistryAddress(componentRegistry);
         }
+        if (gardenFactory == address(0)) {
+            revert IndexFactory_InvalidGardenFactoryAddress(gardenFactory);
+        }
         INDEX_CALCULATION_REGISTRY = indexCalculationRegistry;
         COMPONENT_REGISTRY = componentRegistry;
+        GARDEN_FACTORY = gardenFactory;
     }
 
     /// @notice Validates that a calculation strategy is registered
@@ -163,6 +184,7 @@ contract IndexFactory is Ownable {
         _;
     }
 
+    /// @dev Reverts if the calculation strategy is not registered in IndexCalculationRegistry.
     function _checkCalculationRegistered(address indexCalculationAddress) internal view {
         if (!IndexCalculationRegistry(INDEX_CALCULATION_REGISTRY).isIndexCalculationRegistered(indexCalculationAddress))
         {
@@ -178,6 +200,7 @@ contract IndexFactory is Ownable {
         _;
     }
 
+    /// @dev Reverts if any component symbol is not registered in IndexComponentRegistry.
     function _checkComponentsRegistered(string[] memory symbols) internal view {
         for (uint256 i = 0; i < symbols.length; i++) {
             if (!IndexComponentRegistry(COMPONENT_REGISTRY).isComponentRegistered(symbols[i])) {
@@ -208,10 +231,11 @@ contract IndexFactory is Ownable {
             revert IndexFactory_TooManyComponents(symbols.length, MAX_COMPONENTS_PER_INDEX);
         }
         if (bytes(name).length == 0) {
-            revert IndexFactory_InvalidIndexAddress(address(0));
+            revert IndexFactory_InvalidIndexName();
         }
 
-        indexAddress = address(new Index(address(this), indexCalculationAddress, COMPONENT_REGISTRY, symbols));
+        indexAddress =
+            address(new Index(address(this), indexCalculationAddress, COMPONENT_REGISTRY, GARDEN_FACTORY, symbols));
         _registerIndex(indexAddress, name, indexCalculationAddress, symbols);
         return indexAddress;
     }
@@ -221,8 +245,13 @@ contract IndexFactory is Ownable {
     /// @dev Only callable by owner. Does not destroy the Index contract itself.
     function removeIndex(address indexAddress) external onlyOwner {
         if (!_indexAddresses.contains(indexAddress)) revert IndexFactory_IndexNotRegistered(indexAddress);
-        _indexAddresses.remove(indexAddress);
 
+        uint256 connectedCount = Index(indexAddress).getConnectedGardens().length;
+        if (connectedCount > 0) {
+            revert IndexFactory_IndexHasConnectedGardens(indexAddress, connectedCount);
+        }
+
+        _indexAddresses.remove(indexAddress);
         delete _indexInfo[indexAddress];
     }
 

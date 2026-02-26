@@ -3,19 +3,10 @@ pragma solidity ^0.8.31;
 
 /*###############################################################################
 
-    @title AaveV3Base
-    @author BLOK Capital DAO
-    @notice Base contract for AaveV3Facet exposing Aave integration functions
-            (lend / withdraw / reserve data lookup)
-    @dev This base contract provides common functionality for AaveV3Facet, including
-         lending and withdrawing tokens from Aave V3 pools. It uses SafeERC20 for
-         secure token transfers and approvals.
-
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
     ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
     ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
     ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
 
 ################################################################################*/
 
@@ -26,9 +17,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 // Aave Contracts
 import { IPool } from "@aave/aave-v3-core/contracts/interfaces/IPool.sol";
 import { DataTypes } from "@aave/aave-v3-core/contracts/protocol/libraries/types/DataTypes.sol";
-
-// Local Interfaces
-import { IAaveV3 } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/IAaveV3.sol";
 
 // ============================================================================
 // Errors
@@ -49,9 +37,17 @@ error AaveV3Facet_InvalidATokenAddress();
 /// @notice Thrown when withdrawal amount exceeds aToken balance
 error AaveV3Facet_InsufficientATokenBalance();
 
-abstract contract AaveV3Base is IAaveV3 {
+/**
+ * @title AaveV3Base
+ * @notice Base contract that implements internal functions for lending and withdrawing tokens from Aave V3 on Arbitrum
+ * One. This contract is intended to be inherited by an AaveV3Facet that exposes the lending and withdrawal functions
+ * with appropriate access control and user-facing error messages. It includes functions to get reserve data, lend
+ * tokens to Aave, and withdraw tokens from Aave, along with events for off-chain tracking of these operations.
+ */
+abstract contract AaveV3Base {
     using SafeERC20 for IERC20;
 
+    /// @notice The address of the Aave V3 Pool contract on Arbitrum One
     address private constant AAVE_V3_POOL_ADDRESS = 0x794a61358D6845594F94dc1DB02A252b5b4814aD;
 
     // ========================================================================
@@ -77,14 +73,14 @@ abstract contract AaveV3Base is IAaveV3 {
     /// @notice Gets reserve data from an Aave pool for a specific token
     /// @param tokenIn The underlying asset token address whose reserve data is requested
     /// @return reserveData The Aave ReserveData struct for the token
-    function _getReserveDataAaveV3(address tokenIn) internal view returns (DataTypes.ReserveData memory reserveData) {
+    function _aaveV3GetReserveData(address tokenIn) internal view returns (DataTypes.ReserveData memory reserveData) {
         reserveData = IPool(AAVE_V3_POOL_ADDRESS).getReserveData(tokenIn);
     }
 
     /// @notice Lends tokens to an Aave pool
     /// @param tokenIn The ERC20 token address to supply
     /// @param amountIn Amount of token to supply
-    function _lendAaveV3(address tokenIn, uint256 amountIn) internal {
+    function _aaveV3Lend(address tokenIn, uint256 amountIn) internal {
         // Create typed references
         IPool pool = IPool(AAVE_V3_POOL_ADDRESS);
         IERC20 token = IERC20(tokenIn);
@@ -101,7 +97,7 @@ abstract contract AaveV3Base is IAaveV3 {
     /// @notice Withdraws tokens from an Aave pool
     /// @param tokenIn The underlying asset address (asset corresponding to the aToken)
     /// @param amountToWithdraw Amount of underlying to withdraw (in token decimals)
-    function _withdrawAaveV3(address tokenIn, uint256 amountToWithdraw) internal {
+    function _aaveV3Withdraw(address tokenIn, uint256 amountToWithdraw) internal {
         IPool pool = IPool(AAVE_V3_POOL_ADDRESS);
 
         // Get reserve data to discover the aToken address

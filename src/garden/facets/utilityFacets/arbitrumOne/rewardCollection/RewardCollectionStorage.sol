@@ -1,26 +1,13 @@
-// SPDX-License-Identifier: MIT License
-pragma solidity >=0.8.31;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.31;
 
-/*###############################################################################
+import { LibStorageSlot } from "../../../../libraries/LibStorageSlot.sol";
 
-    @title GardenCollectionStorage
-    @author BLOK Capital DAO
-    @notice Storage for the Garden Collection Facet
-    @dev This storage is used to store Garden Collection token state including name, symbol,
-         owners, balances, and approvals
-
-    ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
-    ▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌▗▞▘    ▐▌   ▐▌ ▐▌▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌       ▐▌  █▐▌ ▐▌▐▌ ▐▌
-    ▐▛▀▚▖▐▌   ▐▌ ▐▌▐▛▚▖     ▐▌   ▐▛▀▜▌▐▛▀▘  █    █ ▐▛▀▜▌▐▌       ▐▌  █▐▛▀▜▌▐▌ ▐▌
-    ▐▙▄▞▘▐▙▄▄▖▝▚▄▞▘▐▌ ▐▌    ▝▚▄▄▖▐▌ ▐▌▐▌  ▗▄█▄▖  █ ▐▌ ▐▌▐▙▄▄▖    ▐▙▄▄▀▐▌ ▐▌▝▚▄▞▘
-
-
-################################################################################*/
-
+/// @title RewardCollectionStorage
+/// @author BLOK Capital DAO
+/// @notice Diamond storage library for the Garden reward collection ERC-721 state
+/// @dev Uses the diamond storage pattern with a slot derived from the library name
 library RewardCollectionStorage {
-    /// @notice Fixed storage slot for Garden Collection layout (unique label reduces collision risk).
-    bytes32 internal constant GARDEN_COLLECTION_STORAGE_SLOT_POSITION = keccak256("garden.reward.storage");
-
     string internal constant DEFAULT_NAME = "Reward Token";
     string internal constant DEFAULT_SYMBOL = "RT";
 
@@ -44,9 +31,10 @@ library RewardCollectionStorage {
     }
 
     /// @notice Returns the storage pointer to the Garden Collection layout
+    /// @dev Storage slot is derived from keccak256(bytes(type(RewardCollectionStorage).name))
     /// @return l Storage reference to Layout
     function layout() internal pure returns (Layout storage l) {
-        bytes32 position = GARDEN_COLLECTION_STORAGE_SLOT_POSITION;
+        bytes32 position = LibStorageSlot.deriveStorageSlot(type(RewardCollectionStorage).name);
 
         assembly {
             l.slot := position
