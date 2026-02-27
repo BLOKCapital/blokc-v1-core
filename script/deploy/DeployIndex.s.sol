@@ -10,7 +10,7 @@ import { MarketCapWeighted } from "src/indices/indexCalculations/MarketCapWeight
 import { CirculatingSupply } from "src/indices/CirculatingSupply.sol";
 
 contract DeployIndex is BaseScript {
-    address gardenFactoryAddress = 0xd3098a203CC21b2A17dBc01D62A34838e104a3bC;
+    address gardenFactoryAddress = 0x9194f750F2d2f1832acF8bE567C5F59f7734e10d;
 
     function run() public broadcaster {
         setUp();
@@ -85,8 +85,8 @@ contract DeployIndex is BaseScript {
         IndexFactory indexFactory = new IndexFactory(
             deployer, address(indexCalculationRegistry), address(indexComponentRegistry), gardenFactoryAddress
         );
+        console2.log("IndexFactory deployed at:", address(indexFactory));
 
-        // console2.log("IndexFactory deployed at:", address(indexFactory));
         // string[] memory indexSymbols = new string[](5);
         // indexSymbols[0] = "BTC";
         // indexSymbols[1] = "ETH";

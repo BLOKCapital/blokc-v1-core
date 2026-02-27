@@ -60,16 +60,6 @@ error IndexFactory_InvalidComponentRegistryAddress(address componentRegistryAddr
 /// @param gardenFactoryAddress The invalid garden factory address
 error IndexFactory_InvalidGardenFactoryAddress(address gardenFactoryAddress);
 
-/// @notice Thrown when garden is already connected to index
-/// @param garden The garden address
-/// @param indexAddress The index address
-error IndexFactory_GardenAlreadyConnectedToIndex(address garden, address indexAddress);
-
-/// @notice Thrown when garden is not connected to index
-/// @param garden The garden address
-/// @param indexAddress The index address
-error IndexFactory_GardenNotConnectedToIndex(address garden, address indexAddress);
-
 /// @notice Thrown when attempting to create index with too many or zero components
 /// @param componentCount The attempted component count
 /// @param maxComponents The maximum allowed components
@@ -98,15 +88,19 @@ contract IndexFactory is Ownable {
     /// @dev Set to 250 to balance diversification with gas costs and complexity
     uint256 public constant MAX_COMPONENTS_PER_INDEX = 250;
 
-    /// @notice Emitted when a garden connects to an index
-    /// @param garden Address of the garden
-    /// @param indexAddress Address of the index
-    event GardenConnectedToIndex(address indexed garden, address indexed indexAddress);
+    /// @notice Emitted when a new index is deployed
+    /// @param indexAddress Address of the deployed Index contract
+    /// @param name Human-readable name of the index
+    /// @param id Unique identifier assigned to the index
+    /// @param indexCalculationAddress Address of the calculation strategy used
+    event IndexDeployed(
+        address indexed indexAddress, string name, uint256 indexed id, address indexed indexCalculationAddress
+    );
 
-    /// @notice Emitted when a garden disconnects from an index
-    /// @param garden Address of the garden
-    /// @param indexAddress Address of the index
-    event GardenDisconnectedFromIndex(address indexed garden, address indexed indexAddress);
+    /// @notice Emitted when an index is removed from the registry
+    /// @param indexAddress Address of the removed Index contract
+    /// @param id Unique identifier of the removed index
+    event IndexRemoved(address indexed indexAddress, uint256 indexed id);
 
     /// @notice Metadata for a deployed index
     /// @param name Human-readable name of the index
@@ -237,6 +231,7 @@ contract IndexFactory is Ownable {
         indexAddress =
             address(new Index(address(this), indexCalculationAddress, COMPONENT_REGISTRY, GARDEN_FACTORY, symbols));
         _registerIndex(indexAddress, name, indexCalculationAddress, symbols);
+        emit IndexDeployed(indexAddress, name, _indexIdCounter, indexCalculationAddress);
         return indexAddress;
     }
 
@@ -251,8 +246,10 @@ contract IndexFactory is Ownable {
             revert IndexFactory_IndexHasConnectedGardens(indexAddress, connectedCount);
         }
 
+        uint256 indexId = _indexInfo[indexAddress].id;
         _indexAddresses.remove(indexAddress);
         delete _indexInfo[indexAddress];
+        emit IndexRemoved(indexAddress, indexId);
     }
 
     /// @notice Retrieves metadata for a specific index

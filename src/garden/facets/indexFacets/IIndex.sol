@@ -13,9 +13,13 @@ pragma solidity ^0.8.31;
 /// @notice A single swap instruction provided by the CRE to rebalance the garden
 /// @param selector The function selector of the DEX facet function to call
 /// @param data The ABI-encoded arguments for the function (excluding selector)
+/// @param outputToken The ERC20 token expected to increase in balance after this swap
+/// @param minOutput The minimum amount of outputToken the garden must receive from this swap
 struct SwapCall {
     bytes4 selector;
     bytes data;
+    address outputToken;
+    uint256 minOutput;
 }
 
 /// @notice Pending rebalance intent data
