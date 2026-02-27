@@ -20,9 +20,12 @@ import { IndexBase } from "src/garden/facets/indexFacets/IndexBase.sol";
  * @notice Facet that implements the IIndex interface to allow connecting to an Index contract, signaling rebalance
  * intents, and executing rebalances through the Index. This facet provides external functions for garden owners to
  * manage their connection to an Index and for anyone to trigger rebalances when there is an active intent. It inherits
- * from
- * IndexBase which contains the internal logic for interacting with the Index, while IndexFacet itself provides the
+ * from IndexBase which contains the internal logic for interacting with the Index, while IndexFacet itself provides the
  * external interface with appropriate access control and user-facing error messages.
+ *
+ * @dev IMPORTANT: Gardens using this facet (INDEX type) hold index component tokens and a deposit token (USDC).
+ *      Both are accounted for in rebalance value calculations. Any other non-index, non-USDC tokens are invisible
+ *      to these calculations and will not be protected during swaps.
  */
 contract IndexFacet is IIndex, IndexBase, Facet {
     /// @inheritdoc IIndex

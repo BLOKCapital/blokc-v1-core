@@ -13,7 +13,6 @@ pragma solidity ^0.8.31;
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
-import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol";
 import { IndexMath } from "src/indices/libraries/IndexMath.sol";
 import { CirculatingSupply } from "src/indices/CirculatingSupply.sol";
 
@@ -117,19 +116,16 @@ contract MarketCapWeighted is IIndexCalculation {
         if (componentMarketCap > MAX_COMPONENT_MARKET_CAP) revert MarketCapWeighted_MarketCapExceedsSanityBound();
     }
 
-    /// @notice Retrieves current price for a component from Chainlink oracle
+    /// @notice Retrieves current price for a component from the IndexComponentRegistry oracle
     /// @param symbol Component symbol
     /// @return componentPrice Current price from oracle
     /// @return componentPriceDecimals Decimal precision of the price
-    /// @dev Validates oracle data for freshness and completeness
     function _getComponentPrice(string memory symbol)
         internal
         returns (uint256 componentPrice, uint8 componentPriceDecimals)
     {
-        AggregatorV3Interface priceFeed =
-            AggregatorV3Interface(INDEX_COMPONENT_REGISTRY.getComponentSymbolToPriceFeedAddress(symbol));
         address tokenAddress = INDEX_COMPONENT_REGISTRY.getComponentAddress(symbol);
         componentPrice = INDEX_COMPONENT_REGISTRY.fetchPrice(tokenAddress, symbol);
-        componentPriceDecimals = priceFeed.decimals();
+        componentPriceDecimals = INDEX_COMPONENT_REGISTRY.getOracleRecord(symbol).decimals;
     }
 }

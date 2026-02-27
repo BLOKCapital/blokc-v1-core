@@ -17,7 +17,7 @@ import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant FACET_REGISTRY = 0xf56e5573210Eaec46E29B4C5B9F8670b76730b6b;
+    address constant FACET_REGISTRY = 0x51F061273398b93369F3C99520813656c779f293;
 
     // Module IDs
     bytes32 constant MODULE_WITHDRAW = keccak256("WITHDRAW");

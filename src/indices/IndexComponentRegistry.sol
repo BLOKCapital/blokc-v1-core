@@ -81,6 +81,17 @@ contract IndexComponentRegistry is Ownable {
         bool isFeedWorking;
     }
 
+    /// @notice Emitted when a component is registered
+    /// @param symbol Ticker symbol of the component
+    /// @param tokenAddress ERC20 token contract address
+    /// @param priceFeedAddress Chainlink AggregatorV3 price feed address
+    event ComponentRegistered(string indexed symbol, address indexed tokenAddress, address priceFeedAddress);
+
+    /// @notice Emitted when a component is unregistered
+    /// @param symbol Ticker symbol of the component
+    /// @param tokenAddress ERC20 token contract address that was removed
+    event ComponentUnregistered(string indexed symbol, address indexed tokenAddress);
+
     /// @notice Mapping from symbol to component data
     mapping(string => Component) private _components;
     mapping(address => OracleRecord) private oracleRecords;
@@ -123,6 +134,7 @@ contract IndexComponentRegistry is Ownable {
             oracleRecords[component.tokenAddress].decimals = newFeed.decimals();
             OracleRecord memory _oracleRecord = oracleRecords[component.tokenAddress];
             _processFeedResponses(component.tokenAddress, component, currResponse, prevResponse, _oracleRecord);
+            emit ComponentRegistered(component.symbol, component.tokenAddress, component.priceFeedAddress);
         }
     }
 
@@ -140,6 +152,7 @@ contract IndexComponentRegistry is Ownable {
             _componentAddresses.remove(tokenAddress);
             delete oracleRecords[tokenAddress];
             delete _components[symbol];
+            emit ComponentUnregistered(symbol, tokenAddress);
         }
     }
 

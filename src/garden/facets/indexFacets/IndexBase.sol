@@ -16,7 +16,6 @@ import { IndexStorage } from "src/garden/facets/indexFacets/IndexStorage.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 import { IIndex, SwapCall, PendingIntent } from "src/garden/facets/indexFacets/IIndex.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
@@ -47,9 +46,6 @@ error IndexFacet_NoPendingIntent();
 /// @notice Thrown when balance is outside threshold after rebalance
 error IndexFacet_BalanceOutsideThreshold(string symbol, uint256 current, uint256 target);
 
-/// @notice Thrown when oracle data is stale or invalid
-error IndexFacet_InvalidOracleData();
-
 /// @notice Thrown when a swap call fails
 error IndexFacet_SwapCallFailed(uint256 index, bytes reason);
 
@@ -58,6 +54,13 @@ error IndexFacet_SelectorNotWhitelisted(bytes4 selector);
 
 /// @notice Thrown when swap call returns no data (selector not found)
 error IndexFacet_SelectorNotFound(bytes4 selector);
+
+/// @notice Thrown when a swap produces less output than the specified minimum
+/// @param index The index of the swap call in the array
+/// @param outputToken The expected output token
+/// @param received The actual output received
+/// @param minRequired The minimum output required
+error IndexFacet_InsufficientSwapOutput(uint256 index, address outputToken, uint256 received, uint256 minRequired);
 
 /// @notice Thrown when the pending intent has expired
 error IndexFacet_IntentExpired();
@@ -68,6 +71,9 @@ error IndexFacet_ExcessiveValueLoss(uint256 valueBefore, uint256 valueAfter);
 /// @notice Thrown on reentrant call to _rebalance
 error IndexFacet_RebalanceReentrancy();
 
+/// @notice Thrown when attempting to create a rebalance intent with zero total garden value
+error IndexFacet_ZeroTotalValue();
+
 /**
  * @title IndexBase
  * @author BLOK Capital DAO
@@ -76,6 +82,14 @@ error IndexFacet_RebalanceReentrancy();
  * Handles interactions with the Index contract, retrieves target weights, and calculates rebalance actions.
  * The external functions are defined in the IndexFacet contract, which calls these internal functions to perform the
  * operations.
+ *
+ * @dev IMPORTANT: Index-type gardens hold index component tokens AND a deposit token (USDC).
+ *      Value calculations (_calculateTotalValue, _calculateRebalanceValues, _verifyBalancesMatchTargets)
+ *      account for both index component tokens and the USDC deposit token. USDC is not an index component
+ *      (it has no target weight), but its balance is included in total portfolio value so that target
+ *      allocations are computed against the full garden value. During rebalancing, USDC is swapped into
+ *      index components, driving its balance toward zero. Any other non-index, non-USDC tokens held by the
+ *      garden are invisible to these calculations and will NOT be protected by the MAX_VALUE_LOSS_BPS check.
  */
 abstract contract IndexBase {
     /// @notice Connects the garden to an index for automated rebalancing.
@@ -94,12 +108,16 @@ abstract contract IndexBase {
 
     /// @notice Disconnects the garden from its currently connected index.
     function _disconnectFromIndex() internal {
-        address indexAddress = IndexStorage.layout().indexAddress;
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        address indexAddress = s.indexAddress;
         if (indexAddress == address(0)) revert IndexFacet_NotConnectedToIndex();
         Index(indexAddress).disconnectGardenFromIndex();
 
+        // Clear pending intent so a stale intent cannot be executed after reconnecting to a different index
+        s.pendingIntent.active = false;
+
         // Clear the connected index address
-        IndexStorage.layout().indexAddress = address(0);
+        s.indexAddress = address(0);
         LibDiamond.layout().isConnectedToIndex = false;
         emit IIndex.IndexDisconnected(indexAddress);
     }
@@ -133,6 +151,8 @@ abstract contract IndexBase {
             address[] memory tokenAddresses,
             uint256 totalValueUsd
         ) = _calculateRebalanceValues(symbols, weights);
+
+        if (totalValueUsd == 0) revert IndexFacet_ZeroTotalValue();
 
         // Store pending intent
         s.pendingIntent.active = true;
@@ -177,9 +197,7 @@ abstract contract IndexBase {
         }
 
         if (block.timestamp > s.lastIntentTimestamp + IndexStorage.INTENT_EXPIRY) {
-            // Clear stale intent and revert
-            s.pendingIntent.active = false;
-            s.rebalancing = false;
+            // Note: no state writes needed here — revert undoes all changes including s.rebalancing = true above
             revert IndexFacet_IntentExpired();
         }
 
@@ -212,13 +230,15 @@ abstract contract IndexBase {
     /// @notice Execute swap calls by delegating to DEX facets
     /// @dev Uses address(this).call() to invoke facet functions on the same Diamond.
     ///      Only selectors belonging to the DEX module (ModuleIds.DEX) are allowed.
-    ///      The registry stores which module owns each selector; we allow only the DEX module.
+    ///      Each swap is validated against its minOutput to prevent unfavorable trades.
     /// @param swapCalls Array of swap calls to execute
     function _executeSwapCalls(SwapCall[] calldata swapCalls) internal {
         for (uint256 i = 0; i < swapCalls.length; i++) {
             bytes4 selector = swapCalls[i].selector;
 
             if (!_isDexFunction(selector)) revert IndexFacet_SelectorNotWhitelisted(selector);
+
+            uint256 balanceBefore = IERC20(swapCalls[i].outputToken).balanceOf(address(this));
 
             bytes memory callData = abi.encodePacked(selector, swapCalls[i].data);
 
@@ -229,6 +249,12 @@ abstract contract IndexBase {
                     revert IndexFacet_SelectorNotFound(selector);
                 }
                 revert IndexFacet_SwapCallFailed(i, returnData);
+            }
+
+            uint256 balanceAfter = IERC20(swapCalls[i].outputToken).balanceOf(address(this));
+            uint256 received = balanceAfter - balanceBefore;
+            if (received < swapCalls[i].minOutput) {
+                revert IndexFacet_InsufficientSwapOutput(i, swapCalls[i].outputToken, received, swapCalls[i].minOutput);
             }
         }
     }
@@ -258,7 +284,6 @@ abstract contract IndexBase {
         uint256[] memory weights
     )
         internal
-        view
         returns (
             uint256[] memory currentValues,
             uint256[] memory targetValues,
@@ -276,19 +301,19 @@ abstract contract IndexBase {
         // Calculate current values
         for (uint256 i = 0; i < symbols.length; i++) {
             address token = componentRegistry.getComponentAddress(symbols[i]);
-            address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(symbols[i]);
-            uint256 heartbeat = componentRegistry.getComponentHeartbeat(symbols[i]);
-
             tokenAddresses[i] = token;
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = _getPrice(priceFeed, heartbeat);
+            uint256 price = componentRegistry.fetchPrice(token, symbols[i]);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             // Value in USD with 8 decimals (Chainlink standard)
             currentValues[i] = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
             totalValueUsd += currentValues[i];
         }
+
+        // Add USDC deposit token value to total (USDC is not an index component but contributes to portfolio value)
+        totalValueUsd += _getUsdcValueUsd(componentRegistry, symbols);
 
         // Calculate target values based on weights
         for (uint256 i = 0; i < symbols.length; i++) {
@@ -300,7 +325,7 @@ abstract contract IndexBase {
     /// @dev Uses fresh prices and stored weights to recalculate targets, avoiding price mismatch
     ///      between intent creation and verification.
     /// @dev Reverts with `IndexFacet_BalanceOutsideThreshold` if any component exceeds the threshold.
-    function _verifyBalancesMatchTargets() internal view {
+    function _verifyBalancesMatchTargets() internal {
         IndexStorage.Layout storage s = IndexStorage.layout();
         IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
@@ -313,16 +338,17 @@ abstract contract IndexBase {
         for (uint256 i = 0; i < len; i++) {
             string memory symbol = s.pendingIntent.symbols[i];
             address token = componentRegistry.getComponentAddress(symbol);
-            address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(symbol);
-            uint256 heartbeat = componentRegistry.getComponentHeartbeat(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = _getPrice(priceFeed, heartbeat);
+            uint256 price = componentRegistry.fetchPrice(token, symbol);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             currentValues[i] = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
             freshTotalValueUsd += currentValues[i];
         }
+
+        // Add USDC deposit token value to fresh total
+        freshTotalValueUsd += _getUsdcValueUsd(componentRegistry, s.pendingIntent.symbols);
 
         // Second pass: recalculate targets from stored weights and fresh total value, then verify
         for (uint256 i = 0; i < len; i++) {
@@ -346,40 +372,55 @@ abstract contract IndexBase {
         }
     }
 
-    /// @dev Fetches and validates the latest price from a Chainlink price feed.
-    /// @param priceFeed The address of the Chainlink AggregatorV3 price feed.
-    /// @param heartbeat The staleness threshold in seconds for this feed.
-    /// @return The latest price as a `uint256`.
-    function _getPrice(address priceFeed, uint256 heartbeat) internal view returns (uint256) {
-        (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) =
-            AggregatorV3Interface(priceFeed).latestRoundData();
-
-        // Validate oracle data
-        if (price <= 0) revert IndexFacet_InvalidOracleData();
-        if (updatedAt == 0) revert IndexFacet_InvalidOracleData();
-        if (answeredInRound < roundId) revert IndexFacet_InvalidOracleData();
-        if (block.timestamp - updatedAt > heartbeat) revert IndexFacet_InvalidOracleData();
-
-        return uint256(price);
-    }
-
-    /// @notice Calculate total garden value in USD using Chainlink oracles
-    function _calculateTotalValue() internal view returns (uint256 totalValueUsd) {
+    /// @notice Calculate total garden value in USD using the IndexComponentRegistry oracle
+    function _calculateTotalValue() internal returns (uint256 totalValueUsd) {
         IndexStorage.Layout storage s = IndexStorage.layout();
         IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
         for (uint256 i = 0; i < s.pendingIntent.symbols.length; i++) {
             string memory symbol = s.pendingIntent.symbols[i];
             address token = componentRegistry.getComponentAddress(symbol);
-            address priceFeed = componentRegistry.getComponentSymbolToPriceFeedAddress(symbol);
-            uint256 heartbeat = componentRegistry.getComponentHeartbeat(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = _getPrice(priceFeed, heartbeat);
+            uint256 price = componentRegistry.fetchPrice(token, symbol);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             totalValueUsd += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
         }
+
+        // Add USDC deposit token value to total
+        totalValueUsd += _getUsdcValueUsd(componentRegistry, s.pendingIntent.symbols);
+    }
+
+    /// @dev Cached keccak256 hash of "USDC" symbol for gas-efficient comparison.
+    bytes32 private constant _USDC_SYMBOL_HASH = keccak256("USDC");
+
+    /// @dev Returns the USD value of USDC held by the garden (8 decimals).
+    ///      Uses the Chainlink oracle via IndexComponentRegistry for accurate pricing.
+    ///      Returns 0 if the garden holds no USDC, if USDC is already an index component
+    ///      (to avoid double-counting), or if USDC is not registered in the ComponentRegistry.
+    function _getUsdcValueUsd(
+        IndexComponentRegistry componentRegistry,
+        string[] memory symbols
+    ) internal returns (uint256) {
+        // Skip if USDC is already counted as an index component
+        for (uint256 i = 0; i < symbols.length; i++) {
+            if (keccak256(abi.encodePacked(symbols[i])) == _USDC_SYMBOL_HASH) {
+                return 0;
+            }
+        }
+
+        uint256 usdcBalance = IERC20(IndexStorage.USDC_ADDRESS).balanceOf(address(this));
+        if (usdcBalance == 0) return 0;
+
+        // Gracefully return 0 if USDC is not registered in the ComponentRegistry,
+        // so an unregistered USDC doesn't brick the entire rebalance flow.
+        if (!componentRegistry.isComponentRegistered("USDC")) return 0;
+
+        uint256 usdcPrice = componentRegistry.fetchPrice(IndexStorage.USDC_ADDRESS, "USDC");
+        uint8 usdcDecimals = IERC20Metadata(IndexStorage.USDC_ADDRESS).decimals();
+
+        return Math.mulDiv(usdcBalance, usdcPrice, 10 ** usdcDecimals, Math.Rounding.Floor);
     }
 
     // ========================================================================

@@ -41,10 +41,10 @@ library IndexStorage {
     // ========================================================================
 
     /// @notice IndexFactory contract address
-    address internal constant INDEX_FACTORY_ADDRESS = 0x822aC87bDf3f8Fb429B2465cf6AeD379509f8C95;
+    address internal constant INDEX_FACTORY_ADDRESS = 0x37E983b2369BEE476C808696E5e9d64eA244A7A2;
 
     /// @notice IndexComponentRegistry contract address
-    address internal constant INDEX_COMPONENT_REGISTRY_ADDRESS = 0x5b1e9bc7253b2f9419b382E0B21D721A2B599070;
+    address internal constant INDEX_COMPONENT_REGISTRY_ADDRESS = 0xD8614dc6eE0230e21D591B3825a75A282EeaE2fB;
 
     // ========================================================================
     // Rebalancing Parameters
