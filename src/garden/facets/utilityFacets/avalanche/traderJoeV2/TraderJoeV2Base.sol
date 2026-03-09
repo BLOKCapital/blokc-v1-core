@@ -22,7 +22,7 @@ import { ILBFactory } from "@joe-v2/src/interfaces/ILBFactory.sol";
 import { ILBPair } from "@joe-v2/src/interfaces/ILBPair.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 
-import { ITraderJoeV2 } from "src/garden/facets/utilityFacets/avalanche/ITraderJoeV2.sol";
+import { ITraderJoeV2 } from "src/garden/facets/utilityFacets/avalanche/traderJoeV2/ITraderJoeV2.sol";
 
 // ============================================================================
 // Errors
@@ -42,12 +42,10 @@ abstract contract TraderJoeV2Base {
     // -------------------------------------------------------------------------
 
     /// @notice Avalanche Trader Joe V2 LBRouter address
-    address internal constant TRADER_JOE_V2_ROUTER_ADDRESS =
-        0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
+    address internal constant TRADER_JOE_V2_ROUTER_ADDRESS = 0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
 
     /// @notice Trader Joe V2 LBFactory address on Avalanche
-    address internal constant TRADER_JOE_V2_FACTORY_ADDRESS =
-        0xb43120c4745967fa9b93E79C149E66B0f2D6Fe0c;
+    address internal constant TRADER_JOE_V2_FACTORY_ADDRESS = 0xb43120c4745967fa9b93E79C149E66B0f2D6Fe0c;
 
     /// @notice LiquidityPoolRegistry address used for pool validation
     address internal constant POOL_REGISTRY_ADDRESS = 0xBa7898DbE9C2be340197e1fffe85FC5a3B977744;
@@ -118,17 +116,15 @@ abstract contract TraderJoeV2Base {
         address tokenY,
         uint24 activeId,
         uint16 binStep
-    ) internal returns (ILBPair pair) {
+    )
+        internal
+        returns (ILBPair pair)
+    {
         if (binStep == 0) {
             revert TraderJoeV2Facet_InvalidAmount();
         }
 
-        pair = _factory().createLBPair(
-            IERC20(tokenX),
-            IERC20(tokenY),
-            activeId,
-            binStep
-        );
+        pair = _factory().createLBPair(IERC20(tokenX), IERC20(tokenY), activeId, binStep);
 
         _checkPoolRegistered(address(pair));
     }
@@ -143,7 +139,10 @@ abstract contract TraderJoeV2Base {
         ILBRouter.Path memory path,
         address to,
         uint256 deadline
-    ) internal returns (uint256 amountOut) {
+    )
+        internal
+        returns (uint256 amountOut)
+    {
         if (block.timestamp > deadline) revert TraderJoeV2Facet_DeadlinePassed();
         _validatePathAndPools(path);
 
@@ -162,7 +161,10 @@ abstract contract TraderJoeV2Base {
         ILBRouter.Path memory path,
         address payable to,
         uint256 deadline
-    ) internal returns (uint256 amountOut) {
+    )
+        internal
+        returns (uint256 amountOut)
+    {
         if (block.timestamp > deadline) revert TraderJoeV2Facet_DeadlinePassed();
         _validatePathAndPools(path);
 
@@ -180,17 +182,15 @@ abstract contract TraderJoeV2Base {
         ILBRouter.Path memory path,
         address to,
         uint256 deadline
-    ) internal returns (uint256 amountOut) {
+    )
+        internal
+        returns (uint256 amountOut)
+    {
         if (block.timestamp > deadline) revert TraderJoeV2Facet_DeadlinePassed();
         if (msg.value == 0) revert TraderJoeV2Facet_InsufficientBalance();
         _validatePathAndPools(path);
 
-        amountOut = _router().swapExactNATIVEForTokens{ value: msg.value }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+        amountOut = _router().swapExactNATIVEForTokens{ value: msg.value }(amountOutMin, path, to, deadline);
     }
 
     function _traderJoeV2SwapTokensForExactTokens(
@@ -199,7 +199,10 @@ abstract contract TraderJoeV2Base {
         ILBRouter.Path memory path,
         address to,
         uint256 deadline
-    ) internal returns (uint256[] memory amountIn) {
+    )
+        internal
+        returns (uint256[] memory amountIn)
+    {
         if (block.timestamp > deadline) revert TraderJoeV2Facet_DeadlinePassed();
         if (amountOut == 0 || amountInMax == 0) revert TraderJoeV2Facet_InvalidAmount();
         _validatePathAndPools(path);
@@ -219,7 +222,10 @@ abstract contract TraderJoeV2Base {
         ILBRouter.Path memory path,
         address payable to,
         uint256 deadline
-    ) internal returns (uint256[] memory amountsIn) {
+    )
+        internal
+        returns (uint256[] memory amountsIn)
+    {
         if (block.timestamp > deadline) revert TraderJoeV2Facet_DeadlinePassed();
         if (amountOut == 0 || amountInMax == 0) revert TraderJoeV2Facet_InvalidAmount();
         _validatePathAndPools(path);
@@ -230,13 +236,7 @@ abstract contract TraderJoeV2Base {
         }
 
         _safeApprove(tokenIn, TRADER_JOE_V2_ROUTER_ADDRESS, amountInMax);
-        amountsIn = _router().swapTokensForExactNATIVE(
-            amountOut,
-            amountInMax,
-            path,
-            to,
-            deadline
-        );
+        amountsIn = _router().swapTokensForExactNATIVE(amountOut, amountInMax, path, to, deadline);
     }
 
     function _traderJoeV2SwapNativeForExactTokens(
@@ -244,16 +244,14 @@ abstract contract TraderJoeV2Base {
         ILBRouter.Path memory path,
         address to,
         uint256 deadline
-    ) internal returns (uint256[] memory amountsIn) {
+    )
+        internal
+        returns (uint256[] memory amountsIn)
+    {
         if (block.timestamp > deadline) revert TraderJoeV2Facet_DeadlinePassed();
         if (msg.value == 0 || amountOut == 0) revert TraderJoeV2Facet_InvalidAmount();
         _validatePathAndPools(path);
 
-        amountsIn = _router().swapNATIVEForExactTokens{ value: msg.value }(
-            amountOut,
-            path,
-            to,
-            deadline
-        );
+        amountsIn = _router().swapNATIVEForExactTokens{ value: msg.value }(amountOut, path, to, deadline);
     }
 }

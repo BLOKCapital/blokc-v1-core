@@ -12,8 +12,8 @@ pragma solidity ^0.8.31;
  *##############################################################################*/
 
 import { MarketParams } from "@morphoBlue/src/interfaces/IMorpho.sol";
-import { IMorphoBlue } from "src/garden/facets/utilityFacets/ethereum/IMorphoBlue.sol";
-import { MorphoBlueBase } from "src/garden/facets/utilityFacets/ethereum/MorphoBlueBase.sol";
+import { IMorphoBlue } from "src/garden/facets/utilityFacets/ethereum/morphoBlue/IMorphoBlue.sol";
+import { MorphoBlueBase } from "src/garden/facets/utilityFacets/ethereum/morphoBlue/MorphoBlueBase.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 
 contract MorphoBlueFacet is IMorphoBlue, MorphoBlueBase, Facet {
@@ -35,7 +35,13 @@ contract MorphoBlueFacet is IMorphoBlue, MorphoBlueBase, Facet {
         uint256 shares,
         address onBehalf,
         bytes calldata data
-    ) external override onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
+    )
+        external
+        override
+        onlyGardenOwner
+        ifIndexNotConnected
+        returns (uint256, uint256)
+    {
         return _morphoBlueSupplyInternal(marketParams, assets, shares, onBehalf, data);
     }
 
@@ -53,7 +59,13 @@ contract MorphoBlueFacet is IMorphoBlue, MorphoBlueBase, Facet {
         uint256 shares,
         address onBehalf,
         address receiver
-    ) external override onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
+    )
+        external
+        override
+        onlyGardenOwner
+        ifIndexNotConnected
+        returns (uint256, uint256)
+    {
         return _morphoBlueWithdrawInternal(marketParams, assets, shares, onBehalf, receiver);
     }
 
@@ -71,7 +83,13 @@ contract MorphoBlueFacet is IMorphoBlue, MorphoBlueBase, Facet {
         uint256 shares,
         address onBehalf,
         address receiver
-    ) external override onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
+    )
+        external
+        override
+        onlyGardenOwner
+        ifIndexNotConnected
+        returns (uint256, uint256)
+    {
         return _morphoBlueBorrowInternal(marketParams, assets, shares, onBehalf, receiver);
     }
 
@@ -87,7 +105,13 @@ contract MorphoBlueFacet is IMorphoBlue, MorphoBlueBase, Facet {
         uint256 assets,
         uint256 shares,
         address onBehalf
-    ) external override onlyGardenOwner ifIndexNotConnected returns (uint256, uint256) {
+    )
+        external
+        override
+        onlyGardenOwner
+        ifIndexNotConnected
+        returns (uint256, uint256)
+    {
         return _morphoBlueRepayInternal(marketParams, assets, shares, onBehalf);
     }
 }
