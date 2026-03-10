@@ -28,6 +28,12 @@ import { IUniswapV2Router02 } from "v2-periphery/interfaces/IUniswapV2Router02.s
 import { IUniswapV2 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/IUniswapV2.sol";
 import { IPoolRegistry } from "src/interfaces/IPoolRegistry.sol";
 
+interface IUniswapV2PairLike {
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+}
+
 // ============================================================================
 // Errors
 // ============================================================================
@@ -431,6 +437,46 @@ abstract contract UniswapV2Base {
     // ========================================================================
     // Internal Helper Functions
     // ========================================================================
+
+    /// @notice Quotes output amount for exact input on a specific pool (must be registered)
+    /// @param poolAddress Address of the V2 pair
+    /// @param amountIn Amount of input token
+    /// @param tokenIn Input token address
+    /// @param tokenOut Output token address
+    /// @return amountOut Expected output amount
+    function _uniswapV2QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut
+    )
+        internal
+        view
+        returns (uint256 amountOut)
+    {
+        if (poolAddress == address(0)) revert UniswapV2Facet_InvalidTokenAddress();
+        if (!IPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
+            revert UniswapV2Facet_UnregisteredPool();
+        }
+
+        (uint112 reserve0, uint112 reserve1,) = IUniswapV2PairLike(poolAddress).getReserves();
+        address token0 = IUniswapV2PairLike(poolAddress).token0();
+        address token1 = IUniswapV2PairLike(poolAddress).token1();
+
+        uint256 reserveIn;
+        uint256 reserveOut;
+        if (tokenIn == token0 && tokenOut == token1) {
+            reserveIn = uint256(reserve0);
+            reserveOut = uint256(reserve1);
+        } else if (tokenIn == token1 && tokenOut == token0) {
+            reserveIn = uint256(reserve1);
+            reserveOut = uint256(reserve0);
+        } else {
+            revert UniswapV2Facet_InvalidPath();
+        }
+
+        return _uniswapV2GetAmountOut(amountIn, reserveIn, reserveOut);
+    }
 
     /// @notice Validates that all pools in a path exist and are registered
     /// @param path Array of token addresses representing the swap path

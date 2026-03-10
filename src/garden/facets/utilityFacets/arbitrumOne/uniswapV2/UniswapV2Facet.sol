@@ -222,4 +222,19 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
     {
         return _uniswapV2Quote(amountA, reserveA, reserveB);
     }
+
+    /// @inheritdoc IUniswapV2
+    function uniswapV2QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut
+    )
+        external
+        view
+        override
+        returns (uint256 amountOut)
+    {
+        return _uniswapV2QuoteExactInputForPool(poolAddress, amountIn, tokenIn, tokenOut);
+    }
 }

@@ -18,6 +18,12 @@ pragma solidity ^0.8.24;
 import { ICamelotV2 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/ICamelotV2.sol";
 import { ICamelotRouterV2 } from "src/interfaces/ICamelotRouterV2.sol";
 import { IPoolRegistry } from "src/interfaces/IPoolRegistry.sol";
+
+interface ICamelotV2PairLike {
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+}
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -165,6 +171,47 @@ abstract contract CamelotV2Base {
 
         // Emit the tokens swapped event
         emit CamelotV2FacetTokensSwapped(path[0], path[path.length - 1], amountIn, amountOut);
+    }
+
+    /// @notice Quotes output amount for exact input on a specific Camelot V2 pool (must be registered)
+    function _camelotV2QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut
+    )
+        internal
+        view
+        returns (uint256 amountOut)
+    {
+        if (poolAddress == address(0)) revert CamelotV2Facet_InvalidPoolAddress();
+        if (!IPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
+            revert CamelotV2Facet_UnregisteredPool();
+        }
+
+        (uint112 reserve0, uint112 reserve1,) = ICamelotV2PairLike(poolAddress).getReserves();
+        address token0 = ICamelotV2PairLike(poolAddress).token0();
+        address token1 = ICamelotV2PairLike(poolAddress).token1();
+
+        uint256 reserveIn;
+        uint256 reserveOut;
+        if (tokenIn == token0 && tokenOut == token1) {
+            reserveIn = uint256(reserve0);
+            reserveOut = uint256(reserve1);
+        } else if (tokenIn == token1 && tokenOut == token0) {
+            reserveIn = uint256(reserve1);
+            reserveOut = uint256(reserve0);
+        } else {
+            revert CamelotV2Facet_InvalidPoolAddress();
+        }
+
+        // Camelot V2 uses same constant-product formula as Uniswap V2 (0.3% fee)
+        require(amountIn > 0, "CamelotV2: INSUFFICIENT_INPUT_AMOUNT");
+        require(reserveIn > 0 && reserveOut > 0, "CamelotV2: INSUFFICIENT_LIQUIDITY");
+        uint256 amountInWithFee = amountIn * 997;
+        uint256 numerator = amountInWithFee * reserveOut;
+        uint256 denominator = reserveIn * 1000 + amountInWithFee;
+        return numerator / denominator;
     }
 
     /// @notice Camelot V2 base validate pools

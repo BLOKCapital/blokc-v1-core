@@ -268,4 +268,20 @@ interface IUniswapV2 {
         external
         pure
         returns (uint256 amountB);
+
+    /// @notice Quotes output amount for exact input on a specific Uniswap V2 pool
+    /// @param poolAddress Address of the V2 pair (must be registered in PoolRegistry)
+    /// @param amountIn Amount of input token
+    /// @param tokenIn Input token address
+    /// @param tokenOut Output token address
+    /// @return amountOut Expected output amount
+    function uniswapV2QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut
+    )
+        external
+        view
+        returns (uint256 amountOut);
 }

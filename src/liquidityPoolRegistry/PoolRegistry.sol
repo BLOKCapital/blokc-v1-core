@@ -181,6 +181,19 @@ contract PoolRegistry is IPoolRegistry, Ownable {
         return _poolIdToAddress[_poolId];
     }
 
+    /// @notice Returns pool details for each provided pool ID
+    /// @param _poolIds Array of pool IDs
+    /// @return pools_ Pool info in the same order as the provided IDs
+    function poolDetailsByIds(bytes32[] calldata _poolIds) external view override returns (PoolInfo[] memory pools_) {
+        uint256 length = _poolIds.length;
+        pools_ = new PoolInfo[](length);
+
+        for (uint256 i; i < length; ++i) {
+            address poolAddress = _poolIdToAddress[_poolIds[i]];
+            pools_[i] = _poolInfo[poolAddress];
+        }
+    }
+
     // ========================================================================
     // Internal Functions
     // ========================================================================

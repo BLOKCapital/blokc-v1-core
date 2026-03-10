@@ -64,6 +64,11 @@ interface IPoolRegistry {
     /// @return The address of the pool.
     function poolAddressById(bytes32 poolId) external view returns (address);
 
+    /// @notice Returns pool details for each provided pool ID.
+    /// @param poolIds Array of pool IDs (keccak256 of token addresses).
+    /// @return pools Pool info in the same order as the provided IDs.
+    function poolDetailsByIds(bytes32[] calldata poolIds) external view returns (PoolInfo[] memory pools);
+
     /// @notice Checks if a pool is active.
     /// @param poolAddress The address of the pool to check.
     /// @return True if the pool is active, false otherwise.
