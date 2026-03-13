@@ -18,8 +18,8 @@ pragma solidity ^0.8.20;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ILBRouter } from "@joe-v2/src/interfaces/ILBRouter.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
-import { TraderJoeV2Base } from "src/garden/facets/utilityFacets/avalanche/TraderJoeV2Base.sol";
-import { ITraderJoeV2 } from "src/garden/facets/utilityFacets/avalanche/ITraderJoeV2.sol";
+import { TraderJoeV2Base } from "src/garden/facets/utilityFacets/avalanche/traderJoeV2/TraderJoeV2Base.sol";
+import { ITraderJoeV2 } from "src/garden/facets/utilityFacets/avalanche/traderJoeV2/ITraderJoeV2.sol";
 
 contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
     // -------------------------------------------------------------------------
@@ -162,5 +162,4 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         return _traderJoeV2SwapNativeForExactTokens(amountOut, path, to, deadline);
     }
 }
-
 
