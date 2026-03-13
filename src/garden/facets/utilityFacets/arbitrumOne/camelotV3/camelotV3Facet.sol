@@ -66,4 +66,28 @@ contract CamelotV3Facet is ICamelotV3, CamelotV3Base, Facet {
     {
         _camelotV3ExactOutput(params);
     }
+
+    /// @inheritdoc ICamelotV3
+    function camelotV3GetSqrtTwapX96(address poolAddress, uint32 twapInterval)
+        external
+        view
+        returns (uint160 sqrtPriceX96, uint256 deadline)
+    {
+        return _camelotV3GetSqrtTwapX96(poolAddress, twapInterval);
+    }
+
+    /// @inheritdoc ICamelotV3
+    function camelotV3QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
+        external
+        view
+        returns (uint256 amountOut)
+    {
+        return _camelotV3QuoteExactInputForPool(poolAddress, amountIn, tokenIn, tokenOut, twapInterval);
+    }
 }

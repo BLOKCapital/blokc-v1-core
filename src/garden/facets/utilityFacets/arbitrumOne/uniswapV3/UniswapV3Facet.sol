@@ -128,4 +128,19 @@ contract UniswapV3Facet is IUniswapV3, UniswapV3Base, Facet {
     {
         return _getCombinedTwapX96(pools, twapInterval);
     }
+
+    /// @inheritdoc IUniswapV3
+    function uniswapV3QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
+        external
+        view
+        returns (uint256 amountOut)
+    {
+        return _uniswapV3QuoteExactInputForPool(poolAddress, amountIn, tokenIn, tokenOut, twapInterval);
+    }
 }

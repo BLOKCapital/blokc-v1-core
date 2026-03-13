@@ -101,4 +101,32 @@ interface ICamelotV3 {
     /// @param params The parameters necessary for the multi-hop swap, encoded as `CamelotV3ExactOutputParams`
     /// @return amountIn The amount of the input token
     function camelotV3ExactOutput(CamelotV3ExactOutputParams calldata params) external returns (uint256 amountIn);
+
+    /// @notice Gets the TWAP sqrt price for a Camelot V3 pool (spot price if twapInterval is 0)
+    /// @param poolAddress Address of the Camelot V3 pool to query
+    /// @param twapInterval TWAP observation interval in seconds (0 for spot price)
+    /// @return sqrtPriceX96 The sqrt price in Q64.96 format
+    /// @return deadline Suggested deadline for swaps using this price (now + 300s)
+    function camelotV3GetSqrtTwapX96(address poolAddress, uint32 twapInterval)
+        external
+        view
+        returns (uint160 sqrtPriceX96, uint256 deadline);
+
+    /// @notice Quotes output amount for exact input on a specific Camelot V3 pool
+    /// @param poolAddress Address of the V3 pool (must be registered in PoolRegistry)
+    /// @param amountIn Amount of input token
+    /// @param tokenIn Input token address
+    /// @param tokenOut Output token address
+    /// @param twapInterval TWAP interval (0 for spot price)
+    /// @return amountOut Expected output amount
+    function camelotV3QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
+        external
+        view
+        returns (uint256 amountOut);
 }

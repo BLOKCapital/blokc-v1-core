@@ -70,4 +70,19 @@ contract CamelotV2Facet is ICamelotV2, CamelotV2Base, Facet {
     {
         _camelotV2ExactOutputSingle(amountIn, amountOutMin, path, referrer, deadline);
     }
+
+    /// @inheritdoc ICamelotV2
+    function camelotV2QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut
+    )
+        external
+        view
+        override
+        returns (uint256 amountOut)
+    {
+        return _camelotV2QuoteExactInputForPool(poolAddress, amountIn, tokenIn, tokenOut);
+    }
 }

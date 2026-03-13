@@ -240,6 +240,62 @@ abstract contract UniswapV3Base {
         );
     }
 
+    /// @notice Quotes output amount for exact input on a specific Uniswap V3 pool
+    function _uniswapV3QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
+        internal
+        view
+        returns (uint256 amountOut)
+    {
+        if (poolAddress == address(0)) revert UniswapV3Facet_InvalidPoolAddress();
+        if (!IPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
+            revert UniswapV3Facet_UnregisteredPool();
+        }
+
+        (uint160 sqrtPriceX96,) = _getSqrtTwapX96(poolAddress, twapInterval);
+        address token0 = IUniswapV3Pool(poolAddress).token0();
+        address token1 = IUniswapV3Pool(poolAddress).token1();
+
+        return _quoteExactInputFromSqrtPrice(sqrtPriceX96, amountIn, tokenIn, tokenOut, token0, token1);
+    }
+
+    /// @notice Converts sqrtPriceX96 to amountOut given token order
+    function _quoteExactInputFromSqrtPrice(
+        uint160 sqrtPriceX96,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        address token0,
+        address token1
+    )
+        internal
+        pure
+        returns (uint256 amountOut)
+    {
+        if (tokenIn == token0 && tokenOut == token1) {
+            return _amountOutForZeroForOne(uint256(sqrtPriceX96), amountIn);
+        }
+        if (tokenIn == token1 && tokenOut == token0) {
+            return _amountOutForOneForZero(uint256(sqrtPriceX96), amountIn);
+        }
+        revert UniswapV3Facet_InvalidPath();
+    }
+
+    function _amountOutForZeroForOne(uint256 sqrtPriceX96, uint256 amountIn) internal pure returns (uint256) {
+        uint256 priceToken1PerToken0 = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        return (amountIn * priceToken1PerToken0) >> 96;
+    }
+
+    function _amountOutForOneForZero(uint256 sqrtPriceX96, uint256 amountIn) internal pure returns (uint256) {
+        uint256 priceToken1PerToken0 = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        return amountIn / priceToken1PerToken0;
+    }
+
     /// @notice Gets the TWAP sqrt price for a single Uniswap V3 pool
     /// @dev Returns either the current spot price (if twapInterval is 0) or the
     ///      TWAP price over the specified interval. Price is returned in Q64.96 format.
