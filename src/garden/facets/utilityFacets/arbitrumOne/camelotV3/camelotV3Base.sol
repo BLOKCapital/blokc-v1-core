@@ -13,6 +13,8 @@ pragma solidity ^0.8.31;
 import { ICamelotRouterV3 } from "src/interfaces/ICamelotRouterV3.sol";
 import { ICamelotV3 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/ICamelotV3.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
+import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import { TickMath } from "src/garden/libraries/TickMath.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -205,6 +207,73 @@ abstract contract CamelotV3Base {
         if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
             revert CamelotV3Facet_UnregisteredPool();
         }
+    }
+
+    /// @notice Gets the TWAP sqrt price for a Camelot V3 pool (Camelot V3 uses same interface as Uniswap V3)
+    /// @param poolAddress Address of the pool
+    /// @param twapInterval TWAP interval in seconds (0 for spot)
+    function _camelotV3GetSqrtTwapX96(
+        address poolAddress,
+        uint32 twapInterval
+    )
+        internal
+        view
+        returns (uint160 sqrtPriceX96, uint256 deadline)
+    {
+        if (poolAddress == address(0)) revert CamelotV3Facet_InvalidPool();
+
+        if (twapInterval == 0) {
+            (sqrtPriceX96,,,,,,) = IUniswapV3Pool(poolAddress).slot0();
+            deadline = block.timestamp + 300;
+        } else {
+            uint32[] memory secondsAgo = new uint32[](2);
+            secondsAgo[0] = twapInterval;
+            secondsAgo[1] = 0;
+            (int56[] memory tickCumulative,) = IUniswapV3Pool(poolAddress).observe(secondsAgo);
+            int24 avgTick = int24(int56(tickCumulative[1] - tickCumulative[0]) / int56(int32(twapInterval)));
+            sqrtPriceX96 = TickMath.getSqrtRatioAtTick(avgTick);
+            deadline = block.timestamp + 300;
+        }
+    }
+
+    /// @notice Quotes output amount for exact input on a Camelot V3 pool
+    function _camelotV3QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
+        internal
+        view
+        returns (uint256 amountOut)
+    {
+        if (poolAddress == address(0)) revert CamelotV3Facet_InvalidPool();
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
+            revert CamelotV3Facet_UnregisteredPool();
+        }
+
+        (uint160 sqrtPriceX96,) = _camelotV3GetSqrtTwapX96(poolAddress, twapInterval);
+        address token0 = IUniswapV3Pool(poolAddress).token0();
+        address token1 = IUniswapV3Pool(poolAddress).token1();
+
+        if (tokenIn == token0 && tokenOut == token1) {
+            return _camelotV3AmountOutForZeroForOne(uint256(sqrtPriceX96), amountIn);
+        }
+        if (tokenIn == token1 && tokenOut == token0) {
+            return _camelotV3AmountOutForOneForZero(uint256(sqrtPriceX96), amountIn);
+        }
+        revert CamelotV3Facet_InvalidPool();
+    }
+
+    function _camelotV3AmountOutForZeroForOne(uint256 sqrtPriceX96, uint256 amountIn) internal pure returns (uint256) {
+        uint256 priceToken1PerToken0 = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        return (amountIn * priceToken1PerToken0) >> 96;
+    }
+
+    function _camelotV3AmountOutForOneForZero(uint256 sqrtPriceX96, uint256 amountIn) internal pure returns (uint256) {
+        uint256 priceToken1PerToken0 = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        return amountIn / priceToken1PerToken0;
     }
 
     /// @notice Encodes a multi-hop path for the Camelot V3 router
