@@ -253,7 +253,7 @@ abstract contract UniswapV3Base {
         returns (uint256 amountOut)
     {
         if (poolAddress == address(0)) revert UniswapV3Facet_InvalidPoolAddress();
-        if (!IPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
             revert UniswapV3Facet_UnregisteredPool();
         }
 
