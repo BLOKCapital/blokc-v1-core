@@ -6,13 +6,9 @@ import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
 
-import { WithdrawFacet } from "src/garden/facets/utilityFacets/arbitrumOne/withdraw/WithdrawFacet.sol";
-import { UniswapV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/UniswapV2Facet.sol";
-import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
-import { CamelotV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/CamelotV2Facet.sol";
-import { CamelotV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/camelotV3Facet.sol";
-import { AaveV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Facet.sol";
-import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
+import { WithdrawFacet } from "src/garden/facets/utilityFacets/ethereum/withdraw/WithdrawFacet.sol";
+import { UniswapV2Facet } from "src/garden/facets/utilityFacets/ethereum/uniswapV2/UniswapV2Facet.sol";
+import { UniswapV3Facet } from "src/garden/facets/utilityFacets/ethereum/uniswapV3/UniswapV3Facet.sol";
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
@@ -111,28 +107,28 @@ contract RegisterUtilityFacets is BaseScript {
         // =====================================================================
         // INDEX module (IndexFacet)
         // =====================================================================
-        IndexFacet indexFacet = new IndexFacet();
-        bytes4[] memory indexSelectors = new bytes4[](7);
-        indexSelectors[0] = indexFacet.connectToIndex.selector;
-        indexSelectors[1] = indexFacet.disconnectFromIndex.selector;
-        indexSelectors[2] = indexFacet.rebalanceIntent.selector;
-        indexSelectors[3] = indexFacet.rebalance.selector;
-        indexSelectors[4] = indexFacet.isConnectedToIndex.selector;
-        indexSelectors[5] = indexFacet.getConnectedIndex.selector;
-        indexSelectors[6] = indexFacet.hasPendingIntent.selector;
-        console2.log("IndexFacet deployed at:", address(indexFacet));
+        // IndexFacet indexFacet = new IndexFacet();
+        // bytes4[] memory indexSelectors = new bytes4[](7);
+        // indexSelectors[0] = indexFacet.connectToIndex.selector;
+        // indexSelectors[1] = indexFacet.disconnectFromIndex.selector;
+        // indexSelectors[2] = indexFacet.rebalanceIntent.selector;
+        // indexSelectors[3] = indexFacet.rebalance.selector;
+        // indexSelectors[4] = indexFacet.isConnectedToIndex.selector;
+        // indexSelectors[5] = indexFacet.getConnectedIndex.selector;
+        // indexSelectors[6] = indexFacet.hasPendingIntent.selector;
+        // console2.log("IndexFacet deployed at:", address(indexFacet));
 
-        IDiamondCut.FacetCut[] memory indexCuts = new IDiamondCut.FacetCut[](1);
-        indexCuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(indexFacet), action: IDiamondCut.FacetCutAction.Add, functionSelectors: indexSelectors
-        });
+        // IDiamondCut.FacetCut[] memory indexCuts = new IDiamondCut.FacetCut[](1);
+        // indexCuts[0] = IDiamondCut.FacetCut({
+        //     facetAddress: address(indexFacet), action: IDiamondCut.FacetCutAction.Add, functionSelectors:
+        // indexSelectors });
 
-        if (!registry.isModuleRegistered(MODULE_INDEX)) {
-            registry.registerModule(MODULE_INDEX);
-            console2.log("INDEX module registered");
-        }
-        registry.upgradeModule(MODULE_INDEX, indexCuts);
-        console2.log("INDEX module upgraded with IndexFacet");
+        // if (!registry.isModuleRegistered(MODULE_INDEX)) {
+        //     registry.registerModule(MODULE_INDEX);
+        //     console2.log("INDEX module registered");
+        // }
+        // registry.upgradeModule(MODULE_INDEX, indexCuts);
+        // console2.log("INDEX module upgraded with IndexFacet");
 
         // =====================================================================
         // Garden types

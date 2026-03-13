@@ -150,4 +150,22 @@ interface IUniswapV3 {
         external
         view
         returns (uint256 combinedPriceX96, uint256 deadline);
+
+    /// @notice Quotes output amount for exact input on a specific Uniswap V3 pool
+    /// @param poolAddress Address of the V3 pool (must be registered in PoolRegistry)
+    /// @param amountIn Amount of input token
+    /// @param tokenIn Input token address
+    /// @param tokenOut Output token address
+    /// @param twapInterval TWAP interval (0 for spot price)
+    /// @return amountOut Expected output amount
+    function uniswapV3QuoteExactInputForPool(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
+        external
+        view
+        returns (uint256 amountOut);
 }
