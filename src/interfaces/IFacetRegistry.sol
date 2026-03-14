@@ -134,6 +134,29 @@ interface IFacetRegistry {
     function isModuleRegistered(bytes32 moduleId) external view returns (bool);
 
     // ========================================================================
+    //                        DEX QUOTE (OPTIMAL PATH)
+    // ========================================================================
+
+    /// @notice Sets the quote selector and param count for a DEX (used by optimal path finder)
+    /// @param dexId DEX identifier (e.g. keccak256("UNISWAP_V2")) must match PoolRegistry dexId
+    /// @param quoteSelector Selector of quoteExactInputForPool-style function on a facet
+    /// @param paramCount Number of params (4 for V2-style, 5 for V3-style with twapInterval)
+    function setDexQuoteSelector(bytes32 dexId, bytes4 quoteSelector, uint8 paramCount) external;
+
+    /// @notice Returns the quote selector and param count for a DEX
+    /// @param dexId DEX identifier
+    /// @return quoteSelector Selector to use when calling the Diamond for a quote
+    /// @return paramCount 4 or 5; caller uses it to encode (pool, amountIn, tokenIn, tokenOut) or (..., twapInterval)
+    function getQuoteSelectorForDex(bytes32 dexId)
+        external
+        view
+        returns (bytes4 quoteSelector, uint8 paramCount);
+
+    /// @notice Returns whether a DEX has a quote selector registered (optimal path can quote it)
+    /// @param dexId DEX identifier
+    function isDexRegistered(bytes32 dexId) external view returns (bool);
+
+    // ========================================================================
     //                     GARDEN TYPE VIEW FUNCTIONS
     // ========================================================================
 

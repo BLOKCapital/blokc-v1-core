@@ -62,7 +62,7 @@ contract RegisterUtilityFacets is BaseScript {
 
         // Uniswap V2
         UniswapV2Facet uniswapV2Facet = new UniswapV2Facet();
-        bytes4[] memory uniswapV2Selectors = new bytes4[](13);
+        bytes4[] memory uniswapV2Selectors = new bytes4[](14);
         uniswapV2Selectors[0] = uniswapV2Facet.uniswapV2SwapExactTokensForTokens.selector;
         uniswapV2Selectors[1] = uniswapV2Facet.uniswapV2SwapTokensForExactTokens.selector;
         uniswapV2Selectors[2] = uniswapV2Facet.uniswapV2SwapExactETHForTokens.selector;
@@ -76,34 +76,38 @@ contract RegisterUtilityFacets is BaseScript {
         uniswapV2Selectors[10] = uniswapV2Facet.uniswapV2GetAmountIn.selector;
         uniswapV2Selectors[11] = uniswapV2Facet.uniswapV2GetAmountsOut.selector;
         uniswapV2Selectors[12] = uniswapV2Facet.uniswapV2GetAmountsIn.selector;
+        uniswapV2Selectors[13] = uniswapV2Facet.uniswapV2QuoteExactInputForPool.selector;
         console2.log("UniswapV2Facet deployed at:", address(uniswapV2Facet));
 
         // Uniswap V3
         UniswapV3Facet uniswapV3Facet = new UniswapV3Facet();
-        bytes4[] memory uniswapV3Selectors = new bytes4[](6);
+        bytes4[] memory uniswapV3Selectors = new bytes4[](7);
         uniswapV3Selectors[0] = uniswapV3Facet.uniswapV3ExactInputSingle.selector;
         uniswapV3Selectors[1] = uniswapV3Facet.uniswapV3ExactInput.selector;
         uniswapV3Selectors[2] = uniswapV3Facet.uniswapV3ExactOutputSingle.selector;
         uniswapV3Selectors[3] = uniswapV3Facet.uniswapV3ExactOutput.selector;
         uniswapV3Selectors[4] = uniswapV3Facet.getSqrtTwapX96.selector;
         uniswapV3Selectors[5] = uniswapV3Facet.getCombinedTwapX96.selector;
+        uniswapV3Selectors[6] = uniswapV3Facet.uniswapV3QuoteExactInputForPool.selector;
         console2.log("UniswapV3Facet deployed at:", address(uniswapV3Facet));
 
         // Camelot V2
         CamelotV2Facet camelotV2Facet = new CamelotV2Facet();
-        bytes4[] memory camelotV2Selectors = new bytes4[](3);
+        bytes4[] memory camelotV2Selectors = new bytes4[](4);
         camelotV2Selectors[0] = camelotV2Facet.camelotV2ExactInputSingle.selector;
         camelotV2Selectors[1] = camelotV2Facet.camelotV2ExactInput.selector;
         camelotV2Selectors[2] = camelotV2Facet.camelotV2ExactOutputSingle.selector;
+        camelotV2Selectors[3] = camelotV2Facet.camelotV2QuoteExactInputForPool.selector;
         console2.log("CamelotV2Facet deployed at:", address(camelotV2Facet));
 
         // Camelot V3
         CamelotV3Facet camelotV3Facet = new CamelotV3Facet();
-        bytes4[] memory camelotV3Selectors = new bytes4[](4);
+        bytes4[] memory camelotV3Selectors = new bytes4[](5);
         camelotV3Selectors[0] = camelotV3Facet.camelotV3ExactInputSingle.selector;
         camelotV3Selectors[1] = camelotV3Facet.camelotV3ExactInput.selector;
         camelotV3Selectors[2] = camelotV3Facet.camelotV3ExactOutputSingle.selector;
         camelotV3Selectors[3] = camelotV3Facet.camelotV3ExactOutput.selector;
+        camelotV3Selectors[4] = camelotV3Facet.camelotV3QuoteExactInputForPool.selector;
         console2.log("CamelotV3Facet deployed at:", address(camelotV3Facet));
 
         IDiamondCut.FacetCut[] memory dexCuts = new IDiamondCut.FacetCut[](4);
@@ -134,6 +138,17 @@ contract RegisterUtilityFacets is BaseScript {
         }
         registry.upgradeModule(MODULE_DEX, dexCuts);
         console2.log("DEX module upgraded with UniswapV2, UniswapV3, CamelotV2, CamelotV3 facets");
+
+        // DEX quote selectors for optimal path (dexId must match PoolRegistry)
+        bytes32 UNISWAP_V2 = keccak256("UNISWAP_V2");
+        bytes32 UNISWAP_V3 = keccak256("UNISWAP_V3");
+        bytes32 CAMELOT_V2 = keccak256("CAMELOT_V2");
+        bytes32 CAMELOT_V3 = keccak256("CAMELOT_V3");
+        registry.setDexQuoteSelector(UNISWAP_V2, uniswapV2Facet.uniswapV2QuoteExactInputForPool.selector, 4);
+        registry.setDexQuoteSelector(UNISWAP_V3, uniswapV3Facet.uniswapV3QuoteExactInputForPool.selector, 5);
+        registry.setDexQuoteSelector(CAMELOT_V2, camelotV2Facet.camelotV2QuoteExactInputForPool.selector, 4);
+        registry.setDexQuoteSelector(CAMELOT_V3, camelotV3Facet.camelotV3QuoteExactInputForPool.selector, 5);
+        console2.log("DEX quote selectors set for UNISWAP_V2, UNISWAP_V3, CAMELOT_V2, CAMELOT_V3");
 
         // =====================================================================
         // YIELD module (Aave V3, Pendle V2)

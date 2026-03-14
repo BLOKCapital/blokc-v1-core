@@ -112,6 +112,12 @@ error FacetRegistry_SelectorNotRegistered(bytes4 selector);
 /// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
 error FacetRegistry_CannotRenounceOwnership();
 
+/// @notice Thrown when setting dex quote selector with a selector that is not registered
+error FacetRegistry_QuoteSelectorNotRegistered(bytes4 quoteSelector);
+
+/// @notice Thrown when paramCount is not 4 or 5 for dex quote
+error FacetRegistry_InvalidDexQuoteParamCount(uint8 paramCount);
+
 /// @notice Thrown when a base facet is provided with an empty selectors array in the constructor
 error FacetRegistry_BaseFacetSelectorsEmpty(address facetAddress);
 
@@ -176,6 +182,15 @@ contract FacetRegistry is IFacetRegistry, Ownable {
 
     /// @notice Which module a facet belongs to, each facet belongs to exactly one module
     mapping(address => bytes32) private _facetToModule;
+
+    // ========================================================================
+    //                        DEX QUOTE STORAGE (OPTIMAL PATH)
+    // ========================================================================
+
+    /// @notice DEX id => quote function selector (for optimal path finder)
+    mapping(bytes32 => bytes4) private _dexQuoteSelector;
+    /// @notice DEX id => quote function param count (4 or 5)
+    mapping(bytes32 => uint8) private _dexQuoteParamCount;
 
     // ========================================================================
     //                        GARDEN TYPE STORAGE
@@ -445,6 +460,30 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     /// @inheritdoc IFacetRegistry
     function isModuleRegistered(bytes32 moduleId) external view returns (bool) {
         return _moduleExists[moduleId];
+    }
+
+    /// @inheritdoc IFacetRegistry
+    function setDexQuoteSelector(bytes32 dexId, bytes4 quoteSelector, uint8 paramCount) external onlyOwner {
+        if (paramCount != 4 && paramCount != 5) revert FacetRegistry_InvalidDexQuoteParamCount(paramCount);
+        if (_selectorToFacetAndPosition[quoteSelector].facetAddress == address(0)) {
+            revert FacetRegistry_QuoteSelectorNotRegistered(quoteSelector);
+        }
+        _dexQuoteSelector[dexId] = quoteSelector;
+        _dexQuoteParamCount[dexId] = paramCount;
+    }
+
+    /// @inheritdoc IFacetRegistry
+    function getQuoteSelectorForDex(bytes32 dexId)
+        external
+        view
+        returns (bytes4 quoteSelector, uint8 paramCount)
+    {
+        return (_dexQuoteSelector[dexId], _dexQuoteParamCount[dexId]);
+    }
+
+    /// @inheritdoc IFacetRegistry
+    function isDexRegistered(bytes32 dexId) external view returns (bool) {
+        return _dexQuoteSelector[dexId] != bytes4(0);
     }
 
     /// @inheritdoc IFacetRegistry
