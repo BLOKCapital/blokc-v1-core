@@ -62,7 +62,7 @@ error UniswapV3Facet_InvalidPoolAddress();
 
 /**
  * @title UniswapV3Base
- * @notice Base contract for Uniswap V3 interactions on Arbitrum One, providing shared logic for swaps and price
+ * @notice Base contract for Uniswap V3 interactions on Ethereum Mainnet, providing shared logic for swaps and price
  * queries. This abstract contract is inherited by UniswapV3Facet which implements the external functions. It includes
  * internal functions for executing exact input/output swaps (single and multi-hop) and fetching TWAP prices. The
  * contract also validates pool registrations and handles token approvals securely using SafeERC20.
