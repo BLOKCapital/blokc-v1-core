@@ -9,6 +9,7 @@ import { console2 } from "forge-std/console2.sol";
 import { WithdrawFacet } from "src/garden/facets/utilityFacets/ethereum/withdraw/WithdrawFacet.sol";
 import { UniswapV2Facet } from "src/garden/facets/utilityFacets/ethereum/uniswapV2/UniswapV2Facet.sol";
 import { UniswapV3Facet } from "src/garden/facets/utilityFacets/ethereum/uniswapV3/UniswapV3Facet.sol";
+import { SushiSwapV3Facet } from "src/garden/facets/utilityFacets/ethereum/sushiSwapV3/SushiSwapV3Facet.sol";
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
@@ -85,7 +86,20 @@ contract RegisterUtilityFacets is BaseScript {
         uniswapV3Selectors[5] = uniswapV3Facet.getCombinedTwapX96.selector;
         console2.log("UniswapV3Facet deployed at:", address(uniswapV3Facet));
 
-        IDiamondCut.FacetCut[] memory dexCuts = new IDiamondCut.FacetCut[](2);
+        // SushiSwap V3
+        SushiSwapV3Facet sushiSwapV3Facet = new SushiSwapV3Facet();
+        bytes4[] memory sushiSwapV3Selectors = new bytes4[](7);
+        sushiSwapV3Selectors[0] = sushiSwapV3Facet.sushiSwapV3ExactInputSingle.selector;
+        sushiSwapV3Selectors[1] = sushiSwapV3Facet.sushiSwapV3ExactInput.selector;
+        sushiSwapV3Selectors[2] = sushiSwapV3Facet.sushiSwapV3ExactOutputSingle.selector;
+        sushiSwapV3Selectors[3] = sushiSwapV3Facet.sushiSwapV3ExactOutput.selector;
+        sushiSwapV3Selectors[4] = sushiSwapV3Facet.getSushiSqrtTwapX96.selector;
+        sushiSwapV3Selectors[5] = sushiSwapV3Facet.getSushiCombinedTwapX96.selector;
+        // this is important because sushiswap's pools call this callback during swaps, and it needs to be registered to route correctly through the diamond proxy
+        sushiSwapV3Selectors[6] = sushiSwapV3Facet.uniswapV3SwapCallback.selector; 
+        console2.log("SushiSwapV3Facet deployed at:", address(sushiSwapV3Facet));
+
+        IDiamondCut.FacetCut[] memory dexCuts = new IDiamondCut.FacetCut[](3);
         dexCuts[0] = IDiamondCut.FacetCut({
             facetAddress: address(uniswapV2Facet),
             action: IDiamondCut.FacetCutAction.Add,
@@ -95,6 +109,11 @@ contract RegisterUtilityFacets is BaseScript {
             facetAddress: address(uniswapV3Facet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: uniswapV3Selectors
+        });
+        dexCuts[2] = IDiamondCut.FacetCut({
+            facetAddress: address(sushiSwapV3Facet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: sushiSwapV3Selectors
         });
 
         if (!registry.isModuleRegistered(MODULE_DEX)) {
