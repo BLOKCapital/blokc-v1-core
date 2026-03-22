@@ -29,7 +29,9 @@ interface ITraderJoeV2 {
         ILBRouter.Path memory path,
         address to,
         uint256 deadline
-    ) external returns (uint256 amountOut);
+    )
+        external
+        returns (uint256 amountOut);
 
     function traderJoeV2SwapExactTokensForNative(
         uint256 amountIn,
@@ -37,14 +39,19 @@ interface ITraderJoeV2 {
         ILBRouter.Path memory path,
         address payable to,
         uint256 deadline
-    ) external returns (uint256 amountOut);
+    )
+        external
+        returns (uint256 amountOut);
 
     function traderJoeV2SwapExactNativeForTokens(
         uint256 amountOutMin,
         ILBRouter.Path memory path,
         address to,
         uint256 deadline
-    ) external payable returns (uint256 amountOut);
+    )
+        external
+        payable
+        returns (uint256 amountOut);
 
     function traderJoeV2SwapTokensForExactTokens(
         uint256 amountOut,
@@ -52,7 +59,9 @@ interface ITraderJoeV2 {
         ILBRouter.Path memory path,
         address to,
         uint256 deadline
-    ) external returns (uint256[] memory amountIn);
+    )
+        external
+        returns (uint256[] memory amountIn);
 
     function traderJoeV2SwapTokensForExactNative(
         uint256 amountOut,
@@ -60,14 +69,18 @@ interface ITraderJoeV2 {
         ILBRouter.Path memory path,
         address payable to,
         uint256 deadline
-    ) external returns (uint256[] memory amountsIn);
+    )
+        external
+        returns (uint256[] memory amountsIn);
 
     function traderJoeV2SwapNativeForExactTokens(
         uint256 amountOut,
         ILBRouter.Path memory path,
         address to,
         uint256 deadline
-    ) external payable returns (uint256[] memory amountsIn);
+    )
+        external
+        payable
+        returns (uint256[] memory amountsIn);
 }
-
 

@@ -32,14 +32,32 @@
   "lib/prb-test": {
     "rev": "cd07166bdd12c7c4a899cb53951653b53939a644"
   },
+  "lib/uniswap-lib": {
+    "tag": {
+      "name": "v2.1.0",
+      "rev": "3fcc8ee6d5c7dea3283416cbcee601d89504a243"
+    }
+  },
+  "lib/v2-core": {
+    "tag": {
+      "name": "v1.0.1",
+      "rev": "4dd59067c76dea4a0e8e4bfdda41877a6b16dedc"
+    }
+  },
   "lib/v2-periphery": {
     "rev": "0335e8f7e1bd1e8d8329fd300aea2ef2f36dd19f"
   },
   "lib/v3-core": {
-    "rev": "d8b1c635c275d2a9450bd6a78f3fa2484fef73eb"
+    "tag": {
+      "name": "v1.0.0",
+      "rev": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
+    }
   },
   "lib/v3-periphery": {
-    "rev": "0682387198a24c7cd63566a2c58398533860a5d1"
+    "tag": {
+      "name": "v1.3.0",
+      "rev": "80f26c86c57b8a5e4b913f42844d4c8bd274d058"
+    }
   },
   "lib/v4-core": {
     "tag": {

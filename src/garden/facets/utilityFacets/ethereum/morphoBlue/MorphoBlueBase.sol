@@ -63,7 +63,10 @@ abstract contract MorphoBlueBase {
         uint256 shares,
         address onBehalf,
         bytes calldata data
-    ) internal returns (uint256, uint256) {
+    )
+        internal
+        returns (uint256, uint256)
+    {
         if (onBehalf == address(0)) revert MorphoBlueFacet_InvalidOnBehalfAddress();
         if (marketParams.loanToken == address(0) || marketParams.collateralToken == address(0)) {
             revert MorphoBlueFacet_InvalidMarketParams();
@@ -78,7 +81,10 @@ abstract contract MorphoBlueBase {
         uint256 shares,
         address onBehalf,
         address receiver
-    ) internal returns (uint256, uint256) {
+    )
+        internal
+        returns (uint256, uint256)
+    {
         if (onBehalf == address(0)) revert MorphoBlueFacet_InvalidOnBehalfAddress();
         if (receiver == address(0)) revert MorphoBlueFacet_InvalidReceiverAddress();
         if (marketParams.loanToken == address(0) || marketParams.collateralToken == address(0)) {
@@ -94,7 +100,10 @@ abstract contract MorphoBlueBase {
         uint256 shares,
         address onBehalf,
         address receiver
-    ) internal returns (uint256, uint256) {
+    )
+        internal
+        returns (uint256, uint256)
+    {
         if (onBehalf == address(0)) revert MorphoBlueFacet_InvalidOnBehalfAddress();
         if (receiver == address(0)) revert MorphoBlueFacet_InvalidReceiverAddress();
         if (marketParams.loanToken == address(0) || marketParams.collateralToken == address(0)) {
@@ -109,7 +118,10 @@ abstract contract MorphoBlueBase {
         uint256 assets,
         uint256 shares,
         address onBehalf
-    ) internal returns (uint256, uint256) {
+    )
+        internal
+        returns (uint256, uint256)
+    {
         if (onBehalf == address(0)) revert MorphoBlueFacet_InvalidOnBehalfAddress();
         if (marketParams.loanToken == address(0) || marketParams.collateralToken == address(0)) {
             revert MorphoBlueFacet_InvalidMarketParams();
@@ -117,5 +129,4 @@ abstract contract MorphoBlueBase {
         return _morpho().repay(marketParams, assets, shares, onBehalf, "");
     }
 }
-
 
