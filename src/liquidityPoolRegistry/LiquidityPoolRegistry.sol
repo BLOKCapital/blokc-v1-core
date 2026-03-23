@@ -94,6 +94,14 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     /// @dev Key = keccak256(abi.encode(pairId, dexId, fee))
     mapping(bytes32 key => address pool) private _poolByKey;
 
+    /// @notice Mapping from directional pool ID to canonical pair ID
+    /// @dev directionalId = keccak256(abi.encode(tokenA, tokenB)) (unsorted).
+    ///      Both A→B and B→A are written when the first pool for a pair is added and
+    ///      cleared only when the last pool for that pair is removed. This means all
+    ///      pools for the same pair share stable entries regardless of how many pools
+    ///      exist for the pair.
+    mapping(bytes32 directionalId => bytes32 pairId) private _pairIdByDirectionalId;
+
     // ========================================================================
     // Constructor
     // ========================================================================
@@ -235,6 +243,47 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         return _allPairIds.values();
     }
 
+    /// @inheritdoc ILiquidityPoolRegistry
+    function poolDetailsByIds(bytes32[] calldata _poolIds) external view returns (PoolDetails[] memory pools_) {
+        pools_ = new PoolDetails[](_poolIds.length);
+        for (uint256 i = 0; i < _poolIds.length; i++) {
+            bytes32 pairId = _pairIdByDirectionalId[_poolIds[i]];
+            if (pairId == bytes32(0)) continue;
+
+            // Find the first active pool for this pair across any DEX
+            address[] memory candidates = _pairPools[pairId].values();
+            address poolAddr;
+            for (uint256 j = 0; j < candidates.length; j++) {
+                if (_poolInfo[candidates[j]].active) {
+                    poolAddr = candidates[j];
+                    break;
+                }
+            }
+            if (poolAddr == address(0)) continue;
+
+            PoolInfo storage info = _poolInfo[poolAddr];
+
+            // Reconstruct directional token order from the requested poolId:
+            // if _poolIds[i] == keccak256(abi.encode(token0, token1)) then the
+            // caller is asking quote=token0 → base=token1, otherwise it is reversed.
+            bytes32 forwardId = keccak256(abi.encode(info.token0, info.token1));
+            (address quoteToken, address baseToken) = (_poolIds[i] == forwardId)
+                ? (info.token0, info.token1)
+                : (info.token1, info.token0);
+
+            pools_[i] = PoolDetails({
+                poolAddress: info.poolAddress,
+                dexId: info.dexId,
+                poolId: _poolIds[i],
+                reversedPoolId: keccak256(abi.encode(baseToken, quoteToken)),
+                pairName: info.pairName,
+                quoteToken: quoteToken,
+                baseToken: baseToken,
+                active: info.active
+            });
+        }
+    }
+
     // ========================================================================
     // Utility Functions
     // ========================================================================
@@ -296,6 +345,15 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         // Add to quick lookup (key already computed above)
         _poolByKey[key] = params.poolAddress;
 
+        // Record both directional IDs on the first pool added for this pair.
+        // Subsequent pools for the same pair reuse the existing entries — the entries
+        // point to the pairId, not to a specific pool, so nothing is overwritten.
+        bytes32 forwardId = keccak256(abi.encode(token0, token1));
+        if (_pairIdByDirectionalId[forwardId] == bytes32(0)) {
+            _pairIdByDirectionalId[forwardId] = pairId;
+            _pairIdByDirectionalId[keccak256(abi.encode(token1, token0))] = pairId;
+        }
+
         emit PoolAdded(params.poolAddress, pairId, params.dexId, token0, token1, params.fee);
     }
 
@@ -317,9 +375,11 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         bytes32 key = _computePoolKey(info.pairId, info.dexId, info.fee);
         delete _poolByKey[key];
 
-        // Clean up pair ID if no more pools for this pair
+        // Clean up pair ID and directional entries only when the last pool for this pair is gone
         if (_pairPools[info.pairId].length() == 0) {
             _allPairIds.remove(info.pairId);
+            delete _pairIdByDirectionalId[keccak256(abi.encode(info.token0, info.token1))];
+            delete _pairIdByDirectionalId[keccak256(abi.encode(info.token1, info.token0))];
         }
 
         // Delete pool info

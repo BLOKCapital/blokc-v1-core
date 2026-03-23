@@ -43,3 +43,4 @@
   polygon = "https://polygon-mainnet.infura.io/v3/${API_KEY_INFURA}"
   sepolia = "https://sepolia.infura.io/v3/${API_KEY_SEPOLIA}"
   arbitrum-sepolia = "${RPC_URL_ARBITRUM_SEPOLIA}"
+  base-sepolia = "${RPC_URL}"

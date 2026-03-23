@@ -39,6 +39,26 @@ interface ILiquidityPoolRegistry {
         bool active;
     }
 
+    /// @notice Pool details returned by poolDetailsByIds, with directional token ordering
+    /// @param poolAddress Address of the liquidity pool
+    /// @param dexId DEX identifier
+    /// @param poolId Directional pool ID: keccak256(abi.encode(quoteToken, baseToken))
+    /// @param reversedPoolId Directional pool ID: keccak256(abi.encode(baseToken, quoteToken))
+    /// @param pairName Human-readable pair name
+    /// @param quoteToken Input/quote token (as requested by the caller)
+    /// @param baseToken Output/base token (as requested by the caller)
+    /// @param active Whether the pool is active for use
+    struct PoolDetails {
+        address poolAddress;
+        bytes32 dexId;
+        bytes32 poolId;
+        bytes32 reversedPoolId;
+        string pairName;
+        address quoteToken;
+        address baseToken;
+        bool active;
+    }
+
     /// @notice Parameters for adding a new pool
     struct AddPoolParams {
         address poolAddress;
@@ -190,6 +210,14 @@ interface ILiquidityPoolRegistry {
     /// @notice Get all unique pair IDs
     /// @return pairIds Array of pair IDs
     function getAllPairIds() external view returns (bytes32[] memory pairIds);
+
+    /// @notice Batch-fetch pool details by directional pool IDs
+    /// @dev Each poolId is keccak256(abi.encode(quoteToken, baseToken)). Returns a zero-value
+    ///      entry for any ID that has no registered pool. When multiple pools share the same
+    ///      token pair the most-recently-added pool is returned for that direction.
+    /// @param _poolIds Array of directional pool IDs
+    /// @return pools_ Array of PoolDetails in the same order as _poolIds
+    function poolDetailsByIds(bytes32[] calldata _poolIds) external view returns (PoolDetails[] memory pools_);
 
     // ========================================================================
     // Utility Functions
