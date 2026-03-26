@@ -127,7 +127,8 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
         DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
         uint256 moduleCount = gardenTypeModules.length;
 
-        // ── Phase 1: Cache module data and estimate allocation in a single pass ──
+        // Cache module data and estimate allocation in a single pass to avoid redundant external calls and reduce stack
+        // depth in the main loop.
         uint256[] memory storedVersions = new uint256[](moduleCount);
         registryVersions = new uint256[](moduleCount);
         IFacetRegistry.Facet[][] memory cachedModuleFacets = new IFacetRegistry.Facet[][](moduleCount);
@@ -151,7 +152,7 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
         IDiamondCut.FacetCut[] memory pendingFacetCuts = new IDiamondCut.FacetCut[](maxFacetCuts);
         uint256 cutCount = 0;
 
-        // ── Phase 2: Process each upgradeable module ──
+        // Process each upgradeable module to collect Add/Replace cuts and track selectors for removals
         for (uint256 moduleIndex = 0; moduleIndex < moduleCount; moduleIndex++) {
             if (registryVersions[moduleIndex] <= storedVersions[moduleIndex]) continue;
 
@@ -167,7 +168,7 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
             );
         }
 
-        // ── Phase 4: Compact the result array to exact size ──
+        // Compact the result array to exact size and return with cached module data for version syncing
         facetCuts = new IDiamondCut.FacetCut[](cutCount);
         for (uint256 cutIndex = 0; cutIndex < cutCount; cutIndex++) {
             facetCuts[cutIndex] = pendingFacetCuts[cutIndex];
@@ -205,7 +206,7 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
     {
         newCutCount = cutCount;
 
-        // Phase 2a-2c: Diff module facets against diamond + build sorted selector set
+        // Diff module facets against diamond + build sorted selector set for removal phase in a single pass
         (IDiamondCut.FacetCut[] memory addReplaceCuts, bytes4[] memory sortedModuleSelectors) =
             _diffModuleFacets(moduleFacets, ds);
 
@@ -217,12 +218,10 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
         // New gardens have no module selectors in the diamond so historical removals
         // are irrelevant — skip the version history scan entirely.
         if (storedVersion > 0) {
-            IDiamondCut.FacetCut[] memory versionHistory = registry.getModuleFacetCutsByVersionRange(
-                moduleId, storedVersion + 1, registryVersion
-            );
+            IDiamondCut.FacetCut[] memory versionHistory =
+                registry.getModuleFacetCutsByVersionRange(moduleId, storedVersion + 1, registryVersion);
 
-            bytes4[] memory removedSelectors =
-                _collectRemovedSelectors(versionHistory, sortedModuleSelectors, ds);
+            bytes4[] memory removedSelectors = _collectRemovedSelectors(versionHistory, sortedModuleSelectors, ds);
 
             if (removedSelectors.length > 0) {
                 pendingFacetCuts[newCutCount++] = IDiamondCut.FacetCut({
