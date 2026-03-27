@@ -125,25 +125,14 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
     {
         gardenTypeModules = registry.getGardenTypeModules(gardenType);
         DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
-        uint256 moduleCount = gardenTypeModules.length;
 
-        // Cache module data and estimate allocation in a single pass to avoid redundant external calls and reduce stack
-        // depth in the main loop.
-        uint256[] memory storedVersions = new uint256[](moduleCount);
-        registryVersions = new uint256[](moduleCount);
-        IFacetRegistry.Facet[][] memory cachedModuleFacets = new IFacetRegistry.Facet[][](moduleCount);
-        uint256 maxFacetCuts = 0;
-
-        for (uint256 moduleIndex = 0; moduleIndex < moduleCount; moduleIndex++) {
-            bytes32 moduleId = gardenTypeModules[moduleIndex];
-            storedVersions[moduleIndex] = us.moduleVersions[moduleId];
-            registryVersions[moduleIndex] = registry.getModuleVersion(moduleId);
-
-            if (registryVersions[moduleIndex] > storedVersions[moduleIndex]) {
-                cachedModuleFacets[moduleIndex] = registry.getModuleFacets(moduleId);
-                maxFacetCuts += cachedModuleFacets[moduleIndex].length * 2 + 1;
-            }
-        }
+        // Phase 1: Cache module data in a separate stack frame to stay within stack limits
+        // when coverage disables viaIR and the optimizer
+        uint256[] memory storedVersions;
+        IFacetRegistry.Facet[][] memory cachedModuleFacets;
+        uint256 maxFacetCuts;
+        (storedVersions, registryVersions, cachedModuleFacets, maxFacetCuts) =
+            _buildModuleCache(registry, gardenTypeModules, us);
 
         if (maxFacetCuts == 0) {
             return (new IDiamondCut.FacetCut[](0), gardenTypeModules, registryVersions);
@@ -152,8 +141,8 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
         IDiamondCut.FacetCut[] memory pendingFacetCuts = new IDiamondCut.FacetCut[](maxFacetCuts);
         uint256 cutCount = 0;
 
-        // Process each upgradeable module to collect Add/Replace cuts and track selectors for removals
-        for (uint256 moduleIndex = 0; moduleIndex < moduleCount; moduleIndex++) {
+        // Phase 2: Process each upgradeable module
+        for (uint256 moduleIndex = 0; moduleIndex < gardenTypeModules.length; moduleIndex++) {
             if (registryVersions[moduleIndex] <= storedVersions[moduleIndex]) continue;
 
             cutCount = _processModuleUpgrade(
@@ -168,7 +157,7 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
             );
         }
 
-        // Compact the result array to exact size and return with cached module data for version syncing
+        // Phase 4: Compact the result array to exact size
         facetCuts = new IDiamondCut.FacetCut[](cutCount);
         for (uint256 cutIndex = 0; cutIndex < cutCount; cutIndex++) {
             facetCuts[cutIndex] = pendingFacetCuts[cutIndex];
@@ -178,6 +167,47 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
     // ═══════════════════════════════════════════════════════════════════════
     //                     PHASE EXTRACTION HELPERS
     // ═══════════════════════════════════════════════════════════════════════
+
+    /// @notice Caches per-module stored versions, registry versions, and facets in a single pass
+    /// @dev Extracted from _collectModuleUpgrades Phase 1 to reduce stack depth for coverage builds
+    ///      (forge coverage disables viaIR and optimizer).
+    /// @param registry The FacetRegistry to query
+    /// @param gardenTypeModules The module IDs for this garden type
+    /// @param us The UpgradeStorage layout
+    /// @return storedVersions The garden's stored version for each module
+    /// @return registryVersions The registry's current version for each module
+    /// @return cachedModuleFacets The cached facets for each module (empty if no upgrade needed)
+    /// @return maxFacetCuts Upper bound on total FacetCut entries needed
+    function _buildModuleCache(
+        IFacetRegistry registry,
+        bytes32[] memory gardenTypeModules,
+        UpgradeStorage.Layout storage us
+    )
+        internal
+        view
+        returns (
+            uint256[] memory storedVersions,
+            uint256[] memory registryVersions,
+            IFacetRegistry.Facet[][] memory cachedModuleFacets,
+            uint256 maxFacetCuts
+        )
+    {
+        uint256 moduleCount = gardenTypeModules.length;
+        storedVersions = new uint256[](moduleCount);
+        registryVersions = new uint256[](moduleCount);
+        cachedModuleFacets = new IFacetRegistry.Facet[][](moduleCount);
+
+        for (uint256 moduleIndex = 0; moduleIndex < moduleCount; moduleIndex++) {
+            bytes32 moduleId = gardenTypeModules[moduleIndex];
+            storedVersions[moduleIndex] = us.moduleVersions[moduleId];
+            registryVersions[moduleIndex] = registry.getModuleVersion(moduleId);
+
+            if (registryVersions[moduleIndex] > storedVersions[moduleIndex]) {
+                cachedModuleFacets[moduleIndex] = registry.getModuleFacets(moduleId);
+                maxFacetCuts += cachedModuleFacets[moduleIndex].length * 2 + 1;
+            }
+        }
+    }
 
     /// @notice Processes a single module upgrade: diffs facets, collects removals, appends to pending cuts
     /// @dev Extracted from the main loop to reduce stack depth in _collectModuleUpgrades.
@@ -262,38 +292,29 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
         uint256 cutCount = 0;
 
         for (uint256 facetIndex = 0; facetIndex < moduleFacets.length; facetIndex++) {
-            address facetAddress = moduleFacets[facetIndex].facetAddress;
             bytes4[] memory functionSelectors = moduleFacets[facetIndex].functionSelectors;
 
-            bytes4[] memory selectorsToAdd = new bytes4[](functionSelectors.length);
-            bytes4[] memory selectorsToReplace = new bytes4[](functionSelectors.length);
-            uint256 addCount = 0;
-            uint256 replaceCount = 0;
-
+            // Copy selectors into flat array for sorting
             for (uint256 selectorIndex = 0; selectorIndex < functionSelectors.length; selectorIndex++) {
-                bytes4 selector = functionSelectors[selectorIndex];
-                sortedModuleSelectors[selectorCount++] = selector;
-
-                address diamondFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
-                if (diamondFacetAddress == address(0)) {
-                    selectorsToAdd[addCount++] = selector;
-                } else if (diamondFacetAddress != facetAddress) {
-                    selectorsToReplace[replaceCount++] = selector;
-                }
+                sortedModuleSelectors[selectorCount++] = functionSelectors[selectorIndex];
             }
 
-            if (addCount > 0) {
+            // Classify selectors in a separate stack frame to avoid stack-too-deep in coverage builds
+            (bytes4[] memory selectorsToAdd, bytes4[] memory selectorsToReplace) =
+                _classifyFacetSelectors(functionSelectors, moduleFacets[facetIndex].facetAddress, ds);
+
+            if (selectorsToAdd.length > 0) {
                 pendingCuts[cutCount++] = IDiamondCut.FacetCut({
-                    facetAddress: facetAddress,
+                    facetAddress: moduleFacets[facetIndex].facetAddress,
                     action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: _trimBytes4Array(selectorsToAdd, addCount)
+                    functionSelectors: selectorsToAdd
                 });
             }
-            if (replaceCount > 0) {
+            if (selectorsToReplace.length > 0) {
                 pendingCuts[cutCount++] = IDiamondCut.FacetCut({
-                    facetAddress: facetAddress,
+                    facetAddress: moduleFacets[facetIndex].facetAddress,
                     action: IDiamondCut.FacetCutAction.Replace,
-                    functionSelectors: _trimBytes4Array(selectorsToReplace, replaceCount)
+                    functionSelectors: selectorsToReplace
                 });
             }
         }
@@ -366,6 +387,40 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
         }
 
         return _trimBytes4Array(selectorsToRemove, removeCount);
+    }
+
+    /// @notice Classifies a facet's selectors as Add or Replace by comparing against the diamond
+    /// @dev Extracted from _diffModuleFacets to reduce stack depth for coverage builds.
+    /// @param functionSelectors The selectors to classify
+    /// @param facetAddress The facet address these selectors should point to
+    /// @param ds The DiamondCutStorage layout for O(1) selector lookups
+    /// @return selectorsToAdd Selectors not yet in the diamond (trimmed to exact size)
+    /// @return selectorsToReplace Selectors in the diamond but pointing to a different facet (trimmed)
+    function _classifyFacetSelectors(
+        bytes4[] memory functionSelectors,
+        address facetAddress,
+        DiamondCutStorage.Layout storage ds
+    )
+        internal
+        view
+        returns (bytes4[] memory selectorsToAdd, bytes4[] memory selectorsToReplace)
+    {
+        selectorsToAdd = new bytes4[](functionSelectors.length);
+        selectorsToReplace = new bytes4[](functionSelectors.length);
+        uint256 addCount = 0;
+        uint256 replaceCount = 0;
+
+        for (uint256 selectorIndex = 0; selectorIndex < functionSelectors.length; selectorIndex++) {
+            address diamondFacetAddress = ds.selectorToFacetAndPosition[functionSelectors[selectorIndex]].facetAddress;
+            if (diamondFacetAddress == address(0)) {
+                selectorsToAdd[addCount++] = functionSelectors[selectorIndex];
+            } else if (diamondFacetAddress != facetAddress) {
+                selectorsToReplace[replaceCount++] = functionSelectors[selectorIndex];
+            }
+        }
+
+        selectorsToAdd = _trimBytes4Array(selectorsToAdd, addCount);
+        selectorsToReplace = _trimBytes4Array(selectorsToReplace, replaceCount);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
