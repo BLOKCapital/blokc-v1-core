@@ -5,13 +5,14 @@ import { Test } from "forge-std/Test.sol";
 
 import { MockOracle } from "../mock/MockPriceFeed.sol";
 import { IndexComponentRegistry } from "../../src/indices/IndexComponentRegistry.sol";
-
+import {IndexCalculationRegistry} from "../../src/indices/IndexCalculationRegistry.sol";
 // ═══════════════════════════════════════════════════════════════════════
 //                         SetUp
 // ═══════════════════════════════════════════════════════════════════════
 
 contract IndicesTestSetUp is Test {
     IndexComponentRegistry icr;
+    IndexCalculationRegistry indexCalRegistry;
 
     MockOracle btcPriceFeed;
     MockOracle ethPriceFeed;
@@ -37,6 +38,7 @@ contract IndicesTestSetUp is Test {
 
         // deploy componentRegistry
         icr = new IndexComponentRegistry(owner);
+        indexCalRegistry = new IndexCalculationRegistry(owner);
 
         // component
         components.push(
