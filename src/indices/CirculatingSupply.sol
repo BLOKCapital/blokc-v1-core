@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+
 /*###############################################################################
 
     ▗▄▄▖ ▗▖    ▗▄▖ ▗▖ ▗▖     ▗▄▄▖ ▗▄▖ ▗▄▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖       ▗▄▄▄  ▗▄▖  ▗▄▖
@@ -37,12 +39,12 @@ error CirculatingSupply_OnlyUpdater();
  * retrieving the current supply for a given token symbol. The contract emits an event whenever a supply update occurs,
  * allowing off-chain services to listen for changes.
  */
-contract CirculatingSupply {
+contract CirculatingSupply is Ownable {
     /// @notice Circulating supply for each token symbol (raw token units)
-    mapping(string => uint256) public supply;
+    mapping(string => uint256) private supply;
 
     /// @notice Block timestamp of the last supply update for each token symbol
-    mapping(string => uint256) public lastUpdated;
+    mapping(string => uint256) private lastUpdated;
 
     /// @notice Address authorized to push supply updates
     address public updater;
@@ -50,11 +52,18 @@ contract CirculatingSupply {
     /// @dev Sum of all token supplies. Anyone can read via getTotalSupply() (minimal gas).
     uint256 private totalCirculatingSupply;
 
+    /// @dev Supply entries older than this threshold are rejected during index calculations
+    uint256 public constant STALENESS_THRESHOLD = 24 hours;
+
     /// @notice Emitted when a token's circulating supply is updated
     /// @param symbol Token symbol that was updated
     /// @param newSupply New circulating supply value
     /// @param timestamp Block timestamp of the update
     event SupplyUpdated(string indexed symbol, uint256 newSupply, uint256 timestamp);
+    
+    /// @notice Emitted when the authorized updater address is changed
+    /// @param oldUpdater Address of the previous updater
+    /// @param newUpdater Address of the new updater
     event UpdaterChanged(address indexed oldUpdater, address indexed newUpdater);
 
     /// @notice Restricts access to the authorized updater
@@ -65,9 +74,10 @@ contract CirculatingSupply {
         _;
     }
 
-    /// @notice Constructor sets the initial updater address
+    /// @notice Constructor sets the initial owner and updater address
+    /// @param initialOwner Address of the contract owner
     /// @param _updater Address authorized to push supply updates
-    constructor(address _updater) {
+    constructor(address initialOwner, address _updater) Ownable(initialOwner) {
         updater = _updater;
     }
 
@@ -78,6 +88,10 @@ contract CirculatingSupply {
     function getSupply(string calldata symbol) external view returns (uint256) {
         if (lastUpdated[symbol] == 0) {
             revert CirculatingSupply_SupplyNotAvailable(symbol);
+        }
+
+        if (block.timestamp - lastUpdated[symbol] > STALENESS_THRESHOLD) {
+            revert CirculatingSupply_StaleSupplyData(symbol, lastUpdated[symbol], block.timestamp);
         }
         return supply[symbol];
     }
@@ -95,5 +109,28 @@ contract CirculatingSupply {
             lastUpdated[symbols[i]] = time;
             emit SupplyUpdated(symbols[i], supplies[i], time);
         }
+    }
+
+    /// @notice Returns the raw circulating supply for a token symbol without staleness checks
+    /// @param symbol Token symbol (e.g. "ETH", "BTC")
+    function getRawSupply(string calldata symbol) external view returns (uint256) {
+        return supply[symbol];
+    }
+
+    /// @notice Returns the block timestamp of the last supply update for a token symbol
+    /// @param symbol Token symbol (e.g. "ETH", "BTC")
+    function getLastUpdated(string calldata symbol) external view returns (uint256) {
+        return lastUpdated[symbol];
+    }
+
+    /// @notice Returns the sum of all tracked token circulating supplies
+    function getTotalSupply() external view returns (uint256) {
+        return totalCirculatingSupply;
+    }
+
+    function updateUpdater(address _updater) public onlyOwner {
+        if (_updater == address(0)) revert CirculatingSupply_InvalidUpdater();
+        emit UpdaterChanged(updater, _updater);
+        updater = _updater;
     }
 }

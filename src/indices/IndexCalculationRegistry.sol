@@ -67,6 +67,15 @@ contract IndexCalculationRegistry is Ownable {
         uint256 registeredAt;
     }
 
+    /// @notice Emitted when a new index calculation strategy is registered
+    /// @param indexCalculationAddress Address of the registered calculation contract
+    /// @param id Unique ID assigned to this calculation
+    event IndexCalculationRegistered(address indexed indexCalculationAddress, uint256 id);
+
+    /// @notice Emitted when an index calculation strategy is unregistered
+    /// @param indexCalculationAddress Address of the unregistered calculation contract
+    event IndexCalculationUnregistered(address indexed indexCalculationAddress);
+
     /// @notice Constructs the IndexCalculationRegistry
     /// @param initialOwner Address of the contract owner
     /// @dev Validates owner is not zero address
@@ -91,6 +100,7 @@ contract IndexCalculationRegistry is Ownable {
             registeredAt: block.timestamp
         });
         _indexCalculationAddresses.add(indexCalculationAddress);
+        emit IndexCalculationRegistered(indexCalculationAddress, _indexCalculationIdCounter);
     }
 
     /// @notice Unregisters an index calculation strategy
@@ -100,6 +110,7 @@ contract IndexCalculationRegistry is Ownable {
         if (!_indexCalculationAddresses.contains(indexCalculationAddress)) {
             revert IndexCalculationRegistry_IndexCalculationNotRegistered(indexCalculationAddress);
         }
+        emit IndexCalculationUnregistered(indexCalculationAddress);
         _indexCalculationAddresses.remove(indexCalculationAddress);
         delete _indexCalculationInfo[indexCalculationAddress];
     }
