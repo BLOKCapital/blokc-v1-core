@@ -68,7 +68,7 @@ contract IndicesTestSetUp is Test {
         indexCalRegistry = new IndexCalculationRegistry(owner);
 
         // deploy CirculatingSupply
-        cirSupply = new CirculatingSupply(owner, updater);
+        cirSupply = new CirculatingSupply(owner, updater,address(icr));
         assertEq(updater, cirSupply.updater());
 
         // add supply

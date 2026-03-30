@@ -10,7 +10,8 @@ import {
     CirculatingSupply_StaleSupplyData,
     CirculatingSupply_InvalidUpdater,
     CirculatingSupply_LengthMismatch,
-    CirculatingSupply_OnlyUpdater
+    CirculatingSupply_OnlyUpdater,
+    CirculatingSupply_SymbolNotRegistered
 } from "../../../src/indices/CirculatingSupply.sol";
 
 contract CirculationSupplyTest is IndicesTestSetUp {
@@ -93,6 +94,17 @@ contract CirculationSupplyTest is IndicesTestSetUp {
 
         vm.startPrank(updater);
         vm.expectRevert(CirculatingSupply_LengthMismatch.selector);
+        cirSupply.updateBatch(_symbol, supply);
+        vm.stopPrank();
+    }
+
+    function test_updateBatch_symbolNotRegistered() public {
+        string[] memory _symbol = new string[](2);
+        _symbol[0] = "SOL";
+        _symbol[1] = "BTC";
+
+        vm.startPrank(updater);
+        vm.expectRevert(abi.encodeWithSelector(CirculatingSupply_SymbolNotRegistered.selector, _symbol[0]));
         cirSupply.updateBatch(_symbol, supply);
         vm.stopPrank();
     }
