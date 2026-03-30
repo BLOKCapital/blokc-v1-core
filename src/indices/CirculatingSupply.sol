@@ -2,6 +2,7 @@
 pragma solidity ^0.8.31;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 
 /*###############################################################################
 
@@ -31,6 +32,9 @@ error CirculatingSupply_LengthMismatch();
 /// @notice Thrown when a non-updater tries to call an updater-only function
 error CirculatingSupply_OnlyUpdater();
 
+/// @notice Thrown when a symbol is not registered in the component registry
+error CirculatingSupply_SymbolNotRegistered(string symbol);
+
 /**
  * @title CirculatingSupply
  * @notice A simple contract to track the circulating supply of various tokens, allowing an authorized updater to set
@@ -48,6 +52,9 @@ contract CirculatingSupply is Ownable {
 
     /// @notice Address authorized to push supply updates
     address public updater;
+
+    /// @notice Registry used to validate symbols before accepting supply updates
+    IndexComponentRegistry public immutable componentRegistry;
 
     /// @dev Sum of all token supplies. Anyone can read via getTotalSupply() (minimal gas).
     uint256 private totalCirculatingSupply;
@@ -77,8 +84,9 @@ contract CirculatingSupply is Ownable {
     /// @notice Constructor sets the initial owner and updater address
     /// @param initialOwner Address of the contract owner
     /// @param _updater Address authorized to push supply updates
-    constructor(address initialOwner, address _updater) Ownable(initialOwner) {
+    constructor(address initialOwner, address _updater, address _componentRegistry) Ownable(initialOwner) {
         updater = _updater;
+        componentRegistry = IndexComponentRegistry(_componentRegistry);
     }
 
     ///@dev Anyone can call this to get the circulating supply for a token by symbol.
@@ -103,6 +111,9 @@ contract CirculatingSupply is Ownable {
         if (symbols.length != supplies.length) revert CirculatingSupply_LengthMismatch();
         uint256 time = block.timestamp;
         for (uint256 i = 0; i < symbols.length; i++) {
+            if (!componentRegistry.isComponentRegistered(symbols[i])) {
+                revert CirculatingSupply_SymbolNotRegistered(symbols[i]);
+            }
             uint256 oldSupply = supply[symbols[i]];
             totalCirculatingSupply = totalCirculatingSupply - oldSupply + supplies[i];
             supply[symbols[i]] = supplies[i];
