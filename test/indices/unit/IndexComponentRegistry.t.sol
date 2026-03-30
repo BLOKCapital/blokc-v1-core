@@ -23,6 +23,13 @@ import {
 } from "../../../src/indices/IndexComponentRegistry.sol";
 
 contract IndexComponentRegistryTest is IndicesTestSetUp {
+    function setUp() public override {
+        super.setUp();
+        // Reset icr to a clean state — super.setUp() pre-registers BTC/ETH for
+        // MarketCapWeightedTest, but these tests manage registration themselves.
+        icr = new IndexComponentRegistry(owner);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     //                       Register Component
     // ═══════════════════════════════════════════════════════════════════════
