@@ -44,6 +44,8 @@ contract IndexCalculationRegistryTest is IndicesTestSetUp {
     // ═══════════════════════════════════════════════════════════════════════
     function test_registerIndexCalculation() public {
         vm.startPrank(owner);
+        vm.expectEmit(true, false, false, true);
+        emit IndexCalculationRegistry.IndexCalculationRegistered(calcStrategy, 1);
         indexCalRegistry.registerIndexCalculation(calcStrategy);
         vm.stopPrank();
 
@@ -99,6 +101,8 @@ contract IndexCalculationRegistryTest is IndicesTestSetUp {
 
     function test_unregisterIndexCalculation() public registerIndexCalculation {
         vm.startPrank(owner);
+        vm.expectEmit(true, false, false, false);
+        emit IndexCalculationRegistry.IndexCalculationUnregistered(calcStrategy);
         indexCalRegistry.unregisterIndexCalculation(address(calcStrategy));
         vm.stopPrank();
 

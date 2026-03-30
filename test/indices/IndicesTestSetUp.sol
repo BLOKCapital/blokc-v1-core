@@ -5,7 +5,9 @@ import { Test } from "forge-std/Test.sol";
 
 import { MockOracle } from "../mock/MockPriceFeed.sol";
 import { IndexComponentRegistry } from "../../src/indices/IndexComponentRegistry.sol";
-import {IndexCalculationRegistry} from "../../src/indices/IndexCalculationRegistry.sol";
+import { IndexCalculationRegistry } from "../../src/indices/IndexCalculationRegistry.sol";
+import { CirculatingSupply } from "../../src/indices/CirculatingSupply.sol";
+
 // ═══════════════════════════════════════════════════════════════════════
 //                         SetUp
 // ═══════════════════════════════════════════════════════════════════════
@@ -13,6 +15,7 @@ import {IndexCalculationRegistry} from "../../src/indices/IndexCalculationRegist
 contract IndicesTestSetUp is Test {
     IndexComponentRegistry icr;
     IndexCalculationRegistry indexCalRegistry;
+    CirculatingSupply cirSupply;
 
     MockOracle btcPriceFeed;
     MockOracle ethPriceFeed;
@@ -23,11 +26,12 @@ contract IndicesTestSetUp is Test {
     address owner = makeAddr("owner");
     address btcAddress = makeAddr("BTC");
     address ethAddress = makeAddr("ETH");
+    address updater = makeAddr("Updater");
 
     IndexComponentRegistry.Component[] components;
     string[] symbol;
 
-    function setUp() public {
+    function setUp() public virtual {
         // deploy BTC price feed
         btcPriceFeed = new MockOracle("BTC", btcPrice);
         ethPriceFeed = new MockOracle("ETH", ethPrice);
@@ -39,7 +43,8 @@ contract IndicesTestSetUp is Test {
         // deploy componentRegistry
         icr = new IndexComponentRegistry(owner);
         indexCalRegistry = new IndexCalculationRegistry(owner);
-
+        cirSupply = new CirculatingSupply(owner,updater);
+        assertEq(updater, cirSupply.updater());
         // component
         components.push(
             IndexComponentRegistry.Component({
