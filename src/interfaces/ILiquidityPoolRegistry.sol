@@ -13,7 +13,7 @@ pragma solidity ^0.8.31;
 /// @title ILiquidityPoolRegistry
 /// @author BLOK Capital DAO
 /// @notice Interface for the Liquidity Pool Registry that tracks pools across DEXes.
-/// @dev Pools are indexed by token pair, DEX identifier, and fee tier for efficient lookup.
+/// @dev Pools are indexed by token pair, DEX identifier, AMM type, and swap fee for efficient lookup.
 interface ILiquidityPoolRegistry {
     // ========================================================================
     // Structs
@@ -21,12 +21,12 @@ interface ILiquidityPoolRegistry {
 
     /// @notice Metadata stored per pool address
     /// @param poolAddress Address of the liquidity pool
-    /// @param dexId DEX identifier (keccak256("UNISWAP_V3"), etc.)
+    /// @param dexId DEX identifier (keccak256("UNISWAP_V3"), keccak256("CAMELOT_V2"), etc.)
     /// @param pairId Canonical pair identifier (ordered token addresses)
     /// @param pairName Human-readable pair name (e.g., "WETH/USDC")
     /// @param token0 First token in the pair (sorted by address)
     /// @param token1 Second token in the pair (sorted by address)
-    /// @param fee Fee tier for V3-style pools (e.g., 500, 3000, 10000) - 0 for V2
+    /// @param swapFee Swap fee in millionths (3000 = 0.3%). Used for V3 pool lookup AND V2 amount computation.
     /// @param active Whether the pool is active for use
     struct PoolInfo {
         address poolAddress;
@@ -35,7 +35,7 @@ interface ILiquidityPoolRegistry {
         string pairName;
         address token0;
         address token1;
-        uint24 fee;
+        uint24 swapFee;
         bool active;
     }
 
@@ -46,7 +46,7 @@ interface ILiquidityPoolRegistry {
         address tokenB;
         bytes32 dexId;
         string pairName;
-        uint24 fee;
+        uint24 swapFee;
     }
 
     // ========================================================================
@@ -59,11 +59,12 @@ interface ILiquidityPoolRegistry {
         bytes32 indexed dexId,
         address token0,
         address token1,
-        uint24 fee
+        uint24 swapFee
     );
 
     event PoolRemoved(address indexed poolAddress, bytes32 indexed pairId);
     event PoolStatusChanged(address indexed poolAddress, bool active);
+    event PoolSwapFeeUpdated(address indexed poolAddress, uint24 oldSwapFee, uint24 newSwapFee);
 
     // ========================================================================
     // Pool Management
@@ -82,14 +83,30 @@ interface ILiquidityPoolRegistry {
     /// @param active New active status
     function setPoolActive(address poolAddress, bool active) external;
 
+    /// @notice Updates the swap fee for a pool (e.g., for dynamic-fee pools)
+    /// @param poolAddress Address of the pool
+    /// @param swapFee New swap fee in millionths
+    function setPoolSwapFee(address poolAddress, uint24 swapFee) external;
+
     // ========================================================================
     // Pool Queries - Single Pool
     // ========================================================================
 
-    /// @notice Returns the information of a registered pool
+    /// @notice Returns the full information of a registered pool
     /// @param poolAddress The address of the pool
     /// @return PoolInfo The details of the pool
     function getPool(address poolAddress) external view returns (PoolInfo memory);
+
+    /// @notice Returns only the fields needed for a direct swap — avoids loading pairName/pairId
+    /// @param poolAddress The address of the pool
+    /// @return valid True if the pool is registered and active
+    /// @return token0 First token (sorted by address)
+    /// @return token1 Second token (sorted by address)
+    /// @return swapFee Swap fee in millionths
+    function getPoolSwapInfo(address poolAddress)
+        external
+        view
+        returns (bool valid, address token0, address token1, uint24 swapFee);
 
     /// @notice Checks if a pool is registered
     /// @param poolAddress The address of the pool to check
@@ -141,41 +158,6 @@ interface ILiquidityPoolRegistry {
     function getPoolsByDex(bytes32 dexId) external view returns (address[] memory pools);
 
     // ========================================================================
-    // Pool Queries - By Fee Tier
-    // ========================================================================
-
-    /// @notice Get pool for a token pair with specific fee tier
-    /// @param tokenA First token address
-    /// @param tokenB Second token address
-    /// @param dexId DEX identifier
-    /// @param fee Fee tier
-    /// @return pool Pool address (address(0) if not found)
-    function getPoolByFee(
-        address tokenA,
-        address tokenB,
-        bytes32 dexId,
-        uint24 fee
-    )
-        external
-        view
-        returns (address pool);
-
-    /// @notice Get all pools for a token pair on a DEX, grouped by fee tier
-    /// @param tokenA First token address
-    /// @param tokenB Second token address
-    /// @param dexId DEX identifier
-    /// @return pools Array of pool addresses
-    /// @return fees Array of fee tiers corresponding to each pool
-    function getPoolsWithFees(
-        address tokenA,
-        address tokenB,
-        bytes32 dexId
-    )
-        external
-        view
-        returns (address[] memory pools, uint24[] memory fees);
-
-    // ========================================================================
     // Global Queries
     // ========================================================================
 
@@ -190,21 +172,4 @@ interface ILiquidityPoolRegistry {
     /// @notice Get all unique pair IDs
     /// @return pairIds Array of pair IDs
     function getAllPairIds() external view returns (bytes32[] memory pairIds);
-
-    // ========================================================================
-    // Utility Functions
-    // ========================================================================
-
-    /// @notice Compute canonical pair ID from two token addresses
-    /// @param tokenA First token address
-    /// @param tokenB Second token address
-    /// @return pairId Canonical pair ID
-    function computePairId(address tokenA, address tokenB) external pure returns (bytes32 pairId);
-
-    /// @notice Get sorted token addresses (token0 < token1)
-    /// @param tokenA First token address
-    /// @param tokenB Second token address
-    /// @return token0 Lower address
-    /// @return token1 Higher address
-    function sortTokens(address tokenA, address tokenB) external pure returns (address token0, address token1);
 }

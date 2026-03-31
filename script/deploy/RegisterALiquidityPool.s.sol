@@ -32,7 +32,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: usdc,
                 dexId: uniswapV3,
                 pairName: "WBTC/USDC",
-                fee: 500
+                swapFee: 500
             })
         );
     }
