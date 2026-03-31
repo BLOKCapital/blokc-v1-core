@@ -83,11 +83,6 @@ interface ILiquidityPoolRegistry {
     /// @param active New active status
     function setPoolActive(address poolAddress, bool active) external;
 
-    /// @notice Updates the swap fee for a pool (e.g., for dynamic-fee pools)
-    /// @param poolAddress Address of the pool
-    /// @param swapFee New swap fee in millionths
-    function setPoolSwapFee(address poolAddress, uint24 swapFee) external;
-
     // ========================================================================
     // Pool Queries - Single Pool
     // ========================================================================

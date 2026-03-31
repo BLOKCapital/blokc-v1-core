@@ -125,26 +125,6 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         emit PoolStatusChanged(poolAddress, active);
     }
 
-    /// @inheritdoc ILiquidityPoolRegistry
-    function setPoolSwapFee(address poolAddress, uint24 swapFee) external onlyOwner {
-        if (!_allPools.contains(poolAddress)) {
-            revert LiquidityPoolRegistry_PoolDoesNotExist(poolAddress);
-        }
-
-        PoolInfo storage info = _poolInfo[poolAddress];
-        uint24 oldSwapFee = info.swapFee;
-
-        // Update the key lookup: remove old key, add new key
-        bytes32 oldKey = _computePoolKey(info.pairId, info.dexId, oldSwapFee);
-        bytes32 newKey = _computePoolKey(info.pairId, info.dexId, swapFee);
-        delete _poolByKey[oldKey];
-        _poolByKey[newKey] = poolAddress;
-
-        info.swapFee = swapFee;
-
-        emit PoolSwapFeeUpdated(poolAddress, oldSwapFee, swapFee);
-    }
-
     // ========================================================================
     // Pool Queries - Single Pool
     // ========================================================================
