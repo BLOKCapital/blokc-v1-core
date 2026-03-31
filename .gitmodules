@@ -15,10 +15,10 @@
 	url = https://github.com/PaulRBerg/prb-test
 [submodule "lib/v3-core"]
 	path = lib/v3-core
-	url = https://github.com/Uniswap/uniswap-v3-core
+	url = https://github.com/Uniswap/v3-core
 [submodule "lib/v3-periphery"]
 	path = lib/v3-periphery
-	url = https://github.com/Uniswap/uniswap-v3-periphery
+	url = https://github.com/Uniswap/v3-periphery
 [submodule "lib/pendle-core-v2-public"]
 	path = lib/pendle-core-v2-public
 	url = https://github.com/pendle-finance/pendle-core-v2-public.git
@@ -32,7 +32,7 @@
 
 [submodule "lib/v2-periphery"]
 	path = lib/v2-periphery
-	url = https://github.com/uniswap/v2-periphery
+	url = https://github.com/Uniswap/v2-periphery
 [submodule "lib/v4-core"]
 	path = lib/v4-core
 	url = https://github.com/uniswap/v4-core
@@ -40,3 +40,9 @@
 	path = lib/v4-periphery
 	url = https://github.com/uniswap/v4-periphery
  
+[submodule "lib/v2-core"]
+	path = lib/v2-core
+	url = https://github.com/uniswap/v2-core
+[submodule "lib/uniswap-lib"]
+	path = lib/uniswap-lib
+	url = https://github.com/uniswap/uniswap-lib

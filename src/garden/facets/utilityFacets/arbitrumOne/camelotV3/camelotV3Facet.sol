@@ -68,7 +68,10 @@ contract CamelotV3Facet is ICamelotV3, CamelotV3Base, Facet {
     }
 
     /// @inheritdoc ICamelotV3
-    function camelotV3GetSqrtTwapX96(address poolAddress, uint32 twapInterval)
+    function camelotV3GetSqrtTwapX96(
+        address poolAddress,
+        uint32 twapInterval
+    )
         external
         view
         returns (uint160 sqrtPriceX96, uint256 deadline)

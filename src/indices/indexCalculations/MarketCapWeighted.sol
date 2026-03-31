@@ -20,8 +20,8 @@ import { CirculatingSupply } from "src/indices/CirculatingSupply.sol";
 // Errors
 // ============================================================================
 
-/// @notice Thrown when IndexComponentRegistry address is zero during construction
-error MarketCapWeighted_InvalidIndexComponentRegistryAddress();
+/// @notice Thrown when IndexComponentRegistry address or CirculatingSupply addressis zero during construction
+error MarketCapWeighted_ZeroAddress();
 
 /// @notice Thrown when total market cap is zero (cannot calculate weights)
 error MarketCapWeighted_InvalidTotalMarketCap();
@@ -61,7 +61,7 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @dev Validates registry address is not zero
     constructor(address _indexComponentRegistryAddress, address _circulatingSupplyAddress) {
         if (_indexComponentRegistryAddress == address(0) || _circulatingSupplyAddress == address(0)) {
-            revert MarketCapWeighted_InvalidIndexComponentRegistryAddress();
+            revert MarketCapWeighted_ZeroAddress();
         }
         INDEX_COMPONENT_REGISTRY = IndexComponentRegistry(_indexComponentRegistryAddress);
         CIRCULATING_SUPPLY = CirculatingSupply(_circulatingSupplyAddress);
@@ -127,5 +127,15 @@ contract MarketCapWeighted is IIndexCalculation {
         address tokenAddress = INDEX_COMPONENT_REGISTRY.getComponentAddress(symbol);
         componentPrice = INDEX_COMPONENT_REGISTRY.fetchPrice(tokenAddress, symbol);
         componentPriceDecimals = INDEX_COMPONENT_REGISTRY.getOracleRecord(symbol).decimals;
+    }
+
+    /// @notice Returns the IndexComponentRegistry address used by this contract
+    function getIndexComponentRegistry() external view returns (address) {
+        return address(INDEX_COMPONENT_REGISTRY);
+    }
+
+    /// @notice Returns the CirculatingSupply contract address used by this contract
+    function getCirculatingSupply() external view returns (address) {
+        return address(CIRCULATING_SUPPLY);
     }
 }

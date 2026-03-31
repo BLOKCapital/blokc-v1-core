@@ -402,7 +402,10 @@ abstract contract IndexBase {
     function _getUsdcValueUsd(
         IndexComponentRegistry componentRegistry,
         string[] memory symbols
-    ) internal returns (uint256) {
+    )
+        internal
+        returns (uint256)
+    {
         // Skip if USDC is already counted as an index component
         for (uint256 i = 0; i < symbols.length; i++) {
             if (keccak256(abi.encodePacked(symbols[i])) == _USDC_SYMBOL_HASH) {
