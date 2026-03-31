@@ -43,7 +43,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
         //  UNISWAP V3 POOLS
         // =====================================================================
 
-        // 1. WETH/USDC - 0.05% fee (~$75M TVL)
+        // 1. WETH/USDC - 0.05% swapFee (~$75M TVL)
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0xC6962004f452bE9203591991D15f6b388e09E8D0,
@@ -51,11 +51,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "WETH/USDC",
-                fee: 500
+                swapFee: 500
             })
         );
 
-        // 2. WETH/USDC - 0.3% fee (~$10M TVL)
+        // 2. WETH/USDC - 0.3% swapFee (~$10M TVL)
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0xc473e2aEE3441BF9240Be85eb122aBB059A3B57c,
@@ -63,11 +63,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "WETH/USDC",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
-        // 3. WETH/USDC.e - 0.05% fee
+        // 3. WETH/USDC.e - 0.05% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0xC31E54c7a869B9FcBEcc14363CF510d1c41fa443,
@@ -75,11 +75,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "WETH/USDC.e",
-                fee: 500
+                swapFee: 500
             })
         );
 
-        // 4. WETH/USDT - 0.05% fee
+        // 4. WETH/USDT - 0.05% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0x641C00A822e8b671738d32a431a4Fb6074E5c79d,
@@ -87,11 +87,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "WETH/USDT",
-                fee: 500
+                swapFee: 500
             })
         );
 
-        // 5. WBTC/WETH - 0.05% fee
+        // 5. WBTC/WETH - 0.05% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0x2f5e87C9312fa29aed5c179E456625D79015299c,
@@ -99,11 +99,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "WBTC/WETH",
-                fee: 500
+                swapFee: 500
             })
         );
 
-        // 6. ARB/WETH - 0.05% fee
+        // 6. ARB/WETH - 0.05% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0xC6F780497A95e246EB9449f5e4770916DCd6396A,
@@ -111,11 +111,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "ARB/WETH",
-                fee: 500
+                swapFee: 500
             })
         );
 
-        // 7. ARB/WETH - 0.3% fee
+        // 7. ARB/WETH - 0.3% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0x92c63d0e701CAAe670C9415d91C474F686298f00,
@@ -123,11 +123,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "ARB/WETH",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
-        // 8. LINK/WETH - 0.3% fee
+        // 8. LINK/WETH - 0.3% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0x468b88941e7Cc0B88c1869d68ab6b570bCEF62Ff,
@@ -135,11 +135,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "LINK/WETH",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
-        // 9. UNI/WETH - 0.3% fee
+        // 9. UNI/WETH - 0.3% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0xC24f7d8E51A64dc1238880BD00bb961D54cbeb29,
@@ -147,11 +147,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "UNI/WETH",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
-        // 10. GMX/WETH - 1% fee
+        // 10. GMX/WETH - 1% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0x80A9ae39310abf666A87C743d6ebBD0E8C42158E,
@@ -159,11 +159,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "GMX/WETH",
-                fee: 10_000
+                swapFee: 10_000
             })
         );
 
-        // 11. PENDLE/WETH - 0.3% fee
+        // 11. PENDLE/WETH - 0.3% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0xdbaeB7f0DFe3a0AAFD798CCECB5b22E708f7852c,
@@ -171,11 +171,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "PENDLE/WETH",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
-        // 12. RDNT/WETH - 0.3% fee
+        // 12. RDNT/WETH - 0.3% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0x446BF9748B4eA044dd759d9B9311C70491dF8F29,
@@ -183,11 +183,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "RDNT/WETH",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
-        // 13. MAGIC/WETH - 1% fee
+        // 13. MAGIC/WETH - 1% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0x7e7FB3CCEcA5F2ac952eDF221fd2a9f62E411980,
@@ -195,11 +195,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "MAGIC/WETH",
-                fee: 10_000
+                swapFee: 10_000
             })
         );
 
-        // 14. USDC/USDT - 0.01% fee (stablecoin pair)
+        // 14. USDC/USDT - 0.01% swapFee (stablecoin pair)
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0xbE3aD6a5669Dc0B8b12FeBC03608860C31E2eef6,
@@ -207,11 +207,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: usdt,
                 dexId: uniswapV3,
                 pairName: "USDC/USDT",
-                fee: 100
+                swapFee: 100
             })
         );
 
-        // 15. DAI/USDC - 0.01% fee (stablecoin pair)
+        // 15. DAI/USDC - 0.01% swapFee (stablecoin pair)
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0xF0428617433652c9dc6D1093A42AdFbF30D29f74,
@@ -219,11 +219,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: usdc,
                 dexId: uniswapV3,
                 pairName: "DAI/USDC",
-                fee: 100
+                swapFee: 100
             })
         );
 
-        // 16. WETH/USDT - 0.01% fee (tight spread)
+        // 16. WETH/USDT - 0.01% swapFee (tight spread)
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0x42161084d0672e1d3F26a9B53E653bE2084ff19C,
@@ -231,11 +231,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV3,
                 pairName: "WETH/USDT",
-                fee: 100
+                swapFee: 100
             })
         );
 
-        // 17. WBTC/USDT - 0.05% fee
+        // 17. WBTC/USDT - 0.05% swapFee
         liquidityPoolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
                 poolAddress: 0x5969EFddE3cF5C0D9a88aE51E47d721096A97203,
@@ -243,13 +243,13 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: usdt,
                 dexId: uniswapV3,
                 pairName: "WBTC/USDT",
-                fee: 500
+                swapFee: 500
             })
         );
 
         // =====================================================================
-        //  CAMELOT V3 POOLS (Algebra - Dynamic Fees)
-        //  fee: 0 indicates dynamic fee managed by the protocol
+        //  CAMELOT V3 POOLS (Algebra - Dynamic swapFees)
+        //  swapFee: 0 indicates dynamic swapFee managed by the protocol
         // =====================================================================
 
         // 18. WETH/USDC - Camelot V3 (highest TVL on Camelot)
@@ -260,7 +260,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: camelotV3,
                 pairName: "WETH/USDC",
-                fee: 0
+                swapFee: 0
             })
         );
 
@@ -272,7 +272,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: camelotV3,
                 pairName: "WETH/USDT",
-                fee: 0
+                swapFee: 0
             })
         );
 
@@ -284,7 +284,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: camelotV3,
                 pairName: "ARB/WETH",
-                fee: 0
+                swapFee: 0
             })
         );
 
@@ -296,7 +296,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: usdc,
                 dexId: camelotV3,
                 pairName: "ARB/USDC",
-                fee: 0
+                swapFee: 0
             })
         );
 
@@ -308,7 +308,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: camelotV3,
                 pairName: "WBTC/WETH",
-                fee: 0
+                swapFee: 0
             })
         );
 
@@ -320,7 +320,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: camelotV3,
                 pairName: "GRAIL/WETH",
-                fee: 0
+                swapFee: 0
             })
         );
 
@@ -332,7 +332,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: camelotV3,
                 pairName: "PENDLE/WETH",
-                fee: 0
+                swapFee: 0
             })
         );
 
@@ -344,13 +344,13 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: usdc,
                 dexId: camelotV3,
                 pairName: "GMX/USDC",
-                fee: 0
+                swapFee: 0
             })
         );
 
         // =====================================================================
         //  CAMELOT V2 POOLS (AMM - Constant Product)
-        //  fee: 3000 represents the default 0.3% swap fee
+        //  swapFee: 3000 represents the default 0.3% swap Fee
         // =====================================================================
 
         // 26. WETH/USDC - Camelot V2
@@ -361,7 +361,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: camelotV2,
                 pairName: "WETH/USDC",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
@@ -373,7 +373,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: camelotV2,
                 pairName: "ARB/WETH",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
@@ -385,13 +385,13 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: camelotV2,
                 pairName: "PENDLE/WETH",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
         // =====================================================================
         //  UNISWAP V2 POOLS (Constant Product)
-        //  fee: 3000 represents the flat 0.3% swap fee
+        //  swapFee: 3000 represents the flat 0.3% swap swapFee
         //  Factory: 0xf1D7CC64Fb4452F05c498126312eBE29f30Fbcf9
         // =====================================================================
 
@@ -403,7 +403,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV2,
                 pairName: "WETH/USDC",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
@@ -415,7 +415,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: weth,
                 dexId: uniswapV2,
                 pairName: "WETH/DAI",
-                fee: 3000
+                swapFee: 3000
             })
         );
 
@@ -427,7 +427,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: usdc,
                 dexId: uniswapV2,
                 pairName: "DAI/USDC",
-                fee: 3000
+                swapFee: 3000
             })
         );
     }
