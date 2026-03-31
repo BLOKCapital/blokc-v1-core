@@ -3,7 +3,7 @@ pragma solidity ^0.8.31;
 
 import { Test } from "forge-std/Test.sol";
 
-import { MockOracle } from "../mock/MockPriceFeed.sol";
+import { MockOracle } from "../../mock/MockPriceFeed.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol";
@@ -20,9 +20,16 @@ import {
     IndexComponentRegistry__FeedFrozenError,
     IndexComponentRegistry__InvalidFeedResponseError,
     IndexComponentRegistry__UnknownFeedError
-} from "../../src/indices/IndexComponentRegistry.sol";
+} from "../../../src/indices/IndexComponentRegistry.sol";
 
 contract IndexComponentRegistryTest is IndicesTestSetUp {
+    function setUp() public override {
+        super.setUp();
+        // Reset icr to a clean state — super.setUp() pre-registers BTC/ETH for
+        // MarketCapWeightedTest, but these tests manage registration themselves.
+        icr = new IndexComponentRegistry(owner);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     //                       Register Component
     // ═══════════════════════════════════════════════════════════════════════
