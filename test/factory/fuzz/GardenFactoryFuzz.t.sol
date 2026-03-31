@@ -174,6 +174,10 @@ contract GardenFactoryFuzzTest is GardenFactoryTestBase {
 
     /// @notice getGardensByRange should never return more elements than exist
     function testFuzz_getGardensByRange_neverExceedsTotal(uint256 offset, uint256 limit) public {
+        // Bound to avoid overflow in offset + limit (contract uses unchecked addition)
+        offset = bound(offset, 0, type(uint128).max);
+        limit = bound(limit, 0, type(uint128).max);
+
         // Create 3 gardens
         _createDefaultGarden(alice, 1);
         _createDefaultGarden(bob, 1);
@@ -195,6 +199,9 @@ contract GardenFactoryFuzzTest is GardenFactoryTestBase {
 
     /// @notice getGardensByTypeRange should never return more than exist for that type
     function testFuzz_getGardensByTypeRange_neverExceedsTypeTotal(uint256 offset, uint256 limit) public {
+        offset = bound(offset, 0, type(uint128).max);
+        limit = bound(limit, 0, type(uint128).max);
+
         _createGarden(alice, 1, GARDEN_TYPE_1);
         _createGarden(bob, 1, GARDEN_TYPE_1);
         _createGarden(alice, 2, GARDEN_TYPE_2);
