@@ -12,8 +12,6 @@ import { LibStorageSlot } from "../../libraries/LibStorageSlot.sol";
 
 ################################################################################*/
 
-import { PendingIntent } from "src/garden/facets/indexFacets/IIndex.sol";
-
 /**
  * @title IndexStorage
  * @author BLOK Capital DAO
@@ -62,30 +60,17 @@ library IndexStorage {
     /// @notice Maximum allowed total value loss during rebalance (0.5% = 50 bps)
     uint256 internal constant MAX_VALUE_LOSS_BPS = 50;
 
-    /// @notice Intent expiry duration - intents become invalid after this period
-    uint256 internal constant INTENT_EXPIRY = 10 minutes;
-
     /// @notice Module identifier for DEX facets; only selectors in this module are allowed during rebalance.
     bytes32 internal constant DEX_MODULE_ID = keccak256("DEX");
 
     /// @notice Storage layout for index-related state
-    /// @param indexAddress Address of the connected Index contract
-    /// @param lastRebalanceTimestamp Block timestamp of last rebalance
-    /// @param rebalancing Reentrancy guard flag for rebalance execution (separate from OZ ReentrancyGuard)
     struct Layout {
         address indexAddress;
-        // Timestamps
         uint256 lastRebalanceTimestamp;
-        uint256 lastIntentTimestamp;
-        // Reentrancy guard for rebalance (avoids conflict with OZ ReentrancyGuard on DEX facets)
         bool rebalancing;
-        // Pending rebalance state
-        PendingIntent pendingIntent;
     }
 
     /// @notice Returns a pointer to the index storage layout
-    /// @dev Storage slot is derived from keccak256(bytes(type(IndexStorage).name))
-    /// @return l Storage pointer to Layout struct
     function layout() internal pure returns (Layout storage l) {
         bytes32 position = LibStorageSlot.deriveStorageSlot(type(IndexStorage).name);
 

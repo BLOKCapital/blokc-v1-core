@@ -22,57 +22,21 @@ struct SwapCall {
     uint256 minOutput;
 }
 
-/// @notice Pending rebalance intent data
-/// @param active Whether there's an active pending intent
-/// @param totalValueUsd Total value of the garden in USD at the time of intent creation
-/// @param symbols Array of token symbols in the garden
-/// @param currentValues Array of current token values in the garden (same order as symbols)
-/// @param targetValues Array of target token values based on the index (same order as symbols)
-/// @param tokenAddresses Array of token contract addresses (same order as symbols)
-/// @param weights Array of target weights from the index (normalized to 1e18), used for fresh target recalculation
-struct PendingIntent {
-    bool active;
-    uint256 totalValueUsd;
-    string[] symbols;
-    uint256[] currentValues;
-    uint256[] targetValues;
-    address[] tokenAddresses;
-    uint256[] weights;
-}
-
 /// @title IIndex
 /// @author BLOK Capital DAO
-/// @notice Interface for Index Facet operations, enabling gardens to connect to indices for automated rebalancing
-/// @dev Defines events and functions for managing index connections, creating rebalance intents, and executing
-///      rebalances with CRE-provided swap calls
+/// @notice Interface for Index Facet operations, enabling gardens to connect to indices for automated rebalancing.
+/// @dev Single-transaction rebalance: CRE submits SwapCall[] directly, contract validates the outcome
+///      using fresh Chainlink prices. No intent system needed — on-chain verification is the safety net.
 interface IIndex {
     // ========================================================================
     // Events
     // ========================================================================
 
     /// @notice Emitted when a garden connects to an index
-    /// @param indexAddress The address of the index contract that was connected
     event IndexConnected(address indexed indexAddress);
 
     /// @notice Emitted when a garden disconnects from an index
-    /// @param indexAddress The address of the index contract that was disconnected
     event IndexDisconnected(address indexed indexAddress);
-
-    /// @notice Emitted when a rebalance intent is created
-    /// @param garden The address of the garden creating the intent
-    /// @param indexAddress The address of the connected index contract
-    /// @param symbols Array of token symbols included in the rebalance
-    /// @param currentValues Array of current token values in USD (8 decimals)
-    /// @param targetValues Array of target token values in USD (8 decimals)
-    /// @param totalValueUsd Total portfolio value in USD (8 decimals)
-    event RebalanceIntentCreated(
-        address indexed garden,
-        address indexed indexAddress,
-        string[] symbols,
-        uint256[] currentValues,
-        uint256[] targetValues,
-        uint256 totalValueUsd
-    );
 
     /// @notice Emitted when a rebalance is completed
     /// @param garden The address of the garden that was rebalanced
@@ -94,39 +58,20 @@ interface IIndex {
     /// @notice Disconnect the garden from its connected index
     function disconnectFromIndex() external;
 
-    /// @notice Create a rebalance intent - calculates target allocations
-    /// @dev Can be called by anyone (primarily CRE automation)
-    function rebalanceIntent() external;
-
-    /// @notice Execute rebalance with CRE-provided swap calls
-    /// @dev Can be called by anyone (primarily CRE automation).
-    ///      Each SwapCall contains:
-    ///      - selector: The 4-byte function selector of a DEX facet function
-    ///      - data: ABI-encoded function arguments (excluding selector)
+    /// @notice Execute rebalance with CRE-provided swap calls (single transaction)
+    /// @dev Can be called by anyone. Each SwapCall targets a DEX facet function on this Diamond.
+    ///      The contract validates the outcome: balances must match target weights within threshold,
+    ///      total value must be preserved within MAX_VALUE_LOSS_BPS. If validation fails, the entire
+    ///      transaction reverts — no funds are at risk from bad swap calls.
     /// @param swapCalls Array of swap calls from CRE
     function rebalance(SwapCall[] calldata swapCalls) external;
 
     /// @notice Check if the garden is connected to an index
-    /// @return True if connected to an index
     function isConnectedToIndex() external view returns (bool);
 
     /// @notice Get the connected index address
-    /// @return The connected index address (address(0) if not connected)
     function getConnectedIndex() external view returns (address);
 
-    /// @notice Check if there's a pending rebalance intent
-    /// @return True if there's an active pending intent
-    function hasPendingIntent() external view returns (bool);
-
-    /// @notice Get pending intent details
-    function getPendingIntent()
-        external
-        view
-        returns (
-            bool active,
-            uint256 totalValueUsd,
-            string[] memory symbols,
-            uint256[] memory currentValues,
-            uint256[] memory targetValues
-        );
+    /// @notice Get the timestamp of the last rebalance execution
+    function getLastRebalanceTimestamp() external view returns (uint256);
 }

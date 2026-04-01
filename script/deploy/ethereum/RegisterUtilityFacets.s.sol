@@ -108,14 +108,13 @@ contract RegisterUtilityFacets is BaseScript {
         // INDEX module (IndexFacet)
         // =====================================================================
         // IndexFacet indexFacet = new IndexFacet();
-        // bytes4[] memory indexSelectors = new bytes4[](7);
+        // bytes4[] memory indexSelectors = new bytes4[](6);
         // indexSelectors[0] = indexFacet.connectToIndex.selector;
         // indexSelectors[1] = indexFacet.disconnectFromIndex.selector;
-        // indexSelectors[2] = indexFacet.rebalanceIntent.selector;
-        // indexSelectors[3] = indexFacet.rebalance.selector;
-        // indexSelectors[4] = indexFacet.isConnectedToIndex.selector;
-        // indexSelectors[5] = indexFacet.getConnectedIndex.selector;
-        // indexSelectors[6] = indexFacet.hasPendingIntent.selector;
+        // indexSelectors[2] = indexFacet.rebalance.selector;
+        // indexSelectors[3] = indexFacet.isConnectedToIndex.selector;
+        // indexSelectors[4] = indexFacet.getConnectedIndex.selector;
+        // indexSelectors[5] = indexFacet.getLastRebalanceTimestamp.selector;
         // console2.log("IndexFacet deployed at:", address(indexFacet));
 
         // IDiamondCut.FacetCut[] memory indexCuts = new IDiamondCut.FacetCut[](1);
