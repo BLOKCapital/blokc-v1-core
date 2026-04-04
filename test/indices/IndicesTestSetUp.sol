@@ -22,7 +22,7 @@ contract IndicesTestSetUp is Test {
     MockOracle ethPriceFeed;
 
     uint256 btcPrice = 70_000e18;
-    uint256 ethPrice = 3_000e18;
+    uint256 ethPrice = 3000e18;
 
     address owner = makeAddr("owner");
     address btcAddress = makeAddr("BTC");
@@ -68,7 +68,7 @@ contract IndicesTestSetUp is Test {
         indexCalRegistry = new IndexCalculationRegistry(owner);
 
         // deploy CirculatingSupply
-        cirSupply = new CirculatingSupply(owner, updater,address(icr));
+        cirSupply = new CirculatingSupply(owner, updater, address(icr));
         assertEq(updater, cirSupply.updater());
 
         // add supply

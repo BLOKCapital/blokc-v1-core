@@ -21,7 +21,13 @@ contract MockGardenFactory {
         return _registered[garden];
     }
 
-    function getGardenOwner(address /* garden */ ) external pure returns (address) {
+    function getGardenOwner(
+        address /* garden */
+    )
+        external
+        pure
+        returns (address)
+    {
         return address(0);
     }
 }

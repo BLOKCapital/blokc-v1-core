@@ -41,32 +41,6 @@ contract PoolRegistryInvariantTest is PoolRegistryTestBase {
     }
 
     // ═════════════════════════════════════════════════════════════════
-    //                     ACTIVE STATUS INVARIANTS
-    // ═════════════════════════════════════════════════════════════════
-
-    /// @notice isPoolActive must match ghost state for registered pools
-    function invariant_activeStatusMatchesGhost() public view {
-        uint256 len = handler.ghost_poolsLength();
-        for (uint256 i = 0; i < len; i++) {
-            address pool = handler.ghost_poolAt(i);
-            if (handler.ghost_isRegistered(pool)) {
-                assertEq(registry.isPoolActive(pool), handler.ghost_isActive(pool));
-            }
-        }
-    }
-
-    /// @notice Unregistered pools must never report as active
-    function invariant_unregisteredPoolsNeverActive() public view {
-        uint256 len = handler.ghost_poolsLength();
-        for (uint256 i = 0; i < len; i++) {
-            address pool = handler.ghost_poolAt(i);
-            if (!handler.ghost_isRegistered(pool)) {
-                assertFalse(registry.isPoolActive(pool));
-            }
-        }
-    }
-
-    // ═════════════════════════════════════════════════════════════════
     //                     POOL INFO INVARIANTS
     // ═════════════════════════════════════════════════════════════════
 
@@ -76,7 +50,7 @@ contract PoolRegistryInvariantTest is PoolRegistryTestBase {
         for (uint256 i = 0; i < len; i++) {
             address pool = handler.ghost_poolAt(i);
             if (handler.ghost_isRegistered(pool)) {
-                (,address t0, address t1,) = registry.getPoolSwapInfo(pool);
+                (address t0, address t1,) = registry.getPoolSwapInfo(pool);
                 assertTrue(t0 < t1);
             }
         }

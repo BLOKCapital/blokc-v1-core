@@ -47,44 +47,78 @@ contract MockProtocolStatus {
 // ═══════════════════════════════════════════════════════════════════════
 
 contract ModuleFacetA {
-    function modFuncA1() external pure returns (uint256) { return 1; }
-    function modFuncA2() external pure returns (uint256) { return 2; }
+    function modFuncA1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function modFuncA2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract ModuleFacetB {
-    function modFuncB1() external pure returns (uint256) { return 1; }
-    function modFuncB2() external pure returns (uint256) { return 2; }
+    function modFuncB1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function modFuncB2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract ModuleFacetC {
-    function modFuncC1() external pure returns (uint256) { return 1; }
-    function modFuncC2() external pure returns (uint256) { return 2; }
+    function modFuncC1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function modFuncC2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract ModuleFacetD {
-    function modFuncD1() external pure returns (uint256) { return 1; }
-    function modFuncD2() external pure returns (uint256) { return 2; }
+    function modFuncD1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function modFuncD2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 /// @dev Replacement facet for A — same selectors, different address
 contract ModuleFacetA2 {
-    function modFuncA1() external pure returns (uint256) { return 10; }
-    function modFuncA2() external pure returns (uint256) { return 20; }
+    function modFuncA1() external pure returns (uint256) {
+        return 10;
+    }
+
+    function modFuncA2() external pure returns (uint256) {
+        return 20;
+    }
 }
 
 /// @dev Replacement facet for B — same selectors, different address
 contract ModuleFacetB2 {
-    function modFuncB1() external pure returns (uint256) { return 10; }
-    function modFuncB2() external pure returns (uint256) { return 20; }
+    function modFuncB1() external pure returns (uint256) {
+        return 10;
+    }
+
+    function modFuncB2() external pure returns (uint256) {
+        return 20;
+    }
 }
 
 /// @dev Extra facets for fuzz / complex tests
 contract ModuleFacetE {
-    function modFuncE1() external pure returns (uint256) { return 1; }
+    function modFuncE1() external pure returns (uint256) {
+        return 1;
+    }
 }
 
 contract ModuleFacetF {
-    function modFuncF1() external pure returns (uint256) { return 1; }
+    function modFuncF1() external pure returns (uint256) {
+        return 1;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -199,12 +233,8 @@ abstract contract UpgradeTestBase is Test {
         selsModF[0] = ModuleFacetF.modFuncF1.selector;
 
         // Deploy FacetRegistry with real base facets
-        address[4] memory baseFacets = [
-            address(diamondCutFacet),
-            address(diamondLoupeFacet),
-            address(ownershipFacet),
-            address(upgradeFacet)
-        ];
+        address[4] memory baseFacets =
+            [address(diamondCutFacet), address(diamondLoupeFacet), address(ownershipFacet), address(upgradeFacet)];
         bytes4[][] memory baseFacetSelectors = new bytes4[][](4);
         baseFacetSelectors[0] = selsCut;
         baseFacetSelectors[1] = selsLoupe;
@@ -228,9 +258,7 @@ abstract contract UpgradeTestBase is Test {
     function _addFacetToModule(bytes32 moduleId, address facet, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: facet,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: sels
+            facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }
@@ -238,9 +266,7 @@ abstract contract UpgradeTestBase is Test {
     function _replaceFacetInModule(bytes32 moduleId, address newFacet, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: newFacet,
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: sels
+            facetAddress: newFacet, action: IDiamondCut.FacetCutAction.Replace, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }
@@ -248,9 +274,7 @@ abstract contract UpgradeTestBase is Test {
     function _removeFacetFromModule(bytes32 moduleId, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: sels
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }

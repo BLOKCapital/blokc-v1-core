@@ -15,7 +15,8 @@ abstract contract ProtocolStatusTestBase is BaseTest {
     MockENSResolver public ensResolver;
     MockENSRegistry public ensRegistry;
 
-    // ── SCM identities ──────────────────────────────────────────────
+    // ── SCM identities
+    // ──────────────────────────────────────────────
     bytes32 public constant SCM1_NAMEHASH = keccak256("scm1.eth");
     bytes32 public constant SCM2_NAMEHASH = keccak256("scm2.eth");
     bytes32 public constant SCM3_NAMEHASH = keccak256("scm3.eth");

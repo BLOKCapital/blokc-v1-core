@@ -2,8 +2,13 @@
 pragma solidity ^0.8.31;
 
 import { UpgradeTestBase } from "../UpgradeTestBase.sol";
-import { UpgradeHandler, HandlerFacet0, HandlerFacet1, HandlerFacet0Replace, HandlerFacet1Replace }
-    from "./UpgradeHandler.sol";
+import {
+    UpgradeHandler,
+    HandlerFacet0,
+    HandlerFacet1,
+    HandlerFacet0Replace,
+    HandlerFacet1Replace
+} from "./UpgradeHandler.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 import { IDiamondLoupe } from "src/garden/facets/baseFacets/loupe/IDiamondLoupe.sol";
 import { IUpgrade } from "src/garden/facets/baseFacets/upgrade/IUpgrade.sol";
@@ -77,8 +82,13 @@ contract UpgradeInvariantTest is UpgradeTestBase {
         IDiamondLoupe loupe = IDiamondLoupe(garden);
 
         for (uint256 facetIndex = 0; facetIndex < moduleFacets.length; facetIndex++) {
-            for (uint256 selectorIndex = 0; selectorIndex < moduleFacets[facetIndex].functionSelectors.length; selectorIndex++) {
-                address diamondFacetAddress = loupe.facetAddress(moduleFacets[facetIndex].functionSelectors[selectorIndex]);
+            for (
+                uint256 selectorIndex = 0;
+                selectorIndex < moduleFacets[facetIndex].functionSelectors.length;
+                selectorIndex++
+            ) {
+                address diamondFacetAddress =
+                    loupe.facetAddress(moduleFacets[facetIndex].functionSelectors[selectorIndex]);
                 // The selector should either be in the diamond correctly, or the garden
                 // hasn't upgraded yet to the latest version
                 IUpgrade iUpgrade = IUpgrade(garden);
