@@ -225,9 +225,7 @@ contract GardenFactoryCreateGardenTest is GardenFactoryTestBase {
         bytes32 unregistered = keccak256("UNREGISTERED");
         vm.prank(alice);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("GardenFactory_GardenTypeNotRegistered(bytes32)")), unregistered
-            )
+            abi.encodeWithSelector(bytes4(keccak256("GardenFactory_GardenTypeNotRegistered(bytes32)")), unregistered)
         );
         factory.createGarden(1, unregistered);
     }
@@ -235,9 +233,7 @@ contract GardenFactoryCreateGardenTest is GardenFactoryTestBase {
     function test_createGarden_revertsWhenGardenTypeIsZero() public {
         vm.prank(alice);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("GardenFactory_GardenTypeNotRegistered(bytes32)")), bytes32(0)
-            )
+            abi.encodeWithSelector(bytes4(keccak256("GardenFactory_GardenTypeNotRegistered(bytes32)")), bytes32(0))
         );
         factory.createGarden(1, bytes32(0));
     }

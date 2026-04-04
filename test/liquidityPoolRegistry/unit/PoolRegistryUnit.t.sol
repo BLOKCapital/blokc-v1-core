@@ -42,7 +42,6 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         assertEq(info.poolAddress, pool1);
         assertEq(info.dexId, DEX_UNISWAP_V3);
         assertEq(info.swapFee, FEE_MEDIUM);
-        assertTrue(info.active);
         // Tokens should be sorted: tokenA < tokenB
         assertEq(info.token0, tokenA);
         assertEq(info.token1, tokenB);
@@ -53,11 +52,6 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         _addPool(pool1, tokenB, tokenA, DEX_UNISWAP_V3, "B/A", FEE_MEDIUM);
         ILiquidityPoolRegistry.PoolInfo memory info = registry.getPool(pool1);
         assertTrue(info.token0 < info.token1);
-    }
-
-    function test_addPool_startsActive() public {
-        _addDefaultPool();
-        assertTrue(registry.isPoolActive(pool1));
     }
 
     function test_addPool_emitsPoolAdded() public {
@@ -121,9 +115,16 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         registry.addPool(_params(pool1, tokenA, tokenA, DEX_UNISWAP_V3, "A/A", FEE_MEDIUM));
     }
 
-    function test_addPool_revertsOnEmptyDexId() public {
+    function test_addPool_revertsOnUnregisteredDex() public {
+        bytes32 unregisteredDex = keccak256("SUSHISWAP");
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_EmptyDexId()"));
+        vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_DexDoesNotExist(bytes32)", unregisteredDex));
+        registry.addPool(_params(pool1, tokenA, tokenB, unregisteredDex, "A/B", FEE_MEDIUM));
+    }
+
+    function test_addPool_revertsOnZeroDexId() public {
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_DexDoesNotExist(bytes32)", bytes32(0)));
         registry.addPool(_params(pool1, tokenA, tokenB, bytes32(0), "A/B", FEE_MEDIUM));
     }
 
@@ -136,7 +137,9 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     function test_addPool_revertsOnPairNameTooLong() public {
         // 129 bytes — exceeds MAX_PAIR_NAME_LENGTH (128)
         bytes memory longName = new bytes(129);
-        for (uint256 i = 0; i < 129; i++) longName[i] = "X";
+        for (uint256 i = 0; i < 129; i++) {
+            longName[i] = "X";
+        }
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_PairNameTooLong()"));
         registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, string(longName), FEE_MEDIUM));
@@ -152,9 +155,7 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         _addDefaultPool();
         vm.prank(owner);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("LiquidityPoolRegistry_PoolAlreadyExists(address)")), pool1
-            )
+            abi.encodeWithSelector(bytes4(keccak256("LiquidityPoolRegistry_PoolAlreadyExists(address)")), pool1)
         );
         registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "dup", FEE_MEDIUM));
     }
@@ -230,9 +231,7 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     function test_removePool_revertsOnNonExistentPool() public {
         vm.prank(owner);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("LiquidityPoolRegistry_PoolDoesNotExist(address)")), pool1
-            )
+            abi.encodeWithSelector(bytes4(keccak256("LiquidityPoolRegistry_PoolDoesNotExist(address)")), pool1)
         );
         registry.removePool(pool1);
     }
@@ -245,86 +244,21 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     }
 
     // ═════════════════════════════════════════════════════════════════
-    //                     setPoolActive
-    // ═════════════════════════════════════════════════════════════════
-
-    function test_setPoolActive_deactivatesPool() public {
-        _addDefaultPool();
-        _setPoolActive(pool1, false);
-        assertFalse(registry.isPoolActive(pool1));
-    }
-
-    function test_setPoolActive_reactivatesPool() public {
-        _addDefaultPool();
-        _setPoolActive(pool1, false);
-        _setPoolActive(pool1, true);
-        assertTrue(registry.isPoolActive(pool1));
-    }
-
-    function test_setPoolActive_emitsPoolStatusChanged() public {
-        _addDefaultPool();
-        vm.prank(owner);
-        vm.expectEmit(true, false, false, true);
-        emit ILiquidityPoolRegistry.PoolStatusChanged(pool1, false);
-        registry.setPoolActive(pool1, false);
-    }
-
-    function test_setPoolActive_revertsOnNonExistentPool() public {
-        vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("LiquidityPoolRegistry_PoolDoesNotExist(address)")), pool1
-            )
-        );
-        registry.setPoolActive(pool1, false);
-    }
-
-    function test_setPoolActive_revertsWhenNotOwner() public {
-        _addDefaultPool();
-        vm.prank(nonOwner);
-        vm.expectRevert();
-        registry.setPoolActive(pool1, false);
-    }
-
-    // ═════════════════════════════════════════════════════════════════
     //                     SINGLE POOL QUERIES
     // ═════════════════════════════════════════════════════════════════
 
     function test_getPool_revertsOnUnregistered() public {
         vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("LiquidityPoolRegistry_PoolDoesNotExist(address)")), pool1
-            )
+            abi.encodeWithSelector(bytes4(keccak256("LiquidityPoolRegistry_PoolDoesNotExist(address)")), pool1)
         );
         registry.getPool(pool1);
     }
 
     function test_getPoolSwapInfo_returnsInvalidForUnregistered() public view {
-        (bool valid, address t0, address t1, uint24 fee) = registry.getPoolSwapInfo(pool1);
-        assertFalse(valid);
+        (address t0, address t1, uint24 fee) = registry.getPoolSwapInfo(pool1);
         assertEq(t0, address(0));
         assertEq(t1, address(0));
         assertEq(fee, 0);
-    }
-
-    function test_getPoolSwapInfo_returnsActiveInfoForRegistered() public {
-        _addDefaultPool();
-        (bool valid, address t0, address t1, uint24 fee) = registry.getPoolSwapInfo(pool1);
-        assertTrue(valid); // active == true
-        assertEq(t0, tokenA);
-        assertEq(t1, tokenB);
-        assertEq(fee, FEE_MEDIUM);
-    }
-
-    function test_getPoolSwapInfo_validIsFalseWhenInactive() public {
-        _addDefaultPool();
-        _setPoolActive(pool1, false);
-        (bool valid,,,) = registry.getPoolSwapInfo(pool1);
-        assertFalse(valid);
-    }
-
-    function test_isPoolActive_falseForUnregistered() public view {
-        assertFalse(registry.isPoolActive(address(0xDEAD)));
     }
 
     // ═════════════════════════════════════════════════════════════════
@@ -351,22 +285,6 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         assertEq(registry.getPoolsForPair(tokenA, tokenC).length, 0);
     }
 
-    function test_getActivePoolsForPair_excludesInactive() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3", FEE_MEDIUM);
-        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "V2", FEE_MEDIUM);
-        _setPoolActive(pool1, false);
-
-        address[] memory active = registry.getActivePoolsForPair(tokenA, tokenB);
-        assertEq(active.length, 1);
-        assertEq(active[0], pool2);
-    }
-
-    function test_getActivePoolsForPair_emptyWhenAllInactive() public {
-        _addDefaultPool();
-        _setPoolActive(pool1, false);
-        assertEq(registry.getActivePoolsForPair(tokenA, tokenB).length, 0);
-    }
-
     // ═════════════════════════════════════════════════════════════════
     //                     DEX QUERIES
     // ═════════════════════════════════════════════════════════════════
@@ -380,8 +298,11 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         assertEq(registry.getPoolsByDex(DEX_UNISWAP_V2).length, 1);
     }
 
-    function test_getPoolsByDex_emptyForUnknownDex() public view {
-        assertEq(registry.getPoolsByDex(keccak256("NONEXISTENT")).length, 0);
+    function test_getPoolsByDex_revertsForUnknownDex() public {
+        vm.expectRevert(
+            abi.encodeWithSignature("LiquidityPoolRegistry_DexDoesNotExist(bytes32)", keccak256("NONEXISTENT"))
+        );
+        registry.getPoolsByDex(keccak256("NONEXISTENT"));
     }
 
     function test_getPoolsForPairOnDex_filtersCorrectly() public {

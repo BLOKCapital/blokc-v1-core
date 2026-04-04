@@ -76,10 +76,7 @@ contract ProtocolStatusInvariantTest is ProtocolStatusTestBase {
         IProtocolStatus.EnsMember[] memory members = ps.getSecurityCouncilMembers();
         for (uint256 i = 0; i < members.length; i++) {
             if (block.timestamp >= members[i].expiryTimestamp) {
-                assertEq(
-                    uint256(members[i].status),
-                    uint256(IProtocolStatus.ScmStatus.EXPIRED)
-                );
+                assertEq(uint256(members[i].status), uint256(IProtocolStatus.ScmStatus.EXPIRED));
             }
         }
     }

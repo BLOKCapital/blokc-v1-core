@@ -21,6 +21,24 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 // Errors
 // ============================================================================
 
+/// @notice Thrown when DEX ID is zero
+error LiquidityPoolRegistry_EmptyDexId();
+
+/// @notice Thrown when attempting to register a DEX that already exists
+/// @param dexId The DEX identifier that already exists
+error LiquidityPoolRegistry_DexAlreadyExists(bytes32 dexId);
+
+/// @notice Thrown when referencing a DEX that has not been registered
+/// @param dexId The DEX identifier that does not exist
+error LiquidityPoolRegistry_DexDoesNotExist(bytes32 dexId);
+
+/// @notice Thrown when quote param count is not 4 or 5
+/// @param paramCount The invalid param count
+error LiquidityPoolRegistry_InvalidQuoteParamCount(uint8 paramCount);
+
+/// @notice Thrown when a required selector is zero
+error LiquidityPoolRegistry_EmptySelector();
+
 /// @notice Thrown when pool address is zero
 error LiquidityPoolRegistry_ZeroAddress();
 
@@ -35,9 +53,6 @@ error LiquidityPoolRegistry_PoolDoesNotExist(address poolAddress);
 /// @notice Thrown when pair name is empty
 error LiquidityPoolRegistry_EmptyPairName();
 
-/// @notice Thrown when DEX ID is empty
-error LiquidityPoolRegistry_EmptyDexId();
-
 /// @notice Thrown when tokens are the same
 error LiquidityPoolRegistry_IdenticalTokens();
 
@@ -50,14 +65,16 @@ error LiquidityPoolRegistry_NotContract();
 /// @notice Thrown when pair name exceeds maximum length
 error LiquidityPoolRegistry_PairNameTooLong();
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error LiquidityPoolRegistry_CannotRenounceOwnership();
+
 /**
  * @title LiquidityPoolRegistry
- * @notice Registry contract for managing liquidity pools across multiple DEXes. This contract allows the owner to add,
- * remove, and update liquidity pool information, including token pairs, DEX identifiers, AMM types, swap fees, and
- * active status. It provides various query functions to retrieve pools by address, token pair, DEX, AMM type, and
- * swap fee. The registry ensures that each pool is uniquely identified by its token pair, DEX, and swap fee combination
- * and includes comprehensive error handling for edge cases related to pool management. The contract uses OpenZeppelin's
- * Ownable for access control and EnumerableSet for efficient management of registered pool addresses and pair IDs.
+ * @notice Registry contract for managing DEXes and their liquidity pools. DEXes are registered
+ *         explicitly (mirroring the FacetRegistry module pattern) and carry swap/quote selector
+ *         metadata. Pools are scoped to registered DEXes — a pool cannot be added unless its DEX
+ *         has been registered first. This gives the CRE orchestration layer a single on-chain
+ *         source of truth for protocol discovery and selector resolution.
  */
 contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -71,7 +88,29 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     uint256 internal constant MAX_PAIR_NAME_LENGTH = 128;
 
     // ========================================================================
-    // State Variables
+    // DEX Storage (mirrors FacetRegistry module pattern)
+    // ========================================================================
+
+    /// @notice Set of all registered DEX IDs
+    EnumerableSet.Bytes32Set private _dexIds;
+
+    /// @notice Whether a DEX has been registered
+    mapping(bytes32 dexId => bool) private _dexExists;
+
+    /// @notice DEX swap wrapper selector (for rebalance execution)
+    mapping(bytes32 dexId => bytes4) private _dexSwapSelector;
+
+    /// @notice DEX quote function selector (for optimal path — moved from FacetRegistry)
+    mapping(bytes32 dexId => bytes4) private _dexQuoteSelector;
+
+    /// @notice DEX quote function param count (4 or 5)
+    mapping(bytes32 dexId => uint8) private _dexQuoteParamCount;
+
+    /// @notice Whether a DEX is active
+    mapping(bytes32 dexId => bool) private _dexActive;
+
+    // ========================================================================
+    // Pool Storage
     // ========================================================================
 
     /// @notice Set of all registered pool addresses
@@ -87,7 +126,7 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     /// @dev pairId = keccak256(abi.encode(token0, token1)) where token0 < token1
     mapping(bytes32 pairId => EnumerableSet.AddressSet pools) private _pairPools;
 
-    /// @notice Mapping from DEX ID to set of pool addresses
+    /// @notice Mapping from DEX ID to set of pool addresses (pools scoped to their DEX)
     mapping(bytes32 dexId => EnumerableSet.AddressSet pools) private _dexPools;
 
     /// @notice Mapping from (pairId, dexId, swapFee) to pool address for quick lookup
@@ -103,6 +142,140 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     constructor(address initialOwner) Ownable(initialOwner) { }
 
     // ========================================================================
+    // Renounce Ownership
+    // ========================================================================
+
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert LiquidityPoolRegistry_CannotRenounceOwnership();
+    }
+
+    // ========================================================================
+    // DEX Management
+    // ========================================================================
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function registerDex(
+        bytes32 dexId,
+        bytes4 swapSelector,
+        bytes4 quoteSelector,
+        uint8 quoteParamCount
+    )
+        external
+        onlyOwner
+    {
+        if (dexId == bytes32(0)) revert LiquidityPoolRegistry_EmptyDexId();
+        if (_dexExists[dexId]) revert LiquidityPoolRegistry_DexAlreadyExists(dexId);
+        if (swapSelector == bytes4(0) || quoteSelector == bytes4(0)) revert LiquidityPoolRegistry_EmptySelector();
+        if (quoteParamCount != 4 && quoteParamCount != 5) {
+            revert LiquidityPoolRegistry_InvalidQuoteParamCount(quoteParamCount);
+        }
+
+        _dexExists[dexId] = true;
+        _dexActive[dexId] = true;
+        _dexIds.add(dexId);
+        _dexSwapSelector[dexId] = swapSelector;
+        _dexQuoteSelector[dexId] = quoteSelector;
+        _dexQuoteParamCount[dexId] = quoteParamCount;
+
+        emit DexRegistered(dexId, swapSelector, quoteSelector, quoteParamCount);
+    }
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function updateDexSelectors(
+        bytes32 dexId,
+        bytes4 swapSelector,
+        bytes4 quoteSelector,
+        uint8 quoteParamCount
+    )
+        external
+        onlyOwner
+    {
+        if (!_dexExists[dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(dexId);
+        if (swapSelector == bytes4(0) || quoteSelector == bytes4(0)) revert LiquidityPoolRegistry_EmptySelector();
+        if (quoteParamCount != 4 && quoteParamCount != 5) {
+            revert LiquidityPoolRegistry_InvalidQuoteParamCount(quoteParamCount);
+        }
+
+        _dexSwapSelector[dexId] = swapSelector;
+        _dexQuoteSelector[dexId] = quoteSelector;
+        _dexQuoteParamCount[dexId] = quoteParamCount;
+
+        emit DexSelectorsUpdated(dexId, swapSelector, quoteSelector, quoteParamCount);
+    }
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function setDexActive(bytes32 dexId, bool active) external onlyOwner {
+        if (!_dexExists[dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(dexId);
+        _dexActive[dexId] = active;
+        emit DexStatusChanged(dexId, active);
+    }
+
+    // ========================================================================
+    // DEX Queries
+    // ========================================================================
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function getDex(bytes32 dexId) external view returns (DexInfo memory info) {
+        if (!_dexExists[dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(dexId);
+        info = DexInfo({
+            dexId: dexId,
+            swapSelector: _dexSwapSelector[dexId],
+            quoteSelector: _dexQuoteSelector[dexId],
+            quoteParamCount: _dexQuoteParamCount[dexId],
+            active: _dexActive[dexId]
+        });
+    }
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function isDexRegistered(bytes32 dexId) external view returns (bool) {
+        return _dexExists[dexId];
+    }
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function isDexActive(bytes32 dexId) external view returns (bool) {
+        return _dexActive[dexId];
+    }
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function getSwapSelectorForDex(bytes32 dexId) external view returns (bytes4) {
+        if (!_dexExists[dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(dexId);
+        return _dexSwapSelector[dexId];
+    }
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function getQuoteSelectorForDex(bytes32 dexId) external view returns (bytes4 quoteSelector, uint8 paramCount) {
+        if (!_dexExists[dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(dexId);
+        return (_dexQuoteSelector[dexId], _dexQuoteParamCount[dexId]);
+    }
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function getRegisteredDexIds() external view returns (bytes32[] memory) {
+        return _dexIds.values();
+    }
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function getActiveDexIds() external view returns (bytes32[] memory) {
+        bytes32[] memory all = _dexIds.values();
+        uint256 count;
+        for (uint256 i; i < all.length; i++) {
+            if (_dexActive[all[i]]) count++;
+        }
+        bytes32[] memory active = new bytes32[](count);
+        uint256 idx;
+        for (uint256 i; i < all.length; i++) {
+            if (_dexActive[all[i]]) active[idx++] = all[i];
+        }
+        return active;
+    }
+
+    /// @inheritdoc ILiquidityPoolRegistry
+    function getDexPoolCount(bytes32 dexId) external view returns (uint256) {
+        if (!_dexExists[dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(dexId);
+        return _dexPools[dexId].length();
+    }
+
+    // ========================================================================
     // Pool Management
     // ========================================================================
 
@@ -114,15 +287,6 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     /// @inheritdoc ILiquidityPoolRegistry
     function removePool(address poolAddress) external onlyOwner {
         _removePool(poolAddress);
-    }
-
-    /// @inheritdoc ILiquidityPoolRegistry
-    function setPoolActive(address poolAddress, bool active) external onlyOwner {
-        if (!_allPools.contains(poolAddress)) {
-            revert LiquidityPoolRegistry_PoolDoesNotExist(poolAddress);
-        }
-        _poolInfo[poolAddress].active = active;
-        emit PoolStatusChanged(poolAddress, active);
     }
 
     // ========================================================================
@@ -139,24 +303,18 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     function getPoolSwapInfo(address poolAddress)
         external
         view
-        returns (bool valid, address token0, address token1, uint24 swapFee)
+        returns (address token0, address token1, uint24 swapFee)
     {
         if (!_allPools.contains(poolAddress)) {
-            return (false, address(0), address(0), 0);
+            return (address(0), address(0), 0);
         }
         PoolInfo storage info = _poolInfo[poolAddress];
-        return (info.active, info.token0, info.token1, info.swapFee);
+        return (info.token0, info.token1, info.swapFee);
     }
 
     /// @inheritdoc ILiquidityPoolRegistry
     function isPoolRegistered(address poolAddress) external view returns (bool) {
         return _allPools.contains(poolAddress);
-    }
-
-    /// @inheritdoc ILiquidityPoolRegistry
-    /// @dev Returns false for unregistered pool addresses (default storage).
-    function isPoolActive(address poolAddress) external view returns (bool) {
-        return _poolInfo[poolAddress].active;
     }
 
     // ========================================================================
@@ -167,11 +325,6 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
     function getPoolsForPair(address tokenA, address tokenB) external view returns (address[] memory pools) {
         bytes32 pairId = _computePairId(tokenA, tokenB);
         return _pairPools[pairId].values();
-    }
-
-    /// @inheritdoc ILiquidityPoolRegistry
-    function getActivePoolsForPair(address tokenA, address tokenB) external view returns (address[] memory pools) {
-        return _getActivePoolsForPair(tokenA, tokenB);
     }
 
     // ========================================================================
@@ -193,6 +346,7 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
 
     /// @inheritdoc ILiquidityPoolRegistry
     function getPoolsByDex(bytes32 dexId) external view returns (address[] memory pools) {
+        if (!_dexExists[dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(dexId);
         return _dexPools[dexId].values();
     }
 
@@ -225,7 +379,7 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         if (params.poolAddress == address(0)) revert LiquidityPoolRegistry_ZeroAddress();
         if (params.tokenA == address(0) || params.tokenB == address(0)) revert LiquidityPoolRegistry_ZeroAddress();
         if (params.tokenA == params.tokenB) revert LiquidityPoolRegistry_IdenticalTokens();
-        if (params.dexId == bytes32(0)) revert LiquidityPoolRegistry_EmptyDexId();
+        if (!_dexExists[params.dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(params.dexId);
         if (bytes(params.pairName).length == 0) revert LiquidityPoolRegistry_EmptyPairName();
         if (bytes(params.pairName).length > MAX_PAIR_NAME_LENGTH) revert LiquidityPoolRegistry_PairNameTooLong();
         if (params.poolAddress.code.length == 0) revert LiquidityPoolRegistry_NotContract();
@@ -248,8 +402,7 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
             pairName: params.pairName,
             token0: token0,
             token1: token1,
-            swapFee: params.swapFee,
-            active: true
+            swapFee: params.swapFee
         });
 
         // Add to all sets
@@ -290,27 +443,6 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         delete _poolInfo[poolAddress];
 
         emit PoolRemoved(poolAddress, info.pairId);
-    }
-
-    /// @dev Helper function to get all active pools for a token pair.
-    function _getActivePoolsForPair(address tokenA, address tokenB) internal view returns (address[] memory pools) {
-        bytes32 pairId = _computePairId(tokenA, tokenB);
-        address[] memory allPools = _pairPools[pairId].values();
-
-        uint256 activeCount = 0;
-        for (uint256 i = 0; i < allPools.length; i++) {
-            if (_poolInfo[allPools[i]].active) {
-                activeCount++;
-            }
-        }
-
-        pools = new address[](activeCount);
-        uint256 index = 0;
-        for (uint256 i = 0; i < allPools.length; i++) {
-            if (_poolInfo[allPools[i]].active) {
-                pools[index++] = allPools[i];
-            }
-        }
     }
 
     /// @dev Helper function to get all pools for a token pair on a specific DEX.

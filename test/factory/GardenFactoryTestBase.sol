@@ -45,7 +45,10 @@ abstract contract GardenFactoryTestBase is DiamondTestBase {
     }
 
     /// @notice Create multiple gardens for a single user (indices 1..count)
-    function _createGardensForUser(address user, uint256 count, bytes32 gardenType) internal returns (address[] memory) {
+    function _createGardensForUser(address user, uint256 count, bytes32 gardenType)
+        internal
+        returns (address[] memory)
+    {
         address[] memory gardens = new address[](count);
         for (uint256 i = 0; i < count; i++) {
             gardens[i] = _createGarden(user, i + 1, gardenType);

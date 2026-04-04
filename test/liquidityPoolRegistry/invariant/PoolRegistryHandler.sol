@@ -9,7 +9,10 @@ import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.so
 /// @notice Minimal contract so poolAddress.code.length > 0
 contract MockPoolForHandler {
     uint256 private _id;
-    constructor(uint256 id_) { _id = id_; }
+
+    constructor(uint256 id_) {
+        _id = id_;
+    }
 }
 
 /// @title PoolRegistryHandler
@@ -19,24 +22,29 @@ contract PoolRegistryHandler is Test {
     LiquidityPoolRegistry public registry;
     address public registryOwner;
 
-    // ── Bounded token pool ──────────────────────────────────────────
+    // ── Bounded token pool
+    // ──────────────────────────────────────────
     address[] public tokens;
     uint256 public constant NUM_TOKENS = 4;
 
-    // ── DEX IDs ─────────────────────────────────────────────────────
+    // ── DEX IDs
+    // ─────────────────────────────────────────────────────
     bytes32[] public dexIds;
 
-    // ── Deployed pools for use ──────────────────────────────────────
+    // ── Deployed pools for use
+    // ──────────────────────────────────────
     address[] public ghost_pools;
     mapping(address => bool) public ghost_isRegistered;
     mapping(address => bool) public ghost_isActive;
 
-    // ── Counters ────────────────────────────────────────────────────
+    // ── Counters
+    // ────────────────────────────────────────────────────
     uint256 public ghost_totalRegistered;
     uint256 public ghost_totalActive;
     uint256 private _poolNonce;
 
-    // ── Per-dex tracking ────────────────────────────────────────────
+    // ── Per-dex tracking
+    // ────────────────────────────────────────────
     mapping(bytes32 => uint256) public ghost_dexCount;
 
     constructor(LiquidityPoolRegistry registry_, address registryOwner_) {
@@ -80,12 +88,7 @@ contract PoolRegistryHandler is Test {
         vm.prank(registryOwner);
         try registry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
-                poolAddress: poolAddr,
-                tokenA: tA,
-                tokenB: tB,
-                dexId: dexId,
-                pairName: "PAIR",
-                swapFee: fee
+                poolAddress: poolAddr, tokenA: tA, tokenB: tB, dexId: dexId, pairName: "PAIR", swapFee: fee
             })
         ) {
             ghost_pools.push(poolAddr);
@@ -118,26 +121,6 @@ contract PoolRegistryHandler is Test {
         }
         ghost_isActive[poolAddr] = false;
         ghost_dexCount[info.dexId]--;
-    }
-
-    function setPoolActive(uint256 poolSeed, bool active) external {
-        if (ghost_pools.length == 0) return;
-        uint256 idx = poolSeed % ghost_pools.length;
-        address poolAddr = ghost_pools[idx];
-        if (!ghost_isRegistered[poolAddr]) return;
-
-        bool wasPreviouslyActive = ghost_isActive[poolAddr];
-
-        vm.prank(registryOwner);
-        registry.setPoolActive(poolAddr, active);
-
-        ghost_isActive[poolAddr] = active;
-
-        if (wasPreviouslyActive && !active) {
-            ghost_totalActive--;
-        } else if (!wasPreviouslyActive && active) {
-            ghost_totalActive++;
-        }
     }
 
     // ═══════════════════════════════════════════════════════════════════
