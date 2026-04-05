@@ -11,11 +11,13 @@ import { GardenFactory } from "src/factory/GardenFactory.sol";
 contract GardenFactoryHandler is Test {
     GardenFactory public factory;
 
-    // ── Bounded actor pool ──────────────────────────────────────────
+    // ── Bounded actor pool
+    // ──────────────────────────────────────────
     address[] public actors;
     uint256 public constant NUM_ACTORS = 5;
 
-    // ── Allowed garden types ────────────────────────────────────────
+    // ── Allowed garden types
+    // ────────────────────────────────────────
     bytes32[] public gardenTypes;
 
     // ── Ghost state — mirrors what the contract should have ─────────

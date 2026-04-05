@@ -28,9 +28,7 @@ contract DiamondCutFacetTest is DiamondTestBase {
     function test_diamondCut_revertsEvenWithValidCuts() public {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(stubA),
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: selsStubA
+            facetAddress: address(stubA), action: IDiamondCut.FacetCutAction.Add, functionSelectors: selsStubA
         });
 
         vm.prank(gardenOwner);

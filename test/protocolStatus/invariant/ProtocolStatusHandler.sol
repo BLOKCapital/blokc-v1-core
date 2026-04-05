@@ -14,13 +14,15 @@ contract ProtocolStatusHandler is Test {
     MockENSResolver public resolver;
     address public protocolOwner;
 
-    // ── SCM pool ────────────────────────────────────────────────────
+    // ── SCM pool
+    // ────────────────────────────────────────────────────
     uint256 public constant MAX_SCMS = 5;
     bytes32[] public scmNamehashes;
     string[] public scmNames;
     address[] public scmAddrs;
 
-    // ── Ghost state ─────────────────────────────────────────────────
+    // ── Ghost state
+    // ─────────────────────────────────────────────────
     uint256 public ghost_scmCount;
     mapping(bytes32 => bool) public ghost_isRegistered;
     uint256 public ghost_activateCalls;
@@ -56,7 +58,7 @@ contract ProtocolStatusHandler is Test {
         try ps.addSecurityCouncilMemberByEns(nh, scmNames[idx], expiry) {
             ghost_isRegistered[nh] = true;
             ghost_scmCount++;
-        } catch {}
+        } catch { }
     }
 
     function removeSCM(uint256 scmSeed) external {
@@ -68,26 +70,26 @@ contract ProtocolStatusHandler is Test {
         try ps.removeSecurityCouncilMemberByEns(nh) {
             ghost_isRegistered[nh] = false;
             ghost_scmCount--;
-        } catch {}
+        } catch { }
     }
 
     function activateProtocol() external {
         vm.prank(protocolOwner);
         try ps.activateProtocol() {
             ghost_activateCalls++;
-        } catch {}
+        } catch { }
     }
 
     function deactivateProtocol() external {
         vm.prank(protocolOwner);
         try ps.deactivateProtocol() {
             ghost_deactivateCalls++;
-        } catch {}
+        } catch { }
     }
 
     function disableUpgrades() external {
         vm.prank(protocolOwner);
-        try ps.disableUpgrades() {} catch {}
+        try ps.disableUpgrades() { } catch { }
     }
 
     function syncResolution(uint256 scmSeed) external {
@@ -95,7 +97,7 @@ contract ProtocolStatusHandler is Test {
         bytes32 nh = scmNamehashes[idx];
         if (!ghost_isRegistered[nh]) return;
 
-        try ps.syncResolution(nh) {} catch {}
+        try ps.syncResolution(nh) { } catch { }
     }
 
     function changeENSAddress(uint256 scmSeed, uint256 newAddrSeed) external {

@@ -64,7 +64,10 @@ contract DiamondLoupeFacetTest is DiamondTestBase {
 
     function test_facetAddresses_containsAllBaseFacets() public view {
         address[] memory addrs = loupe.facetAddresses();
-        bool hasCut; bool hasLoupe; bool hasOwnership; bool hasUpgrade;
+        bool hasCut;
+        bool hasLoupe;
+        bool hasOwnership;
+        bool hasUpgrade;
         for (uint256 i = 0; i < addrs.length; i++) {
             if (addrs[i] == address(diamondCutFacet)) hasCut = true;
             if (addrs[i] == address(diamondLoupeFacet)) hasLoupe = true;

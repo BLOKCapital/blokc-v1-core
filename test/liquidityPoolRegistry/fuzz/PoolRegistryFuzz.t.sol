@@ -10,13 +10,14 @@ contract PoolRegistryFuzzTest is PoolRegistryTestBase {
     // ═════════════════════════════════════════════════════════════════
 
     /// @notice Any valid pool addition registers and is queryable
-    function testFuzz_addPool_registersSuccessfully(uint24 swapFee, bytes32 dexId) public {
-        vm.assume(dexId != bytes32(0));
+    function testFuzz_addPool_registersSuccessfully(uint24 swapFee, uint256 dexSeed) public {
+        // Pick from pre-registered DEXes
+        bytes32[3] memory dexes = [DEX_UNISWAP_V3, DEX_UNISWAP_V2, DEX_CAMELOT_V3];
+        bytes32 dexId = dexes[dexSeed % dexes.length];
 
         _addPool(pool1, tokenA, tokenB, dexId, "A/B", swapFee);
 
         assertTrue(registry.isPoolRegistered(pool1));
-        assertTrue(registry.isPoolActive(pool1));
         assertEq(registry.getPoolCount(), 1);
 
         ILiquidityPoolRegistry.PoolInfo memory info = registry.getPool(pool1);
@@ -67,7 +68,9 @@ contract PoolRegistryFuzzTest is PoolRegistryTestBase {
     function testFuzz_addPool_pairNameLengthBoundary(uint256 len) public {
         len = bound(len, 1, 200);
         bytes memory name = new bytes(len);
-        for (uint256 i = 0; i < len; i++) name[i] = "A";
+        for (uint256 i = 0; i < len; i++) {
+            name[i] = "A";
+        }
 
         vm.prank(owner);
         if (len > 128) {
@@ -101,32 +104,6 @@ contract PoolRegistryFuzzTest is PoolRegistryTestBase {
     }
 
     // ═════════════════════════════════════════════════════════════════
-    //                  FUZZ — setPoolActive
-    // ═════════════════════════════════════════════════════════════════
-
-    /// @notice setPoolActive should toggle correctly
-    function testFuzz_setPoolActive_togglesStatus(bool active) public {
-        _addDefaultPool();
-        _setPoolActive(pool1, active);
-        assertEq(registry.isPoolActive(pool1), active);
-    }
-
-    /// @notice Inactive pools should not appear in getActivePoolsForPair
-    function testFuzz_setPoolActive_affectsActivePairQuery(bool pool1Active, bool pool2Active) public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3", FEE_MEDIUM);
-        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "V2", FEE_MEDIUM);
-
-        _setPoolActive(pool1, pool1Active);
-        _setPoolActive(pool2, pool2Active);
-
-        uint256 expectedActive;
-        if (pool1Active) expectedActive++;
-        if (pool2Active) expectedActive++;
-
-        assertEq(registry.getActivePoolsForPair(tokenA, tokenB).length, expectedActive);
-    }
-
-    // ═════════════════════════════════════════════════════════════════
     //                  FUZZ — pair query symmetry
     // ═════════════════════════════════════════════════════════════════
 
@@ -155,9 +132,8 @@ contract PoolRegistryFuzzTest is PoolRegistryTestBase {
         _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B", fee);
 
         ILiquidityPoolRegistry.PoolInfo memory info = registry.getPool(pool1);
-        (bool valid, address t0, address t1, uint24 swapFee) = registry.getPoolSwapInfo(pool1);
+        (address t0, address t1, uint24 swapFee) = registry.getPoolSwapInfo(pool1);
 
-        assertTrue(valid == info.active);
         assertEq(t0, info.token0);
         assertEq(t1, info.token1);
         assertEq(swapFee, info.swapFee);

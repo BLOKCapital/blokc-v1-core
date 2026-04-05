@@ -213,7 +213,11 @@ contract UpgradeFuzzTest is UpgradeTestBase {
             IFacetRegistry.Facet[] memory moduleFacets = registry.getModuleFacets(MODULE_1);
             IDiamondLoupe loupe = IDiamondLoupe(garden);
             for (uint256 facetIndex = 0; facetIndex < moduleFacets.length; facetIndex++) {
-                for (uint256 selectorIndex = 0; selectorIndex < moduleFacets[facetIndex].functionSelectors.length; selectorIndex++) {
+                for (
+                    uint256 selectorIndex = 0;
+                    selectorIndex < moduleFacets[facetIndex].functionSelectors.length;
+                    selectorIndex++
+                ) {
                     assertEq(
                         loupe.facetAddress(moduleFacets[facetIndex].functionSelectors[selectorIndex]),
                         moduleFacets[facetIndex].facetAddress,
