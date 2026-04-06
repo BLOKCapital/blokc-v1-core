@@ -17,8 +17,10 @@ import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
-import { IIndex, SwapCall, PendingIntent } from "src/garden/facets/indexFacets/IIndex.sol";
+import { IIndex, SwapStep, PendingIntent } from "src/garden/facets/indexFacets/IIndex.sol";
+import { SwapInstruction } from "src/interfaces/ISwapInstruction.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
+import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // ============================================================================
@@ -170,11 +172,11 @@ abstract contract IndexBase {
     }
 
     /// @notice Execute rebalance by calling DEX facets directly
-    /// @dev CRE provides swap calls that target DEX facet functions on this Diamond.
-    ///      Uses a custom rebalancing flag instead of OZ ReentrancyGuard to avoid
-    ///      conflicts with nonReentrant on DEX facets invoked via address(this).call().
-    /// @param swapCalls Array of swap calls to execute
-    function _rebalance(SwapCall[] calldata swapCalls) internal {
+    /// @dev CRE provides swap steps with dexId + SwapInstruction. The selector is resolved
+    ///      from the PoolRegistry at execution time. Uses a custom rebalancing flag instead
+    ///      of OZ ReentrancyGuard to avoid conflicts with nonReentrant on DEX facets.
+    /// @param steps Array of swap steps to execute
+    function _rebalance(SwapStep[] calldata steps) internal {
         IndexStorage.Layout storage s = IndexStorage.layout();
 
         // Custom reentrancy guard (separate from OZ ReentrancyGuard to avoid conflict with DEX facets)
@@ -203,8 +205,8 @@ abstract contract IndexBase {
 
         uint256 valueBefore = _calculateTotalValue();
 
-        // Execute each swap call on the Diamond's DEX facets
-        _executeSwapCalls(swapCalls);
+        // Execute each swap step on the Diamond's DEX facets
+        _executeSwapSteps(steps);
 
         // Verify final balances match targets within threshold (uses fresh prices + stored weights)
         _verifyBalancesMatchTargets();
@@ -227,34 +229,40 @@ abstract contract IndexBase {
         emit IIndex.RebalanceCompleted(address(this), s.indexAddress, block.timestamp, nextRebalanceTimestamp);
     }
 
-    /// @notice Execute swap calls by delegating to DEX facets
-    /// @dev Uses address(this).call() to invoke facet functions on the same Diamond.
-    ///      Only selectors belonging to the DEX module (ModuleIds.DEX) are allowed.
-    ///      Each swap is validated against its minOutput to prevent unfavorable trades.
-    /// @param swapCalls Array of swap calls to execute
-    function _executeSwapCalls(SwapCall[] calldata swapCalls) internal {
-        for (uint256 i = 0; i < swapCalls.length; i++) {
-            bytes4 selector = swapCalls[i].selector;
+    /// @notice Execute swap steps by resolving selectors from PoolRegistry and delegating to DEX facets
+    /// @dev For each step: resolves the swap selector from PoolRegistry via dexId, validates it
+    ///      belongs to the DEX module, then calls the DEX facet with the SwapInstruction.
+    ///      Output token balance is verified after each swap.
+    /// @param steps Array of swap steps to execute
+    function _executeSwapSteps(SwapStep[] calldata steps) internal {
+        ILiquidityPoolRegistry poolReg = ILiquidityPoolRegistry(IndexStorage.POOL_REGISTRY_ADDRESS);
 
+        for (uint256 i = 0; i < steps.length; i++) {
+            // Resolve selector from PoolRegistry
+            bytes4 selector = poolReg.getSwapSelectorForDex(steps[i].dexId);
+
+            // Validate selector belongs to DEX module
             if (!_isDexFunction(selector)) revert IndexFacet_SelectorNotWhitelisted(selector);
 
-            uint256 balanceBefore = IERC20(swapCalls[i].outputToken).balanceOf(address(this));
+            // Output token is the last token in the path
+            SwapInstruction calldata instruction = steps[i].instruction;
+            address outputToken = instruction.tokens[instruction.tokens.length - 1];
 
-            bytes memory callData = abi.encodePacked(selector, swapCalls[i].data);
+            uint256 balanceBefore = IERC20(outputToken).balanceOf(address(this));
 
-            (bool success, bytes memory returnData) = address(this).call(callData);
+            // Call the DEX facet's swap function with the SwapInstruction
+            (bool success, bytes memory returnData) = address(this).call(abi.encodeWithSelector(selector, instruction));
 
             if (!success) {
-                if (returnData.length == 0) {
-                    revert IndexFacet_SelectorNotFound(selector);
-                }
+                if (returnData.length == 0) revert IndexFacet_SelectorNotFound(selector);
                 revert IndexFacet_SwapCallFailed(i, returnData);
             }
 
-            uint256 balanceAfter = IERC20(swapCalls[i].outputToken).balanceOf(address(this));
-            uint256 received = balanceAfter - balanceBefore;
-            if (received < swapCalls[i].minOutput) {
-                revert IndexFacet_InsufficientSwapOutput(i, swapCalls[i].outputToken, received, swapCalls[i].minOutput);
+            // Verify minimum output received
+            uint256 received = IERC20(outputToken).balanceOf(address(this)) - balanceBefore;
+            uint256 minOutput = instruction.amountOut;
+            if (received < minOutput) {
+                revert IndexFacet_InsufficientSwapOutput(i, outputToken, received, minOutput);
             }
         }
     }

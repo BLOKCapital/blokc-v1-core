@@ -46,6 +46,9 @@ library IndexStorage {
     /// @notice IndexComponentRegistry contract address
     address internal constant INDEX_COMPONENT_REGISTRY_ADDRESS = 0xD8614dc6eE0230e21D591B3825a75A282EeaE2fB;
 
+    /// @notice LiquidityPoolRegistry contract address (for DEX selector resolution)
+    address internal constant POOL_REGISTRY_ADDRESS = 0xeADe4091f50B1fd0b6315c9028543f5177E59a56;
+
     // ========================================================================
     // Rebalancing Parameters
     // ========================================================================

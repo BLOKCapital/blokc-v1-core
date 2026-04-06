@@ -11,7 +11,7 @@ pragma solidity ^0.8.31;
 ################################################################################*/
 
 import { Facet } from "src/garden/facets/Facet.sol";
-import { IIndex, SwapCall } from "src/garden/facets/indexFacets/IIndex.sol";
+import { IIndex, SwapStep } from "src/garden/facets/indexFacets/IIndex.sol";
 import { IndexBase } from "src/garden/facets/indexFacets/IndexBase.sol";
 
 /**
@@ -46,8 +46,8 @@ contract IndexFacet is IIndex, IndexBase, Facet {
     /// @inheritdoc IIndex
     /// @dev Does NOT use nonReentrant to avoid conflict with DEX facets' nonReentrant
     ///      during address(this).call(). Uses custom rebalancing flag in IndexStorage instead.
-    function rebalance(SwapCall[] calldata swapCalls) external {
-        _rebalance(swapCalls);
+    function rebalance(SwapStep[] calldata steps) external {
+        _rebalance(steps);
     }
 
     /// @inheritdoc IIndex
