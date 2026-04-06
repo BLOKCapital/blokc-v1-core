@@ -97,11 +97,10 @@ contract RegisterUtilityFacets is BaseScript {
 
         // Camelot V3
         CamelotV3Facet camelotV3Facet = new CamelotV3Facet();
-        bytes4[] memory camelotV3Selectors = new bytes4[](4);
-        camelotV3Selectors[0] = camelotV3Facet.camelotV3ExactInputSingle.selector;
-        camelotV3Selectors[1] = camelotV3Facet.camelotV3ExactInput.selector;
-        camelotV3Selectors[2] = camelotV3Facet.camelotV3ExactOutputSingle.selector;
-        camelotV3Selectors[3] = camelotV3Facet.camelotV3ExactOutput.selector;
+        bytes4[] memory camelotV3Selectors = new bytes4[](3);
+        camelotV3Selectors[0] = camelotV3Facet.camelotV3Swap.selector;
+        camelotV3Selectors[1] = camelotV3Facet.camelotV3GetSqrtTwapX96.selector;
+        camelotV3Selectors[2] = camelotV3Facet.camelotV3Quote.selector;
         console2.log("CamelotV3Facet deployed at:", address(camelotV3Facet));
 
         IDiamondCut.FacetCut[] memory dexCuts = new IDiamondCut.FacetCut[](4);
