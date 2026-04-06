@@ -234,6 +234,22 @@ contract MockERC20 is IERC20, IERC20Metadata {
         receive() external payable { }
     }
 
+    // ── PoolRegistry — only surface called by IndexBase: getSwapSelectorForDex ──
+
+    contract MockPoolRegistry {
+        mapping(bytes32 => bytes4) public selectors;
+
+        function setSwapSelector(bytes32 dexId, bytes4 sel) external {
+            selectors[dexId] = sel;
+        }
+
+        function getSwapSelectorForDex(bytes32 dexId) external view returns (bytes4) {
+            bytes4 sel = selectors[dexId];
+            require(sel != bytes4(0), "MockPoolRegistry: DEX not registered");
+            return sel;
+        }
+    }
+
     contract MockDexFacet {
         // Selector: swapTokens(address,address,uint256,uint256)
         function swapTokens(
@@ -406,6 +422,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         MockIndex internal index;
         MockComponentRegistry internal componentRegistry;
         MockFacetRegistry internal facetRegistry;
+        MockPoolRegistry internal poolRegistry;
         MockDexFacet internal dexFacet;
         MockERC20 internal weth;
         MockERC20 internal usdc;
@@ -434,6 +451,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             index = new MockIndex();
             componentRegistry = new MockComponentRegistry();
             facetRegistry = new MockFacetRegistry();
+            poolRegistry = new MockPoolRegistry();
             dexFacet = new MockDexFacet();
             weth = new MockERC20("WETH", 18);
             wbtc = new MockERC20("WBTC", 8);
@@ -447,6 +465,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             // We etch mock code at the exact mainnet addresses IndexStorage uses.
             _etchMockAt(IndexStorage.INDEX_FACTORY_ADDRESS, address(factory));
             _etchMockAt(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS, address(componentRegistry));
+            _etchMockAt(IndexStorage.POOL_REGISTRY_ADDRESS, address(poolRegistry));
             _etchMockAt(IndexStorage.USDC_ADDRESS, address(usdc));
             _etchMockAt(IndexStorage.WETH_ADDRESS, address(weth));
 
@@ -486,9 +505,12 @@ contract MockERC20 is IERC20, IERC20Metadata {
             swapTokensSel = MockDexFacet.swapTokens.selector;
             alwaysFailsSel = MockDexFacet.alwaysFails.selector;
 
-            // Register swapTokens as a DEX function
+            // Register swapTokens as a DEX function in FacetRegistry
             facetRegistry.setModuleId(swapTokensSel, keccak256("DEX"));
             // alwaysFails is NOT DEX — intentionally absent
+
+            // Register DEX swap selector in PoolRegistry (maps dexId → selector)
+            poolRegistry.setSwapSelector(keccak256("TEST_DEX"), swapTokensSel);
         }
 
         // ── Helpers
