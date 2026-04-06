@@ -157,8 +157,7 @@ abstract contract DexFacetTestBase is DiamondTestBase {
         address tokenA,
         address tokenB,
         bytes32 dexId,
-        string memory pairName,
-        uint24 swapFee
+        string memory pairName
     )
         internal
     {
@@ -168,8 +167,7 @@ abstract contract DexFacetTestBase is DiamondTestBase {
                 tokenA: tokenA,
                 tokenB: tokenB,
                 dexId: dexId,
-                pairName: pairName,
-                swapFee: swapFee
+                pairName: pairName
             })
         );
     }

@@ -10,6 +10,8 @@ pragma solidity ^0.8.31;
 
 ################################################################################*/
 
+import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
+
 /// @title IUniswapV3
 /// @author BLOK Capital DAO
 /// @notice Interface for Uniswap V3 integration (swaps and TWAP queries)
@@ -95,31 +97,11 @@ interface IUniswapV3 {
     // Functions
     // ========================================================================
 
-    /// @notice Executes a single-hop exact-input swap on Uniswap V3
-    /// @dev Swaps an exact amount of input token for output token using a single pool.
-    ///      Pool must be registered in the LiquidityPoolRegistry. All operations are restricted
-    ///      to the diamond owner.
-    /// @param params Swap parameters including tokens, amounts, fees, and deadline
-    function uniswapV3ExactInputSingle(UniswapV3ExactInputSingleParams calldata params) external;
-
-    /// @notice Executes a multi-hop exact-input swap on Uniswap V3
-    /// @dev Swaps an exact amount of input token across multiple pools in a path.
-    ///      All pools in the path must be registered in the LiquidityPoolRegistry.
-    /// @param params Multi-hop swap parameters including path, amounts, and deadline
-    function uniswapV3ExactInput(UniswapV3ExactInputParams calldata params) external;
-
-    /// @notice Executes a single-hop exact-output swap on Uniswap V3
-    /// @dev Swaps an exact amount of output token for input token using a single pool.
-    ///      Pool must be registered in the LiquidityPoolRegistry. All operations are restricted
-    ///      to the diamond owner.
-    /// @param params Swap parameters including tokens, amounts, fees, and deadline
-    function uniswapV3ExactOutputSingle(UniswapV3ExactOutputSingleParams calldata params) external;
-
-    /// @notice Executes a multi-hop exact-output swap on Uniswap V3
-    /// @dev Swaps an exact amount of output token across multiple pools in a path.
-    ///      All pools in the path must be registered in the LiquidityPoolRegistry.
-    /// @param params Multi-hop swap parameters including path, amounts, and deadline
-    function uniswapV3ExactOutput(UniswapV3ExactOutputParams calldata params) external;
+    /// @notice Single entry point for all Uniswap V3 swaps.
+    ///         Derives fee tiers on-chain from pool contracts. Handles single-hop and
+    ///         multi-hop, exact-input and exact-output — all from one selector.
+    /// @param instruction The universal SwapInstruction (same struct across all DEX facets)
+    function uniswapV3Swap(SwapInstruction calldata instruction) external;
 
     /// @notice Gets the TWAP sqrt price for a single Uniswap V3 pool
     /// @dev Returns either the current spot price (if twapInterval is 0) or the
@@ -151,21 +133,11 @@ interface IUniswapV3 {
         view
         returns (uint256 combinedPriceX96, uint256 deadline);
 
-    /// @notice Quotes output amount for exact input on a specific Uniswap V3 pool
-    /// @param poolAddress Address of the V3 pool (must be registered in PoolRegistry)
-    /// @param amountIn Amount of input token
-    /// @param tokenIn Input token address
-    /// @param tokenOut Output token address
-    /// @param twapInterval TWAP interval (0 for spot price)
-    /// @return amountOut Expected output amount
-    function uniswapV3QuoteExactInputForPool(
-        address poolAddress,
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut,
-        uint32 twapInterval
-    )
-        external
-        view
-        returns (uint256 amountOut);
+    /// @notice Single entry point for all Uniswap V3 quotes.
+    ///         Handles single-hop and multi-hop, exact-input and exact-output.
+    ///         Uses 30s TWAP by default for manipulation resistance.
+    /// @param instruction The universal QuoteInstruction (same struct across all DEX facets)
+    /// @return result exactOutput=false: estimated output amount.
+    ///                exactOutput=true:  estimated input amount needed.
+    function uniswapV3Quote(QuoteInstruction calldata instruction) external view returns (uint256 result);
 }
