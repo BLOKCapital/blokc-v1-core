@@ -36,12 +36,11 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     }
 
     function test_addPool_storesCorrectPoolInfo() public {
-        _addPool(pool1, tokenB, tokenA, DEX_UNISWAP_V3, "TOKENA/TOKENB", FEE_MEDIUM);
+        _addPool(pool1, tokenB, tokenA, DEX_UNISWAP_V3, "TOKENA/TOKENB");
 
         ILiquidityPoolRegistry.PoolInfo memory info = registry.getPool(pool1);
         assertEq(info.poolAddress, pool1);
         assertEq(info.dexId, DEX_UNISWAP_V3);
-        assertEq(info.swapFee, FEE_MEDIUM);
         // Tokens should be sorted: tokenA < tokenB
         assertEq(info.token0, tokenA);
         assertEq(info.token1, tokenB);
@@ -49,7 +48,7 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
 
     function test_addPool_sortsTokensCanonically() public {
         // Pass tokenB first, tokenA second — should still store as (tokenA, tokenB)
-        _addPool(pool1, tokenB, tokenA, DEX_UNISWAP_V3, "B/A", FEE_MEDIUM);
+        _addPool(pool1, tokenB, tokenA, DEX_UNISWAP_V3, "B/A");
         ILiquidityPoolRegistry.PoolInfo memory info = registry.getPool(pool1);
         assertTrue(info.token0 < info.token1);
     }
@@ -58,8 +57,8 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         bytes32 expectedPairId = _computePairId(tokenA, tokenB);
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit ILiquidityPoolRegistry.PoolAdded(pool1, expectedPairId, DEX_UNISWAP_V3, tokenA, tokenB, FEE_MEDIUM);
-        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "TOKENA/TOKENB", FEE_MEDIUM));
+        emit ILiquidityPoolRegistry.PoolAdded(pool1, expectedPairId, DEX_UNISWAP_V3, tokenA, tokenB);
+        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "TOKENA/TOKENB"));
     }
 
     function test_addPool_tracksPairId() public {
@@ -70,21 +69,12 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     }
 
     function test_addPool_multiplePools() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B V3", FEE_MEDIUM);
-        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "A/B V2", FEE_MEDIUM);
-        _addPool(pool3, tokenC, tokenD, DEX_UNISWAP_V3, "C/D V3", FEE_LOW);
+        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B V3");
+        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "A/B V2");
+        _addPool(pool3, tokenC, tokenD, DEX_UNISWAP_V3, "C/D V3");
 
         assertEq(registry.getPoolCount(), 3);
         assertEq(registry.getAllPairIds().length, 2); // 2 unique pairs
-    }
-
-    function test_addPool_samePairDifferentFees() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B low", FEE_LOW);
-        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V3, "A/B med", FEE_MEDIUM);
-        _addPool(pool3, tokenA, tokenB, DEX_UNISWAP_V3, "A/B high", FEE_HIGH);
-
-        assertEq(registry.getPoolCount(), 3);
-        assertEq(registry.getPoolsForPair(tokenA, tokenB).length, 3);
     }
 
     // ═════════════════════════════════════════════════════════════════
@@ -94,44 +84,44 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     function test_addPool_revertsOnZeroPoolAddress() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_ZeroAddress()"));
-        registry.addPool(_params(address(0), tokenA, tokenB, DEX_UNISWAP_V3, "A/B", FEE_MEDIUM));
+        registry.addPool(_params(address(0), tokenA, tokenB, DEX_UNISWAP_V3, "A/B"));
     }
 
     function test_addPool_revertsOnZeroTokenA() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_ZeroAddress()"));
-        registry.addPool(_params(pool1, address(0), tokenB, DEX_UNISWAP_V3, "A/B", FEE_MEDIUM));
+        registry.addPool(_params(pool1, address(0), tokenB, DEX_UNISWAP_V3, "A/B"));
     }
 
     function test_addPool_revertsOnZeroTokenB() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_ZeroAddress()"));
-        registry.addPool(_params(pool1, tokenA, address(0), DEX_UNISWAP_V3, "A/B", FEE_MEDIUM));
+        registry.addPool(_params(pool1, tokenA, address(0), DEX_UNISWAP_V3, "A/B"));
     }
 
     function test_addPool_revertsOnIdenticalTokens() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_IdenticalTokens()"));
-        registry.addPool(_params(pool1, tokenA, tokenA, DEX_UNISWAP_V3, "A/A", FEE_MEDIUM));
+        registry.addPool(_params(pool1, tokenA, tokenA, DEX_UNISWAP_V3, "A/A"));
     }
 
     function test_addPool_revertsOnUnregisteredDex() public {
         bytes32 unregisteredDex = keccak256("SUSHISWAP");
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_DexDoesNotExist(bytes32)", unregisteredDex));
-        registry.addPool(_params(pool1, tokenA, tokenB, unregisteredDex, "A/B", FEE_MEDIUM));
+        registry.addPool(_params(pool1, tokenA, tokenB, unregisteredDex, "A/B"));
     }
 
     function test_addPool_revertsOnZeroDexId() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_DexDoesNotExist(bytes32)", bytes32(0)));
-        registry.addPool(_params(pool1, tokenA, tokenB, bytes32(0), "A/B", FEE_MEDIUM));
+        registry.addPool(_params(pool1, tokenA, tokenB, bytes32(0), "A/B"));
     }
 
     function test_addPool_revertsOnEmptyPairName() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_EmptyPairName()"));
-        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "", FEE_MEDIUM));
+        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, ""));
     }
 
     function test_addPool_revertsOnPairNameTooLong() public {
@@ -142,13 +132,13 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         }
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_PairNameTooLong()"));
-        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, string(longName), FEE_MEDIUM));
+        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, string(longName)));
     }
 
     function test_addPool_revertsOnNonContract() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_NotContract()"));
-        registry.addPool(_params(address(0xDEAD), tokenA, tokenB, DEX_UNISWAP_V3, "A/B", FEE_MEDIUM));
+        registry.addPool(_params(address(0xDEAD), tokenA, tokenB, DEX_UNISWAP_V3, "A/B"));
     }
 
     function test_addPool_revertsOnDuplicatePool() public {
@@ -157,21 +147,13 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         vm.expectRevert(
             abi.encodeWithSelector(bytes4(keccak256("LiquidityPoolRegistry_PoolAlreadyExists(address)")), pool1)
         );
-        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "dup", FEE_MEDIUM));
-    }
-
-    function test_addPool_revertsOnDuplicatePoolKey() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "first", FEE_MEDIUM);
-        // Same pair, same dex, same fee — different pool address
-        vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSignature("LiquidityPoolRegistry_DuplicatePoolKey()"));
-        registry.addPool(_params(pool2, tokenA, tokenB, DEX_UNISWAP_V3, "second", FEE_MEDIUM));
+        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "dup"));
     }
 
     function test_addPool_revertsWhenNotOwner() public {
         vm.prank(nonOwner);
         vm.expectRevert();
-        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B", FEE_MEDIUM));
+        registry.addPool(_params(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B"));
     }
 
     // ═════════════════════════════════════════════════════════════════
@@ -202,8 +184,8 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     }
 
     function test_removePool_keepsPairIdWhenOtherPoolsExist() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B V3", FEE_MEDIUM);
-        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "A/B V2", FEE_MEDIUM);
+        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B V3");
+        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "A/B V2");
         _removePool(pool1);
         assertEq(registry.getAllPairIds().length, 1);
         assertEq(registry.getPoolsForPair(tokenA, tokenB).length, 1);
@@ -219,8 +201,8 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     function test_removePool_allowsReAddingSameKeyAfterRemoval() public {
         _addDefaultPool();
         _removePool(pool1);
-        // Same pool key (pair+dex+fee) should be available again
-        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V3, "readded", FEE_MEDIUM);
+        // Same pool pair+dex should be available again
+        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V3, "readded");
         assertTrue(registry.isPoolRegistered(pool2));
     }
 
@@ -254,20 +236,13 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
         registry.getPool(pool1);
     }
 
-    function test_getPoolSwapInfo_returnsInvalidForUnregistered() public view {
-        (address t0, address t1, uint24 fee) = registry.getPoolSwapInfo(pool1);
-        assertEq(t0, address(0));
-        assertEq(t1, address(0));
-        assertEq(fee, 0);
-    }
-
     // ═════════════════════════════════════════════════════════════════
     //                     PAIR QUERIES
     // ═════════════════════════════════════════════════════════════════
 
     function test_getPoolsForPair_returnsAllPools() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3", FEE_MEDIUM);
-        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "V2", FEE_MEDIUM);
+        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3");
+        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "V2");
 
         address[] memory pools = registry.getPoolsForPair(tokenA, tokenB);
         assertEq(pools.length, 2);
@@ -290,9 +265,9 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     // ═════════════════════════════════════════════════════════════════
 
     function test_getPoolsByDex_returnsPoolsOnDex() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3", FEE_MEDIUM);
-        _addPool(pool2, tokenC, tokenD, DEX_UNISWAP_V3, "V3-2", FEE_LOW);
-        _addPool(pool3, tokenA, tokenB, DEX_UNISWAP_V2, "V2", FEE_MEDIUM);
+        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3");
+        _addPool(pool2, tokenC, tokenD, DEX_UNISWAP_V3, "V3-2");
+        _addPool(pool3, tokenA, tokenB, DEX_UNISWAP_V2, "V2");
 
         assertEq(registry.getPoolsByDex(DEX_UNISWAP_V3).length, 2);
         assertEq(registry.getPoolsByDex(DEX_UNISWAP_V2).length, 1);
@@ -306,8 +281,8 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     }
 
     function test_getPoolsForPairOnDex_filtersCorrectly() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3", FEE_MEDIUM);
-        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "V2", FEE_MEDIUM);
+        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3");
+        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "V2");
 
         address[] memory v3 = registry.getPoolsForPairOnDex(tokenA, tokenB, DEX_UNISWAP_V3);
         address[] memory v2 = registry.getPoolsForPairOnDex(tokenA, tokenB, DEX_UNISWAP_V2);
@@ -328,17 +303,17 @@ contract PoolRegistryUnitTest is PoolRegistryTestBase {
     // ═════════════════════════════════════════════════════════════════
 
     function test_getAllPools_returnsAllRegistered() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B", FEE_MEDIUM);
-        _addPool(pool2, tokenC, tokenD, DEX_UNISWAP_V2, "C/D", FEE_LOW);
+        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "A/B");
+        _addPool(pool2, tokenC, tokenD, DEX_UNISWAP_V2, "C/D");
 
         address[] memory all = registry.getAllPools();
         assertEq(all.length, 2);
     }
 
     function test_getAllPairIds_tracksUniquePairs() public {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3", FEE_MEDIUM);
-        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "V2", FEE_MEDIUM);
-        _addPool(pool3, tokenC, tokenD, DEX_UNISWAP_V3, "C/D", FEE_LOW);
+        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "V3");
+        _addPool(pool2, tokenA, tokenB, DEX_UNISWAP_V2, "V2");
+        _addPool(pool3, tokenC, tokenD, DEX_UNISWAP_V3, "C/D");
 
         bytes32[] memory ids = registry.getAllPairIds();
         assertEq(ids.length, 2); // A/B and C/D

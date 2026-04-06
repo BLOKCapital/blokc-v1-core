@@ -25,8 +25,7 @@ contract MockPool {
 abstract contract PoolRegistryTestBase is BaseTest {
     LiquidityPoolRegistry public registry;
 
-    // ── DEX identifiers
-    // ──────────────────────────────────────────────
+    // ── DEX identifiers ──────────────────────────────────────────────
     bytes32 public constant DEX_UNISWAP_V3 = keccak256("UNISWAP_V3");
     bytes32 public constant DEX_UNISWAP_V2 = keccak256("UNISWAP_V2");
     bytes32 public constant DEX_CAMELOT_V3 = keccak256("CAMELOT_V3");
@@ -37,32 +36,24 @@ abstract contract PoolRegistryTestBase is BaseTest {
     address public tokenC = address(0xCCCC);
     address public tokenD = address(0xDDDD);
 
-    // ── Pre-deployed mock pool contracts
-    // ─────────────────────────────
+    // ── Pre-deployed mock pool contracts ─────────────────────────────
     address public pool1;
     address public pool2;
     address public pool3;
     address public pool4;
     address public pool5;
 
-    // ── Default swap fee
-    // ─────────────────────────────────────────────
-    uint24 public constant FEE_LOW = 500; // 0.05%
-    uint24 public constant FEE_MEDIUM = 3000; // 0.3%
-    uint24 public constant FEE_HIGH = 10_000; // 1%
-
-    // ── Default selectors for test DEXes
-    // ────────────────────────────────
+    // ── Default selectors for test DEXes ─────────────────────────────
     bytes4 public constant SWAP_SELECTOR_V3 =
-        bytes4(keccak256("uniswapV3Swap((bytes32,uint256,uint256,address[],address[],bool))"));
+        bytes4(keccak256("uniswapV3Swap((uint256,uint256,address[],address[],bool))"));
     bytes4 public constant QUOTE_SELECTOR_V3 =
         bytes4(keccak256("quoteExactInputForPool(address,address,uint256,address,uint32)"));
     bytes4 public constant SWAP_SELECTOR_V2 =
-        bytes4(keccak256("uniswapV2Swap((bytes32,uint256,uint256,address[],address[],bool))"));
+        bytes4(keccak256("uniswapV2Swap((uint256,uint256,address[],address[],bool))"));
     bytes4 public constant QUOTE_SELECTOR_V2 =
         bytes4(keccak256("quoteExactInputForPool(address,address,uint256,address)"));
     bytes4 public constant SWAP_SELECTOR_CAMELOT =
-        bytes4(keccak256("camelotV3Swap((bytes32,uint256,uint256,address[],address[],bool))"));
+        bytes4(keccak256("camelotV3Swap((uint256,uint256,address[],address[],bool))"));
     bytes4 public constant QUOTE_SELECTOR_CAMELOT =
         bytes4(keccak256("quoteExactInputForPool(address,address,uint256,address,uint32)"));
 
@@ -73,9 +64,9 @@ abstract contract PoolRegistryTestBase is BaseTest {
 
         // Register DEXes before pools can be added
         vm.startPrank(owner);
-        registry.registerDex(DEX_UNISWAP_V3, SWAP_SELECTOR_V3, QUOTE_SELECTOR_V3, 5);
-        registry.registerDex(DEX_UNISWAP_V2, SWAP_SELECTOR_V2, QUOTE_SELECTOR_V2, 4);
-        registry.registerDex(DEX_CAMELOT_V3, SWAP_SELECTOR_CAMELOT, QUOTE_SELECTOR_CAMELOT, 5);
+        registry.registerDex(DEX_UNISWAP_V3, SWAP_SELECTOR_V3, QUOTE_SELECTOR_V3);
+        registry.registerDex(DEX_UNISWAP_V2, SWAP_SELECTOR_V2, QUOTE_SELECTOR_V2);
+        registry.registerDex(DEX_CAMELOT_V3, SWAP_SELECTOR_CAMELOT, QUOTE_SELECTOR_CAMELOT);
         vm.stopPrank();
 
         // Deploy 5 mock pool contracts (they need code for the addPool check)
@@ -96,36 +87,38 @@ abstract contract PoolRegistryTestBase is BaseTest {
         address tA,
         address tB,
         bytes32 dexId,
-        string memory pairName,
-        uint24 swapFee
+        string memory pairName
     )
         internal
         pure
         returns (ILiquidityPoolRegistry.AddPoolParams memory)
     {
         return ILiquidityPoolRegistry.AddPoolParams({
-            poolAddress: poolAddr, tokenA: tA, tokenB: tB, dexId: dexId, pairName: pairName, swapFee: swapFee
+            poolAddress: poolAddr,
+            tokenA: tA,
+            tokenB: tB,
+            dexId: dexId,
+            pairName: pairName
         });
     }
 
-    /// @notice Add a pool as owner with default params
+    /// @notice Add a pool as owner
     function _addPool(
         address poolAddr,
         address tA,
         address tB,
         bytes32 dexId,
-        string memory pairName,
-        uint24 swapFee
+        string memory pairName
     )
         internal
     {
         vm.prank(owner);
-        registry.addPool(_params(poolAddr, tA, tB, dexId, pairName, swapFee));
+        registry.addPool(_params(poolAddr, tA, tB, dexId, pairName));
     }
 
-    /// @notice Add pool1 with tokenA/tokenB on UNISWAP_V3 with FEE_MEDIUM
+    /// @notice Add pool1 with tokenA/tokenB on UNISWAP_V3
     function _addDefaultPool() internal {
-        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "TOKENA/TOKENB", FEE_MEDIUM);
+        _addPool(pool1, tokenA, tokenB, DEX_UNISWAP_V3, "TOKENA/TOKENB");
     }
 
     /// @notice Remove a pool as owner

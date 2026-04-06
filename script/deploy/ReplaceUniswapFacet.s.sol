@@ -21,13 +21,11 @@ contract ReplaceUniswapV3Facet is BaseScript {
     function run() public broadcaster {
         setUp();
         UniswapV3Facet uniswapFacet = new UniswapV3Facet();
-        bytes4[] memory uniswapFacetSelectors = new bytes4[](6);
-        uniswapFacetSelectors[0] = UniswapV3Facet.uniswapV3ExactInputSingle.selector;
-        uniswapFacetSelectors[1] = UniswapV3Facet.uniswapV3ExactInput.selector;
-        uniswapFacetSelectors[2] = UniswapV3Facet.uniswapV3ExactOutputSingle.selector;
-        uniswapFacetSelectors[3] = UniswapV3Facet.uniswapV3ExactOutput.selector;
-        uniswapFacetSelectors[4] = UniswapV3Facet.getSqrtTwapX96.selector;
-        uniswapFacetSelectors[5] = UniswapV3Facet.getCombinedTwapX96.selector;
+        bytes4[] memory uniswapFacetSelectors = new bytes4[](4);
+        uniswapFacetSelectors[0] = UniswapV3Facet.uniswapV3Swap.selector;
+        uniswapFacetSelectors[1] = UniswapV3Facet.getSqrtTwapX96.selector;
+        uniswapFacetSelectors[2] = UniswapV3Facet.getCombinedTwapX96.selector;
+        uniswapFacetSelectors[3] = UniswapV3Facet.uniswapV3Quote.selector;
 
         IndexFacet indexFacet = new IndexFacet();
         bytes4[] memory indexFacetSelectors = new bytes4[](4);

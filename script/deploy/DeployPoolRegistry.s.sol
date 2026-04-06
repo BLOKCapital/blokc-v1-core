@@ -50,8 +50,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdc,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "WETH/USDC",
-                swapFee: 500
+                pairName: "WETH/USDC"
             })
         );
 
@@ -62,8 +61,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdc,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "WETH/USDC",
-                swapFee: 3000
+                pairName: "WETH/USDC"
             })
         );
 
@@ -74,8 +72,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdce,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "WETH/USDC.e",
-                swapFee: 500
+                pairName: "WETH/USDC.e"
             })
         );
 
@@ -86,8 +83,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdt,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "WETH/USDT",
-                swapFee: 500
+                pairName: "WETH/USDT"
             })
         );
 
@@ -98,8 +94,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: wbtc,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "WBTC/WETH",
-                swapFee: 500
+                pairName: "WBTC/WETH"
             })
         );
 
@@ -110,8 +105,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: arb,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "ARB/WETH",
-                swapFee: 500
+                pairName: "ARB/WETH"
             })
         );
 
@@ -122,8 +116,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: arb,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "ARB/WETH",
-                swapFee: 3000
+                pairName: "ARB/WETH"
             })
         );
 
@@ -134,8 +127,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: link,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "LINK/WETH",
-                swapFee: 3000
+                pairName: "LINK/WETH"
             })
         );
 
@@ -146,8 +138,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: uni,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "UNI/WETH",
-                swapFee: 3000
+                pairName: "UNI/WETH"
             })
         );
 
@@ -158,8 +149,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: gmx,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "GMX/WETH",
-                swapFee: 10_000
+                pairName: "GMX/WETH"
             })
         );
 
@@ -170,8 +160,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: pendle,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "PENDLE/WETH",
-                swapFee: 3000
+                pairName: "PENDLE/WETH"
             })
         );
 
@@ -182,8 +171,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: rdnt,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "RDNT/WETH",
-                swapFee: 3000
+                pairName: "RDNT/WETH"
             })
         );
 
@@ -194,8 +182,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: magic,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "MAGIC/WETH",
-                swapFee: 10_000
+                pairName: "MAGIC/WETH"
             })
         );
 
@@ -206,8 +193,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdc,
                 tokenB: usdt,
                 dexId: uniswapV3,
-                pairName: "USDC/USDT",
-                swapFee: 100
+                pairName: "USDC/USDT"
             })
         );
 
@@ -218,8 +204,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: dai,
                 tokenB: usdc,
                 dexId: uniswapV3,
-                pairName: "DAI/USDC",
-                swapFee: 100
+                pairName: "DAI/USDC"
             })
         );
 
@@ -230,8 +215,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdt,
                 tokenB: weth,
                 dexId: uniswapV3,
-                pairName: "WETH/USDT",
-                swapFee: 100
+                pairName: "WETH/USDT"
             })
         );
 
@@ -242,8 +226,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: wbtc,
                 tokenB: usdt,
                 dexId: uniswapV3,
-                pairName: "WBTC/USDT",
-                swapFee: 500
+                pairName: "WBTC/USDT"
             })
         );
 
@@ -259,8 +242,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdc,
                 tokenB: weth,
                 dexId: camelotV3,
-                pairName: "WETH/USDC",
-                swapFee: 0
+                pairName: "WETH/USDC"
             })
         );
 
@@ -271,8 +253,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdt,
                 tokenB: weth,
                 dexId: camelotV3,
-                pairName: "WETH/USDT",
-                swapFee: 0
+                pairName: "WETH/USDT"
             })
         );
 
@@ -283,8 +264,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: arb,
                 tokenB: weth,
                 dexId: camelotV3,
-                pairName: "ARB/WETH",
-                swapFee: 0
+                pairName: "ARB/WETH"
             })
         );
 
@@ -295,8 +275,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: arb,
                 tokenB: usdc,
                 dexId: camelotV3,
-                pairName: "ARB/USDC",
-                swapFee: 0
+                pairName: "ARB/USDC"
             })
         );
 
@@ -307,8 +286,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: wbtc,
                 tokenB: weth,
                 dexId: camelotV3,
-                pairName: "WBTC/WETH",
-                swapFee: 0
+                pairName: "WBTC/WETH"
             })
         );
 
@@ -319,8 +297,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: grail,
                 tokenB: weth,
                 dexId: camelotV3,
-                pairName: "GRAIL/WETH",
-                swapFee: 0
+                pairName: "GRAIL/WETH"
             })
         );
 
@@ -331,8 +308,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: pendle,
                 tokenB: weth,
                 dexId: camelotV3,
-                pairName: "PENDLE/WETH",
-                swapFee: 0
+                pairName: "PENDLE/WETH"
             })
         );
 
@@ -343,8 +319,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: gmx,
                 tokenB: usdc,
                 dexId: camelotV3,
-                pairName: "GMX/USDC",
-                swapFee: 0
+                pairName: "GMX/USDC"
             })
         );
 
@@ -360,8 +335,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdc,
                 tokenB: weth,
                 dexId: camelotV2,
-                pairName: "WETH/USDC",
-                swapFee: 3000
+                pairName: "WETH/USDC"
             })
         );
 
@@ -372,8 +346,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: arb,
                 tokenB: weth,
                 dexId: camelotV2,
-                pairName: "ARB/WETH",
-                swapFee: 3000
+                pairName: "ARB/WETH"
             })
         );
 
@@ -384,8 +357,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: pendle,
                 tokenB: weth,
                 dexId: camelotV2,
-                pairName: "PENDLE/WETH",
-                swapFee: 3000
+                pairName: "PENDLE/WETH"
             })
         );
 
@@ -402,8 +374,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: usdc,
                 tokenB: weth,
                 dexId: uniswapV2,
-                pairName: "WETH/USDC",
-                swapFee: 3000
+                pairName: "WETH/USDC"
             })
         );
 
@@ -414,8 +385,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: dai,
                 tokenB: weth,
                 dexId: uniswapV2,
-                pairName: "WETH/DAI",
-                swapFee: 3000
+                pairName: "WETH/DAI"
             })
         );
 
@@ -426,8 +396,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenA: dai,
                 tokenB: usdc,
                 dexId: uniswapV2,
-                pairName: "DAI/USDC",
-                swapFee: 3000
+                pairName: "DAI/USDC"
             })
         );
     }

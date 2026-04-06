@@ -80,13 +80,11 @@ contract RegisterUtilityFacets is BaseScript {
 
         // Uniswap V3
         UniswapV3Facet uniswapV3Facet = new UniswapV3Facet();
-        bytes4[] memory uniswapV3Selectors = new bytes4[](6);
-        uniswapV3Selectors[0] = uniswapV3Facet.uniswapV3ExactInputSingle.selector;
-        uniswapV3Selectors[1] = uniswapV3Facet.uniswapV3ExactInput.selector;
-        uniswapV3Selectors[2] = uniswapV3Facet.uniswapV3ExactOutputSingle.selector;
-        uniswapV3Selectors[3] = uniswapV3Facet.uniswapV3ExactOutput.selector;
-        uniswapV3Selectors[4] = uniswapV3Facet.getSqrtTwapX96.selector;
-        uniswapV3Selectors[5] = uniswapV3Facet.getCombinedTwapX96.selector;
+        bytes4[] memory uniswapV3Selectors = new bytes4[](4);
+        uniswapV3Selectors[0] = uniswapV3Facet.uniswapV3Swap.selector;
+        uniswapV3Selectors[1] = uniswapV3Facet.getSqrtTwapX96.selector;
+        uniswapV3Selectors[2] = uniswapV3Facet.getCombinedTwapX96.selector;
+        uniswapV3Selectors[3] = uniswapV3Facet.uniswapV3Quote.selector;
         console2.log("UniswapV3Facet deployed at:", address(uniswapV3Facet));
 
         // Camelot V2
@@ -99,11 +97,10 @@ contract RegisterUtilityFacets is BaseScript {
 
         // Camelot V3
         CamelotV3Facet camelotV3Facet = new CamelotV3Facet();
-        bytes4[] memory camelotV3Selectors = new bytes4[](4);
-        camelotV3Selectors[0] = camelotV3Facet.camelotV3ExactInputSingle.selector;
-        camelotV3Selectors[1] = camelotV3Facet.camelotV3ExactInput.selector;
-        camelotV3Selectors[2] = camelotV3Facet.camelotV3ExactOutputSingle.selector;
-        camelotV3Selectors[3] = camelotV3Facet.camelotV3ExactOutput.selector;
+        bytes4[] memory camelotV3Selectors = new bytes4[](3);
+        camelotV3Selectors[0] = camelotV3Facet.camelotV3Swap.selector;
+        camelotV3Selectors[1] = camelotV3Facet.camelotV3GetSqrtTwapX96.selector;
+        camelotV3Selectors[2] = camelotV3Facet.camelotV3Quote.selector;
         console2.log("CamelotV3Facet deployed at:", address(camelotV3Facet));
 
         IDiamondCut.FacetCut[] memory dexCuts = new IDiamondCut.FacetCut[](4);

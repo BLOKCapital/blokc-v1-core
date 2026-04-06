@@ -16,6 +16,8 @@ pragma solidity ^0.8.31;
 /// @dev DEXes are registered explicitly (mirroring the FacetRegistry module pattern) and pools
 ///      are scoped to registered DEXes. Each DEX carries swap and quote selector metadata so the
 ///      CRE orchestration layer can discover available protocols without hardcoding selectors.
+///      DEX-specific pool parameters (fee tiers, bin steps, coin indices) are NOT stored here —
+///      they live in the pool contracts and are derived on-chain by DEX facets at swap time.
 interface ILiquidityPoolRegistry {
     // ========================================================================
     // Structs
@@ -24,33 +26,27 @@ interface ILiquidityPoolRegistry {
     /// @notice Metadata stored per registered DEX
     /// @param dexId DEX identifier (keccak256("UNISWAP_V3"), keccak256("CURVE"), etc.)
     /// @param swapSelector 4-byte selector of the DEX facet's standardised swap wrapper
-    /// @param quoteSelector 4-byte selector of the DEX facet's quote function (optimal path)
-    /// @param quoteParamCount Number of parameters the quote function accepts (4 or 5)
+    /// @param quoteSelector 4-byte selector of the DEX facet's standardised quote function
     /// @param active Whether the DEX is active for use
     struct DexInfo {
         bytes32 dexId;
         bytes4 swapSelector;
         bytes4 quoteSelector;
-        uint8 quoteParamCount;
         bool active;
     }
 
     /// @notice Metadata stored per pool address
     /// @param poolAddress Address of the liquidity pool
     /// @param dexId DEX identifier (keccak256("UNISWAP_V3"), keccak256("CAMELOT_V2"), etc.)
-    /// @param pairId Canonical pair identifier (ordered token addresses)
     /// @param pairName Human-readable pair name (e.g., "WETH/USDC")
     /// @param token0 First token in the pair (sorted by address)
     /// @param token1 Second token in the pair (sorted by address)
-    /// @param swapFee Swap fee in millionths (3000 = 0.3%). Used for V3 pool lookup AND V2 amount computation.
     struct PoolInfo {
         address poolAddress;
         bytes32 dexId;
-        bytes32 pairId;
         string pairName;
         address token0;
         address token1;
-        uint24 swapFee;
     }
 
     /// @notice Parameters for adding a new pool
@@ -60,30 +56,21 @@ interface ILiquidityPoolRegistry {
         address tokenB;
         bytes32 dexId;
         string pairName;
-        uint24 swapFee;
     }
 
     // ========================================================================
     // Events
     // ========================================================================
 
-    // ── DEX events
-    // ──────────────────────────────────────────────────────
-    event DexRegistered(bytes32 indexed dexId, bytes4 swapSelector, bytes4 quoteSelector, uint8 quoteParamCount);
-    event DexSelectorsUpdated(bytes32 indexed dexId, bytes4 swapSelector, bytes4 quoteSelector, uint8 quoteParamCount);
+    // ── DEX events ──────────────────────────────────────────────────────
+    event DexRegistered(bytes32 indexed dexId, bytes4 swapSelector, bytes4 quoteSelector);
+    event DexSelectorsUpdated(bytes32 indexed dexId, bytes4 swapSelector, bytes4 quoteSelector);
     event DexStatusChanged(bytes32 indexed dexId, bool active);
 
-    // ── Pool events
-    // ─────────────────────────────────────────────────────
+    // ── Pool events ─────────────────────────────────────────────────────
     event PoolAdded(
-        address indexed poolAddress,
-        bytes32 indexed pairId,
-        bytes32 indexed dexId,
-        address token0,
-        address token1,
-        uint24 swapFee
+        address indexed poolAddress, bytes32 indexed pairId, bytes32 indexed dexId, address token0, address token1
     );
-
     event PoolRemoved(address indexed poolAddress, bytes32 indexed pairId);
 
     // ========================================================================
@@ -93,22 +80,14 @@ interface ILiquidityPoolRegistry {
     /// @notice Registers a new DEX with its swap and quote selectors
     /// @param dexId DEX identifier (e.g. keccak256("UNISWAP_V3"))
     /// @param swapSelector Selector of the DEX facet's standardised swap wrapper
-    /// @param quoteSelector Selector of the DEX facet's quote function
-    /// @param quoteParamCount Number of quote function parameters (4 or 5)
-    function registerDex(bytes32 dexId, bytes4 swapSelector, bytes4 quoteSelector, uint8 quoteParamCount) external;
+    /// @param quoteSelector Selector of the DEX facet's standardised quote function
+    function registerDex(bytes32 dexId, bytes4 swapSelector, bytes4 quoteSelector) external;
 
     /// @notice Updates the swap and quote selectors for a registered DEX
     /// @param dexId DEX identifier
     /// @param swapSelector New swap selector
     /// @param quoteSelector New quote selector
-    /// @param quoteParamCount New quote param count (4 or 5)
-    function updateDexSelectors(
-        bytes32 dexId,
-        bytes4 swapSelector,
-        bytes4 quoteSelector,
-        uint8 quoteParamCount
-    )
-        external;
+    function updateDexSelectors(bytes32 dexId, bytes4 swapSelector, bytes4 quoteSelector) external;
 
     /// @notice Sets the active status of a registered DEX
     /// @param dexId DEX identifier
@@ -139,11 +118,10 @@ interface ILiquidityPoolRegistry {
     /// @return swapSelector The 4-byte swap wrapper selector
     function getSwapSelectorForDex(bytes32 dexId) external view returns (bytes4 swapSelector);
 
-    /// @notice Returns the quote selector and param count for a DEX (used by optimal path engine)
+    /// @notice Returns the quote selector for a DEX (used by optimal path engine)
     /// @param dexId DEX identifier
     /// @return quoteSelector The 4-byte quote function selector
-    /// @return paramCount Number of quote function parameters (4 or 5)
-    function getQuoteSelectorForDex(bytes32 dexId) external view returns (bytes4 quoteSelector, uint8 paramCount);
+    function getQuoteSelectorForDex(bytes32 dexId) external view returns (bytes4 quoteSelector);
 
     /// @notice Returns all registered DEX IDs
     /// @return dexIds Array of DEX identifiers
@@ -179,13 +157,6 @@ interface ILiquidityPoolRegistry {
     /// @return PoolInfo The details of the pool
     function getPool(address poolAddress) external view returns (PoolInfo memory);
 
-    /// @notice Returns only the fields needed for a direct swap — avoids loading pairName/pairId
-    /// @param poolAddress The address of the pool
-    /// @return token0 First token (sorted by address)
-    /// @return token1 Second token (sorted by address)
-    /// @return swapFee Swap fee in millionths
-    function getPoolSwapInfo(address poolAddress) external view returns (address token0, address token1, uint24 swapFee);
-
     /// @notice Checks if a pool is registered
     /// @param poolAddress The address of the pool to check
     /// @return True if the pool is registered
@@ -210,11 +181,7 @@ interface ILiquidityPoolRegistry {
     /// @param tokenB Second token address
     /// @param dexId DEX identifier
     /// @return pools Array of pool addresses on that DEX
-    function getPoolsForPairOnDex(
-        address tokenA,
-        address tokenB,
-        bytes32 dexId
-    )
+    function getPoolsForPairOnDex(address tokenA, address tokenB, bytes32 dexId)
         external
         view
         returns (address[] memory pools);
