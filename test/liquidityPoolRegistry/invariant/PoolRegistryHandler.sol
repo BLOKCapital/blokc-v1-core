@@ -17,7 +17,7 @@ contract MockPoolForHandler {
 
 /// @title PoolRegistryHandler
 /// @notice Invariant handler for LiquidityPoolRegistry.
-///         Performs bounded add / remove / toggle actions and tracks ghost state.
+///         Performs bounded add / remove actions and tracks ghost state.
 contract PoolRegistryHandler is Test {
     LiquidityPoolRegistry public registry;
     address public registryOwner;
@@ -35,12 +35,10 @@ contract PoolRegistryHandler is Test {
     // ──────────────────────────────────────
     address[] public ghost_pools;
     mapping(address => bool) public ghost_isRegistered;
-    mapping(address => bool) public ghost_isActive;
 
     // ── Counters
     // ────────────────────────────────────────────────────
     uint256 public ghost_totalRegistered;
-    uint256 public ghost_totalActive;
     uint256 private _poolNonce;
 
     // ── Per-dex tracking
@@ -67,7 +65,7 @@ contract PoolRegistryHandler is Test {
     //                     HANDLER ACTIONS
     // ═══════════════════════════════════════════════════════════════════
 
-    function addPool(uint256 tokenSeedA, uint256 tokenSeedB, uint256 dexSeed, uint256 feeSeed) external {
+    function addPool(uint256 tokenSeedA, uint256 tokenSeedB, uint256 dexSeed) external {
         uint256 idxA = tokenSeedA % NUM_TOKENS;
         uint256 idxB = tokenSeedB % NUM_TOKENS;
         if (idxA == idxB) idxB = (idxB + 1) % NUM_TOKENS;
@@ -75,30 +73,22 @@ contract PoolRegistryHandler is Test {
         address tA = tokens[idxA];
         address tB = tokens[idxB];
         bytes32 dexId = dexIds[dexSeed % dexIds.length];
-        uint24 fee = uint24(bound(feeSeed, 0, 100_000));
 
         // Deploy a fresh pool contract
         address poolAddr = address(new MockPoolForHandler(++_poolNonce));
 
-        // Check if this key already exists (avoid known revert)
-        (address t0, address t1) = tA < tB ? (tA, tB) : (tB, tA);
-        bytes32 pairId = keccak256(abi.encode(t0, t1));
-        bytes32 key = keccak256(abi.encode(pairId, dexId, fee));
-        // We can't check _poolByKey directly, so try/catch
         vm.prank(registryOwner);
         try registry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
-                poolAddress: poolAddr, tokenA: tA, tokenB: tB, dexId: dexId, pairName: "PAIR", swapFee: fee
+                poolAddress: poolAddr, tokenA: tA, tokenB: tB, dexId: dexId, pairName: "PAIR"
             })
         ) {
             ghost_pools.push(poolAddr);
             ghost_isRegistered[poolAddr] = true;
-            ghost_isActive[poolAddr] = true;
             ghost_totalRegistered++;
-            ghost_totalActive++;
             ghost_dexCount[dexId]++;
         } catch {
-            // DuplicatePoolKey — skip
+            // already exists — skip
         }
     }
 
@@ -116,10 +106,6 @@ contract PoolRegistryHandler is Test {
 
         ghost_isRegistered[poolAddr] = false;
         ghost_totalRegistered--;
-        if (ghost_isActive[poolAddr]) {
-            ghost_totalActive--;
-        }
-        ghost_isActive[poolAddr] = false;
         ghost_dexCount[info.dexId]--;
     }
 

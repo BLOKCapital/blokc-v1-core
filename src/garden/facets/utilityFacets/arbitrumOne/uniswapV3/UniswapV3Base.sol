@@ -22,6 +22,7 @@ import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswa
 // Local Interfaces
 import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/IUniswapV3.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
+import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 
 // Local Libraries
 import { TickMath } from "src/garden/libraries/TickMath.sol";
@@ -105,8 +106,6 @@ abstract contract UniswapV3Base {
         ISwapRouter router = ISwapRouter(UNISWAP_V3_ROUTER_ADDRESS);
         IERC20 tokenIn = IERC20(params.tokenIn);
 
-        _validatePool(params.tokenIn, params.tokenOut, params.swapFee);
-
         // Approve the input tokens for the swap
         tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountIn);
 
@@ -142,9 +141,6 @@ abstract contract UniswapV3Base {
         IERC20 tokenIn = IERC20(params.pathWithFees[0].token);
         address tokenOut = params.pathWithFees[params.pathWithFees.length - 1].token;
 
-        // Validate all pools in the multi-hop path are registered
-        _validateMultiHopPools(params.pathWithFees);
-
         // Approve the input tokens for the swap
         tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountIn);
 
@@ -174,8 +170,6 @@ abstract contract UniswapV3Base {
 
         IERC20 tokenIn = IERC20(params.tokenIn);
         address tokenOut = params.tokenOut;
-
-        _validatePool(address(tokenIn), tokenOut, params.swapFee);
 
         // Approve the input tokens for the swap
         tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountInMaximum);
@@ -213,9 +207,6 @@ abstract contract UniswapV3Base {
         ISwapRouter router = ISwapRouter(UNISWAP_V3_ROUTER_ADDRESS);
         IERC20 tokenIn = IERC20(params.pathWithFees[0].token);
 
-        // Validate all pools in the multi-hop path are registered
-        _validateMultiHopPools(params.pathWithFees);
-
         tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
         // Encode path (token, fee, token, fee, token, ...)
@@ -240,9 +231,108 @@ abstract contract UniswapV3Base {
         );
     }
 
-    /// @notice Quotes output amount for exact input on a specific Uniswap V3 pool
-    function _uniswapV3QuoteExactInputForPool(
-        address poolAddress,
+    /// @notice Standardised swap dispatcher for the rebalance flow.
+    ///         Reads fee tiers from pool contracts on-chain, then delegates to the
+    ///         appropriate internal helper (single/multi, exactIn/exactOut).
+    function _uniswapV3Swap(SwapInstruction calldata instruction) internal {
+        uint256 hops = instruction.pools.length;
+        if (hops == 0 || instruction.tokens.length != hops + 1) revert UniswapV3Facet_InvalidPath();
+
+        // Validate all pools upfront: registered in PoolRegistry + canonical in Uniswap factory
+        _validateSwapPools(instruction);
+
+        if (hops == 1) {
+            uint24 fee = IUniswapV3Pool(instruction.pools[0]).fee();
+
+            if (!instruction.exactOutput) {
+                _uniswapV3ExactInputSingle(
+                    IUniswapV3.UniswapV3ExactInputSingleParams({
+                        amountIn: instruction.amountIn,
+                        amountOutMinimum: instruction.amountOut,
+                        deadline: block.timestamp,
+                        tokenIn: instruction.tokens[0],
+                        tokenOut: instruction.tokens[1],
+                        swapFee: fee
+                    })
+                );
+            } else {
+                _uniswapV3ExactOutputSingle(
+                    IUniswapV3.UniswapV3ExactOutputSingleParams({
+                        amountOut: instruction.amountOut,
+                        amountInMaximum: instruction.amountIn,
+                        deadline: block.timestamp,
+                        tokenIn: instruction.tokens[0],
+                        tokenOut: instruction.tokens[1],
+                        swapFee: fee
+                    })
+                );
+            }
+        } else {
+            // Build TokenWithFee[] from tokens + on-chain pool fees.
+            // Convention: pathWithFees[i].fee = fee of pool connecting token[i] → token[i+1].
+            // The last entry's fee is unused by _encodePath but read by _validateMultiHopPools
+            // at index [i], so we store the fee at index [i] = pool[i-1].fee for i>=1
+            // to satisfy the existing validation loop.
+            IUniswapV3.TokenWithFee[] memory pathWithFees = new IUniswapV3.TokenWithFee[](instruction.tokens.length);
+            for (uint256 i; i < instruction.tokens.length; i++) {
+                uint24 fee = i < hops ? IUniswapV3Pool(instruction.pools[i]).fee() : 0;
+                pathWithFees[i] = IUniswapV3.TokenWithFee({ token: instruction.tokens[i], fee: fee });
+            }
+
+            if (!instruction.exactOutput) {
+                _uniswapV3ExactInput(
+                    IUniswapV3.UniswapV3ExactInputParams({
+                        pathWithFees: pathWithFees,
+                        deadline: block.timestamp,
+                        amountIn: instruction.amountIn,
+                        amountOutMin: instruction.amountOut
+                    })
+                );
+            } else {
+                _uniswapV3ExactOutput(
+                    IUniswapV3.UniswapV3ExactOutputParams({
+                        pathWithFees: pathWithFees,
+                        deadline: block.timestamp,
+                        amountOut: instruction.amountOut,
+                        amountInMaximum: instruction.amountIn
+                    })
+                );
+            }
+        }
+    }
+
+    /// @notice Unified quote dispatcher. Chains quotes through each pool in the path.
+    ///         Uses 30s TWAP by default for manipulation resistance.
+    /// @param instruction The QuoteInstruction describing the path and direction
+    /// @return result exactOutput=false: estimated output. exactOutput=true: estimated input needed.
+    function _uniswapV3Quote(QuoteInstruction calldata instruction) internal view returns (uint256 result) {
+        uint256 hops = instruction.pools.length;
+        if (hops == 0 || instruction.tokens.length != hops + 1) revert UniswapV3Facet_InvalidPath();
+
+        uint32 twapInterval = 30; // 30s TWAP default
+
+        if (!instruction.exactOutput) {
+            // Exact input: chain quotes forward
+            result = instruction.amount;
+            for (uint256 i; i < hops; i++) {
+                result = _quotePool(
+                    instruction.pools[i], result, instruction.tokens[i], instruction.tokens[i + 1], twapInterval
+                );
+            }
+        } else {
+            // Exact output: chain reverse-quotes backward
+            result = instruction.amount;
+            for (uint256 i = hops; i > 0; i--) {
+                result = _reverseQuotePool(
+                    instruction.pools[i - 1], result, instruction.tokens[i - 1], instruction.tokens[i], twapInterval
+                );
+            }
+        }
+    }
+
+    /// @notice Quotes output for a single pool given an input amount (exact input direction)
+    function _quotePool(
+        address pool,
         uint256 amountIn,
         address tokenIn,
         address tokenOut,
@@ -252,48 +342,57 @@ abstract contract UniswapV3Base {
         view
         returns (uint256 amountOut)
     {
-        if (poolAddress == address(0)) revert UniswapV3Facet_InvalidPoolAddress();
-        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
+        if (pool == address(0)) revert UniswapV3Facet_InvalidPoolAddress();
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
             revert UniswapV3Facet_UnregisteredPool();
         }
 
-        (uint160 sqrtPriceX96,) = _getSqrtTwapX96(poolAddress, twapInterval);
-        address token0 = IUniswapV3Pool(poolAddress).token0();
-        address token1 = IUniswapV3Pool(poolAddress).token1();
+        (uint160 sqrtPriceX96,) = _getSqrtTwapX96(pool, twapInterval);
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
 
-        return _quoteExactInputFromSqrtPrice(sqrtPriceX96, amountIn, tokenIn, tokenOut, token0, token1);
-    }
+        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
 
-    /// @notice Converts sqrtPriceX96 to amountOut given token order
-    function _quoteExactInputFromSqrtPrice(
-        uint160 sqrtPriceX96,
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut,
-        address token0,
-        address token1
-    )
-        internal
-        pure
-        returns (uint256 amountOut)
-    {
         if (tokenIn == token0 && tokenOut == token1) {
-            return _amountOutForZeroForOne(uint256(sqrtPriceX96), amountIn);
+            return (amountIn * price) >> 96;
         }
         if (tokenIn == token1 && tokenOut == token0) {
-            return _amountOutForOneForZero(uint256(sqrtPriceX96), amountIn);
+            return amountIn / price;
         }
         revert UniswapV3Facet_InvalidPath();
     }
 
-    function _amountOutForZeroForOne(uint256 sqrtPriceX96, uint256 amountIn) internal pure returns (uint256) {
-        uint256 priceToken1PerToken0 = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
-        return (amountIn * priceToken1PerToken0) >> 96;
-    }
+    /// @notice Reverse-quotes: given a desired output amount, estimates the input needed
+    function _reverseQuotePool(
+        address pool,
+        uint256 amountOut,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
+        internal
+        view
+        returns (uint256 amountIn)
+    {
+        if (pool == address(0)) revert UniswapV3Facet_InvalidPoolAddress();
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+            revert UniswapV3Facet_UnregisteredPool();
+        }
 
-    function _amountOutForOneForZero(uint256 sqrtPriceX96, uint256 amountIn) internal pure returns (uint256) {
-        uint256 priceToken1PerToken0 = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
-        return amountIn / priceToken1PerToken0;
+        (uint160 sqrtPriceX96,) = _getSqrtTwapX96(pool, twapInterval);
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
+
+        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+
+        // Reverse of _quotePool: if forward is out = in * price, reverse is in = out / price
+        if (tokenIn == token0 && tokenOut == token1) {
+            return (amountOut << 96) / price;
+        }
+        if (tokenIn == token1 && tokenOut == token0) {
+            return amountOut * price;
+        }
+        revert UniswapV3Facet_InvalidPath();
     }
 
     /// @notice Gets the TWAP sqrt price for a single Uniswap V3 pool
@@ -358,32 +457,30 @@ abstract contract UniswapV3Base {
         deadline = block.timestamp + 300;
     }
 
-    /// @notice Validates a pool registration
-    /// @dev Validates a pool registration by checking if the pool exists and is registered
-    /// @param tokenIn The input token address
-    /// @param tokenOut The output token address
-    /// @param swapFee The fee tier of the pool
-    function _validatePool(address tokenIn, address tokenOut, uint24 swapFee) internal view {
-        address pool = IUniswapV3Factory(UNISWAP_FACTORY_ADDRESS).getPool(tokenIn, tokenOut, swapFee);
+    /// @notice Validates a single pool: registered in PoolRegistry AND canonical in Uniswap factory
+    /// @param pool The pool address from SwapInstruction.pools[]
+    /// @param tokenIn The input token for this hop
+    /// @param tokenOut The output token for this hop
+    function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
+        if (pool == address(0)) revert UniswapV3Facet_InvalidPoolAddress();
+        if (tokenIn == address(0) || tokenOut == address(0)) revert UniswapV3Facet_InvalidTokenAddress();
 
-        if (pool == address(0) || !ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+        // 1. Pool must be registered in our PoolRegistry
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
             revert UniswapV3Facet_UnregisteredPool();
         }
+
+        // 2. Pool must be the canonical Uniswap V3 factory pool for this pair + fee
+        uint24 fee = IUniswapV3Pool(pool).fee();
+        address canonical = IUniswapV3Factory(UNISWAP_FACTORY_ADDRESS).getPool(tokenIn, tokenOut, fee);
+        if (canonical != pool) revert UniswapV3Facet_UnregisteredPool();
     }
 
-    /// @notice Validates that all pools in a multi-hop path exist and are registered
-    /// @param pathWithFees Array of TokenWithFee describing the path
-    function _validateMultiHopPools(IUniswapV3.TokenWithFee[] memory pathWithFees) internal view {
-        for (uint256 i = 1; i < pathWithFees.length; ++i) {
-            address tokenPrev = pathWithFees[i - 1].token;
-            address tokenCurr = pathWithFees[i].token;
-            uint24 fee = pathWithFees[i].fee;
-
-            if (tokenCurr == address(0)) {
-                revert UniswapV3Facet_InvalidTokenAddress();
-            }
-
-            _validatePool(tokenPrev, tokenCurr, fee);
+    /// @notice Validates all pools in a SwapInstruction upfront before execution
+    /// @param instruction The swap instruction to validate
+    function _validateSwapPools(SwapInstruction calldata instruction) internal view {
+        for (uint256 i; i < instruction.pools.length; i++) {
+            _validatePool(instruction.pools[i], instruction.tokens[i], instruction.tokens[i + 1]);
         }
     }
 

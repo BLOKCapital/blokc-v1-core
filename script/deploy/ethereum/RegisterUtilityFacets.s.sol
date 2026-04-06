@@ -77,13 +77,11 @@ contract RegisterUtilityFacets is BaseScript {
 
         // Uniswap V3
         UniswapV3Facet uniswapV3Facet = new UniswapV3Facet();
-        bytes4[] memory uniswapV3Selectors = new bytes4[](6);
-        uniswapV3Selectors[0] = uniswapV3Facet.uniswapV3ExactInputSingle.selector;
-        uniswapV3Selectors[1] = uniswapV3Facet.uniswapV3ExactInput.selector;
-        uniswapV3Selectors[2] = uniswapV3Facet.uniswapV3ExactOutputSingle.selector;
-        uniswapV3Selectors[3] = uniswapV3Facet.uniswapV3ExactOutput.selector;
-        uniswapV3Selectors[4] = uniswapV3Facet.getSqrtTwapX96.selector;
-        uniswapV3Selectors[5] = uniswapV3Facet.getCombinedTwapX96.selector;
+        bytes4[] memory uniswapV3Selectors = new bytes4[](4);
+        uniswapV3Selectors[0] = uniswapV3Facet.uniswapV3Swap.selector;
+        uniswapV3Selectors[1] = uniswapV3Facet.getSqrtTwapX96.selector;
+        uniswapV3Selectors[2] = uniswapV3Facet.getCombinedTwapX96.selector;
+        uniswapV3Selectors[3] = uniswapV3Facet.uniswapV3Quote.selector;
         console2.log("UniswapV3Facet deployed at:", address(uniswapV3Facet));
 
         // SushiSwap V3
