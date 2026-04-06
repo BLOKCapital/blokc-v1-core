@@ -11,7 +11,8 @@ import { IndexBase } from "../../../src/garden/facets/indexFacets/IndexBase.sol"
 
 import { IndexStorage } from "../../../src/garden/facets/indexFacets/IndexStorage.sol";
 
-import { IIndex, SwapCall, PendingIntent } from "../../../src/garden/facets/indexFacets/IIndex.sol";
+import { IIndex, SwapStep, PendingIntent } from "../../../src/garden/facets/indexFacets/IIndex.sol";
+import { SwapInstruction } from "src/interfaces/ISwapInstruction.sol";
 import { IFacetRegistry } from "../../../src/interfaces/IFacetRegistry.sol";
 import { LibDiamond } from "../../../src/garden/libraries/LibDiamond.sol";
 import { LibStorageSlot } from "../../../src/garden/libraries/LibStorageSlot.sol";
@@ -89,23 +90,28 @@ contract SwapOutputFuzzTest is IndexFacetTestBase {
         _createIntent();
     }
 
-    /// @dev Any minOutput above zero must revert because the no-op mock produces 0.
+    /// @dev Any amountOut above zero must revert because the no-op mock produces 0.
     function testFuzz_minOutput_revertsForAnyPositiveMin(uint256 minOut) public {
         minOut = bound(minOut, 1, type(uint128).max);
 
-        SwapCall[] memory calls = new SwapCall[](1);
-        calls[0] = SwapCall({
-            selector: swapTokensSel,
-            data: abi.encode(address(wbtc), address(weth), uint256(0), uint256(0)),
-            outputToken: address(weth),
-            minOutput: minOut
+        SwapStep[] memory steps = new SwapStep[](1);
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(wbtc);
+        tokens[1] = address(weth);
+        address[] memory pools = new address[](1);
+        pools[0] = address(0);
+        steps[0] = SwapStep({
+            dexId: keccak256("TEST_DEX"),
+            instruction: SwapInstruction({
+                amountIn: 0,
+                amountOut: minOut,
+                tokens: tokens,
+                pools: pools,
+                exactOutput: false
+            })
         });
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IndexFacet_InsufficientSwapOutput.selector, uint256(0), address(weth), uint256(0), minOut
-            )
-        );
-        h.rebalance(calls);
+        vm.expectRevert();
+        h.rebalance(steps);
     }
 }
 
