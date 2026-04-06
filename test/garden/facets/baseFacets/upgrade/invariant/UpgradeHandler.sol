@@ -16,29 +16,49 @@ import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 contract HandlerFacet0 {
     uint256 public state0;
 
-    function hFunc0a() external pure returns (uint256) { return 0; }
-    function hFunc0b() external pure returns (uint256) { return 0; }
+    function hFunc0a() external pure returns (uint256) {
+        return 0;
+    }
+
+    function hFunc0b() external pure returns (uint256) {
+        return 0;
+    }
 }
 
 contract HandlerFacet1 {
     uint256 public state1;
 
-    function hFunc1a() external pure returns (uint256) { return 1; }
-    function hFunc1b() external pure returns (uint256) { return 1; }
+    function hFunc1a() external pure returns (uint256) {
+        return 1;
+    }
+
+    function hFunc1b() external pure returns (uint256) {
+        return 1;
+    }
 }
 
 contract HandlerFacet0Replace {
     uint256 public state0r;
 
-    function hFunc0a() external pure returns (uint256) { return 10; }
-    function hFunc0b() external pure returns (uint256) { return 10; }
+    function hFunc0a() external pure returns (uint256) {
+        return 10;
+    }
+
+    function hFunc0b() external pure returns (uint256) {
+        return 10;
+    }
 }
 
 contract HandlerFacet1Replace {
     uint256 public state1r;
 
-    function hFunc1a() external pure returns (uint256) { return 11; }
-    function hFunc1b() external pure returns (uint256) { return 11; }
+    function hFunc1a() external pure returns (uint256) {
+        return 11;
+    }
+
+    function hFunc1b() external pure returns (uint256) {
+        return 11;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -69,12 +89,7 @@ contract UpgradeHandler is Test {
     uint256 public upgradeCount;
     uint256 public actionCount;
 
-    constructor(
-        FacetRegistry _registry,
-        address _garden,
-        address _gardenOwner,
-        bytes32 _moduleId
-    ) {
+    constructor(FacetRegistry _registry, address _garden, address _gardenOwner, bytes32 _moduleId) {
         registry = _registry;
         garden = _garden;
         gardenOwner = _gardenOwner;
@@ -94,7 +109,8 @@ contract UpgradeHandler is Test {
         sels1[1] = HandlerFacet1.hFunc1b.selector;
     }
 
-    // ── Actions ─────────────────────────────────────────────────────
+    // ── Actions
+    // ─────────────────────────────────────────────────────
 
     function addFacet0() external {
         if (facet0Added || facet0Replaced) return;
@@ -102,9 +118,7 @@ contract UpgradeHandler is Test {
 
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(facet0),
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: sels0
+            facetAddress: address(facet0), action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels0
         });
         registry.upgradeModule(moduleId, cuts);
         facet0Added = true;
@@ -117,9 +131,7 @@ contract UpgradeHandler is Test {
 
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(facet1),
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: sels1
+            facetAddress: address(facet1), action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels1
         });
         registry.upgradeModule(moduleId, cuts);
         facet1Added = true;
@@ -133,9 +145,7 @@ contract UpgradeHandler is Test {
 
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(facet0r),
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: sels0
+            facetAddress: address(facet0r), action: IDiamondCut.FacetCutAction.Replace, functionSelectors: sels0
         });
         registry.upgradeModule(moduleId, cuts);
         facet0Replaced = true;
@@ -148,9 +158,7 @@ contract UpgradeHandler is Test {
 
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(facet1r),
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: sels1
+            facetAddress: address(facet1r), action: IDiamondCut.FacetCutAction.Replace, functionSelectors: sels1
         });
         registry.upgradeModule(moduleId, cuts);
         facet1Replaced = true;
@@ -163,9 +171,7 @@ contract UpgradeHandler is Test {
 
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: sels0
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: sels0
         });
         registry.upgradeModule(moduleId, cuts);
         facet0Added = false;
@@ -180,9 +186,7 @@ contract UpgradeHandler is Test {
 
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: sels1
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: sels1
         });
         registry.upgradeModule(moduleId, cuts);
         facet1Added = false;

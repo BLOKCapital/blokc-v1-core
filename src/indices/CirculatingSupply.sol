@@ -67,7 +67,7 @@ contract CirculatingSupply is Ownable {
     /// @param newSupply New circulating supply value
     /// @param timestamp Block timestamp of the update
     event SupplyUpdated(string indexed symbol, uint256 newSupply, uint256 timestamp);
-    
+
     /// @notice Emitted when the authorized updater address is changed
     /// @param oldUpdater Address of the previous updater
     /// @param newUpdater Address of the new updater

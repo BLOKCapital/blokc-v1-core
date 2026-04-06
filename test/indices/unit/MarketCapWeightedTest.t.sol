@@ -128,7 +128,6 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
     }
 
     function test_getWeights_sum_approx_1e18() public {
-       
         uint256[] memory weights = marketCapWeighted.getWeights(symbol);
 
         uint256 sum = 0;
@@ -137,14 +136,12 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
         }
 
         assertLe(sum, 1e18);
-        
     }
 
     function test_getWeights_largeComponent() public {
         uint256 count = 10;
 
-        string[10] memory tokenNames =
-            ["TKN1", "TKN2", "TKN3", "TKN4", "TKN5", "TKN6", "TKN7", "TKN8", "TKN9", "TKN10"];
+        string[10] memory tokenNames = ["TKN1", "TKN2", "TKN3", "TKN4", "TKN5", "TKN6", "TKN7", "TKN8", "TKN9", "TKN10"];
 
         string[] memory syms = new string[](count);
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](count);
@@ -152,17 +149,14 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
 
         for (uint256 i = 0; i < count; i++) {
             string memory sym = tokenNames[i];
-            uint256 price = (i + 1) * 1_000e18;
+            uint256 price = (i + 1) * 1000e18;
             MockOracle oracle = new MockOracle(sym, price);
 
             syms[i] = sym;
             comps[i] = IndexComponentRegistry.Component({
-                symbol: sym,
-                tokenAddress: makeAddr(sym),
-                priceFeedAddress: address(oracle),
-                heartbeat: 3600
+                symbol: sym, tokenAddress: makeAddr(sym), priceFeedAddress: address(oracle), heartbeat: 3600
             });
-            supplies[i] = i + 1; 
+            supplies[i] = i + 1;
         }
 
         vm.prank(owner);
@@ -213,7 +207,6 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
     }
 
     function test_getWeights_componentWeightBelowMinimum() public {
-        
         MockOracle oracleTiny = new MockOracle("TOKEN1", 1e18);
         MockOracle oracleBig = new MockOracle("TOKEN2", 1e18);
 
@@ -234,8 +227,8 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
         syms[1] = "TOKEN2";
 
         uint256[] memory supplies = new uint256[](2);
-        supplies[0] = 1;     //  tiny market cap
-        supplies[1] = 1e18;  //  dominates total
+        supplies[0] = 1; //  tiny market cap
+        supplies[1] = 1e18; //  dominates total
 
         vm.startPrank(updater);
         cirSupply.updateBatch(syms, supplies);

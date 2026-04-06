@@ -17,6 +17,7 @@ import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3
 import { TickMath } from "src/garden/libraries/TickMath.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 
 /// @notice Thrown when the factory poolByPair call returns an invalid pool address
 error CamelotV3Facet_InvalidPoolAddress();
@@ -24,15 +25,17 @@ error CamelotV3Facet_InvalidPoolAddress();
 /// @notice Thrown when the resolved pool address is the zero address
 error CamelotV3Facet_InvalidPool();
 
-/// @notice Thrown when a pool along the swap path is not registered in the pool registry
+/// @notice Thrown when a pool is not registered or doesn't match the factory canonical pool
 error CamelotV3Facet_UnregisteredPool();
+
+/// @notice Thrown when the swap path is invalid (wrong lengths)
+error CamelotV3Facet_InvalidPath();
 
 /**
  * @title CamelotV3Base
- * @notice Base contract that implements internal functions for swapping tokens through Camelot V3 on Arbitrum One. This
- * contract is intended to be inherited by a CamelotV3Facet that exposes the swap functions with appropriate access
- * control and user-facing error messages. It includes functions to perform single-hop and multi-hop exact-input and
- * exact-output swaps, along with events for off-chain tracking of swap operations.
+ * @notice Base contract for Camelot V3 swaps and quotes on Arbitrum One. Camelot V3 uses
+ *         the Algebra protocol with dynamic fees — no fee parameter is needed. One pool
+ *         per token pair, identified by factory's poolByPair(tokenA, tokenB).
  */
 abstract contract CamelotV3Base {
     using SafeERC20 for IERC20;
@@ -47,175 +50,252 @@ abstract contract CamelotV3Base {
     address internal constant POOL_REGISTRY_ADDRESS = 0xeADe4091f50B1fd0b6315c9028543f5177E59a56;
 
     /// @notice Emitted when a Camelot V3 swap is successfully executed
-    /// @param tokenIn The input token address
-    /// @param tokenOut The output token address
-    /// @param amountIn The amount of input tokens swapped
-    /// @param amountOut The amount of output tokens received
     event CamelotV3FacetTokensSwapped(
         address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
     );
 
-    /// @notice Executes a single-hop exact-input swap on Camelot V3
-    /// @param params Single-hop swap parameters including tokens, amounts, and deadline
+    // ========================================================================
+    // Swap Dispatcher
+    // ========================================================================
+
+    /// @notice Standardised swap dispatcher. Validates pools upfront, then delegates.
+    function _camelotV3Swap(SwapInstruction calldata instruction) internal {
+        uint256 hops = instruction.pools.length;
+        if (hops == 0 || instruction.tokens.length != hops + 1) revert CamelotV3Facet_InvalidPath();
+
+        _validateSwapPools(instruction);
+
+        if (hops == 1) {
+            if (!instruction.exactOutput) {
+                _camelotV3ExactInputSingle(
+                    ICamelotV3.CamelotV3ExactInputSingleParams({
+                        tokenIn: instruction.tokens[0],
+                        tokenOut: instruction.tokens[1],
+                        recipient: address(this),
+                        deadline: block.timestamp,
+                        amountIn: instruction.amountIn,
+                        amountOutMinimum: instruction.amountOut,
+                        limitSqrtPrice: 0
+                    })
+                );
+            } else {
+                _camelotV3ExactOutputSingle(
+                    ICamelotV3.CamelotV3ExactOutputSingleParams({
+                        tokenIn: instruction.tokens[0],
+                        tokenOut: instruction.tokens[1],
+                        recipient: address(this),
+                        deadline: block.timestamp,
+                        amountOut: instruction.amountOut,
+                        amountInMaximum: instruction.amountIn,
+                        limitSqrtPrice: 0
+                    })
+                );
+            }
+        } else {
+            if (!instruction.exactOutput) {
+                _camelotV3ExactInput(
+                    ICamelotV3.CamelotV3ExactInputParams({
+                        path: instruction.tokens,
+                        recipient: address(this),
+                        deadline: block.timestamp,
+                        amountIn: instruction.amountIn,
+                        amountOutMinimum: instruction.amountOut
+                    })
+                );
+            } else {
+                _camelotV3ExactOutput(
+                    ICamelotV3.CamelotV3ExactOutputParams({
+                        path: instruction.tokens,
+                        recipient: address(this),
+                        deadline: block.timestamp,
+                        amountOut: instruction.amountOut,
+                        amountInMaximum: instruction.amountIn
+                    })
+                );
+            }
+        }
+    }
+
+    // ========================================================================
+    // Quote Dispatcher
+    // ========================================================================
+
+    /// @notice Unified quote dispatcher. Chains quotes through each pool. Uses 30s TWAP.
+    function _camelotV3Quote(QuoteInstruction calldata inst) internal view returns (uint256 result) {
+        uint256 hops = inst.pools.length;
+        if (hops == 0 || inst.tokens.length != hops + 1) revert CamelotV3Facet_InvalidPath();
+
+        uint32 twapInterval = 30;
+
+        if (!inst.exactOutput) {
+            result = inst.amount;
+            for (uint256 i; i < hops; i++) {
+                result = _quotePool(inst.pools[i], result, inst.tokens[i], inst.tokens[i + 1], twapInterval);
+            }
+        } else {
+            result = inst.amount;
+            for (uint256 i = hops; i > 0; i--) {
+                result = _reverseQuotePool(inst.pools[i - 1], result, inst.tokens[i - 1], inst.tokens[i], twapInterval);
+            }
+        }
+    }
+
+    // ========================================================================
+    // Internal Swap Helpers (no validation — caller validates upfront)
+    // ========================================================================
+
     function _camelotV3ExactInputSingle(ICamelotV3.CamelotV3ExactInputSingleParams memory params) internal {
         ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
-        IERC20 tokenIn = IERC20(params.tokenIn);
+        IERC20(params.tokenIn).forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountIn);
 
-        _validatePool(params.tokenIn, params.tokenOut);
+        uint256 amountOut = router.exactInputSingle(
+            ICamelotRouterV3.ExactInputSingleParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                recipient: address(this),
+                deadline: params.deadline,
+                amountIn: params.amountIn,
+                amountOutMinimum: params.amountOutMinimum,
+                limitSqrtPrice: params.limitSqrtPrice
+            })
+        );
 
-        tokenIn.forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountIn);
-
-        ICamelotRouterV3.ExactInputSingleParams memory swapParams = ICamelotRouterV3.ExactInputSingleParams({
-            tokenIn: params.tokenIn,
-            tokenOut: params.tokenOut,
-            recipient: address(this),
-            deadline: params.deadline,
-            amountIn: params.amountIn,
-            amountOutMinimum: params.amountOutMinimum,
-            limitSqrtPrice: params.limitSqrtPrice
-        });
-
-        uint256 amountOut = router.exactInputSingle(swapParams);
-
-        // Emit the tokens swapped event
         emit CamelotV3FacetTokensSwapped(params.tokenIn, params.tokenOut, params.amountIn, amountOut);
     }
 
-    /// @notice Executes a multi-hop exact-input swap on Camelot V3
-    /// @param params Multi-hop swap parameters including path, amounts, and deadline
     function _camelotV3ExactInput(ICamelotV3.CamelotV3ExactInputParams memory params) internal {
         ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
-        IERC20 tokenIn = IERC20(params.path[0]);
+        IERC20(params.path[0]).forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountIn);
 
-        // Validate all pools in the multi-hop path are registered
-        _validateMultiHopPools(params.path);
-
-        // Approve the input tokens for the swap
-        tokenIn.forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountIn);
-
-        // Encode path (token, token, token, ...)
         bytes memory encodedPath = _encodePath(params.path);
-
-        ICamelotRouterV3.ExactInputParams memory swapParams = ICamelotRouterV3.ExactInputParams({
-            path: encodedPath,
-            recipient: address(this),
-            deadline: params.deadline,
-            amountIn: params.amountIn,
-            amountOutMinimum: params.amountOutMinimum
-        });
-
-        // Execute the swap
-        uint256 amountOut = router.exactInput(swapParams);
-
-        // Emit the tokens swapped event
-        emit CamelotV3FacetTokensSwapped(
-            params.path[0], params.path[params.path.length - 1], params.amountIn, amountOut
+        uint256 amountOut = router.exactInput(
+            ICamelotRouterV3.ExactInputParams({
+                path: encodedPath,
+                recipient: address(this),
+                deadline: params.deadline,
+                amountIn: params.amountIn,
+                amountOutMinimum: params.amountOutMinimum
+            })
         );
+
+        emit CamelotV3FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], params.amountIn, amountOut);
     }
 
-    /// @notice Executes a single-hop exact-output swap on Camelot V3
-    /// @param params Single-hop swap parameters including tokens, amounts, and deadline
     function _camelotV3ExactOutputSingle(ICamelotV3.CamelotV3ExactOutputSingleParams memory params) internal {
         ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
-        IERC20 tokenIn = IERC20(params.tokenIn);
-        address tokenOut = params.tokenOut;
+        IERC20(params.tokenIn).forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
-        // Validate pool registration
-        _validatePool(address(tokenIn), tokenOut);
-
-        // Approve the input tokens for the swap
-        tokenIn.forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountInMaximum);
-
-        // Build swap parameters
-        ICamelotRouterV3.ExactOutputSingleParams memory swapParams = ICamelotRouterV3.ExactOutputSingleParams({
-            tokenIn: address(tokenIn),
-            tokenOut: tokenOut,
-            recipient: address(this),
-            deadline: params.deadline,
-            amountOut: params.amountOut,
-            amountInMaximum: params.amountInMaximum,
-            limitSqrtPrice: params.limitSqrtPrice
-        });
-
-        // Execute the swap
-        uint256 amountIn = router.exactOutputSingle(swapParams);
-
-        // Emit the tokens swapped event
-        emit CamelotV3FacetTokensSwapped(address(tokenIn), tokenOut, amountIn, params.amountOut);
-    }
-
-    /// @notice Executes a multi-hop exact-output swap on Camelot V3
-    /// @param params Multi-hop swap parameters including path, amounts, and deadline
-    function _camelotV3ExactOutput(ICamelotV3.CamelotV3ExactOutputParams memory params) internal {
-        ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
-        IERC20 tokenIn = IERC20(params.path[0]);
-        address tokenOut = params.path[params.path.length - 1];
-
-        // Validate all pools in the multi-hop path are registered
-        _validateMultiHopPools(params.path);
-
-        // Approve the input tokens for the swap
-        tokenIn.forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountInMaximum);
-
-        // Encode path (token, token, token, ...)
-        bytes memory encodedPath = _encodePath(params.path);
-
-        // Build swap parameters
-        ICamelotRouterV3.ExactOutputParams memory swapParams = ICamelotRouterV3.ExactOutputParams({
-            path: encodedPath,
-            recipient: address(this),
-            deadline: params.deadline,
-            amountOut: params.amountOut,
-            amountInMaximum: params.amountInMaximum
-        });
-
-        // Execute the swap
-        uint256 amountIn = router.exactOutput(swapParams);
-
-        // Emit the tokens swapped event
-        emit CamelotV3FacetTokensSwapped(address(tokenIn), tokenOut, amountIn, params.amountOut);
-    }
-
-    /// @notice Validates that all pools in a multi-hop path exist and are registered
-    /// @param path Array of token addresses describing the swap path
-    function _validateMultiHopPools(address[] memory path) internal view {
-        for (uint256 i = 0; i < path.length - 1; i++) {
-            _validatePool(path[i], path[i + 1]);
-        }
-    }
-
-    /// @notice Validates that a pool exists and is registered in the pool registry
-    /// @param tokenIn The input token address
-    /// @param tokenOut The output token address
-    function _validatePool(address tokenIn, address tokenOut) internal view {
-        // Get pool address from factory
-        (bool ok, bytes memory data) = CAMELOT_V3_FACTORY_ADDRESS.staticcall(
-            abi.encodeWithSignature("poolByPair(address,address)", tokenIn, tokenOut)
+        uint256 amountIn = router.exactOutputSingle(
+            ICamelotRouterV3.ExactOutputSingleParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                recipient: address(this),
+                deadline: params.deadline,
+                amountOut: params.amountOut,
+                amountInMaximum: params.amountInMaximum,
+                limitSqrtPrice: params.limitSqrtPrice
+            })
         );
 
-        if (!ok) {
-            revert CamelotV3Facet_InvalidPoolAddress();
-        }
+        emit CamelotV3FacetTokensSwapped(params.tokenIn, params.tokenOut, amountIn, params.amountOut);
+    }
 
-        address pool = abi.decode(data, (address));
+    function _camelotV3ExactOutput(ICamelotV3.CamelotV3ExactOutputParams memory params) internal {
+        ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
+        IERC20(params.path[0]).forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
-        if (pool == address(0)) {
-            revert CamelotV3Facet_InvalidPool();
-        }
+        bytes memory encodedPath = _encodePath(params.path);
+        uint256 amountIn = router.exactOutput(
+            ICamelotRouterV3.ExactOutputParams({
+                path: encodedPath,
+                recipient: address(this),
+                deadline: params.deadline,
+                amountOut: params.amountOut,
+                amountInMaximum: params.amountInMaximum
+            })
+        );
 
-        // Check if the pool is registered
+        emit CamelotV3FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], amountIn, params.amountOut);
+    }
+
+    // ========================================================================
+    // Validation
+    // ========================================================================
+
+    /// @notice Validates a single pool: registered in PoolRegistry AND canonical in Camelot factory
+    function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
+        if (pool == address(0)) revert CamelotV3Facet_InvalidPoolAddress();
+
+        // 1. Pool must be registered in our PoolRegistry
         if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
             revert CamelotV3Facet_UnregisteredPool();
         }
+
+        // 2. Pool must be the canonical Camelot factory pool for this pair
+        (bool ok, bytes memory data) =
+            CAMELOT_V3_FACTORY_ADDRESS.staticcall(abi.encodeWithSignature("poolByPair(address,address)", tokenIn, tokenOut));
+        if (!ok) revert CamelotV3Facet_InvalidPoolAddress();
+
+        address canonical = abi.decode(data, (address));
+        if (canonical != pool) revert CamelotV3Facet_UnregisteredPool();
     }
 
-    /// @notice Gets the TWAP sqrt price for a Camelot V3 pool (Camelot V3 uses same interface as Uniswap V3)
-    /// @param poolAddress Address of the pool
-    /// @param twapInterval TWAP interval in seconds (0 for spot)
-    function _camelotV3GetSqrtTwapX96(
-        address poolAddress,
-        uint32 twapInterval
-    )
+    /// @notice Validates all pools in a SwapInstruction upfront
+    function _validateSwapPools(SwapInstruction calldata instruction) internal view {
+        for (uint256 i; i < instruction.pools.length; i++) {
+            _validatePool(instruction.pools[i], instruction.tokens[i], instruction.tokens[i + 1]);
+        }
+    }
+
+    // ========================================================================
+    // Quote Helpers
+    // ========================================================================
+
+    function _quotePool(address pool, uint256 amountIn, address tokenIn, address tokenOut, uint32 twapInterval)
+        internal
+        view
+        returns (uint256)
+    {
+        if (pool == address(0)) revert CamelotV3Facet_InvalidPoolAddress();
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+            revert CamelotV3Facet_UnregisteredPool();
+        }
+
+        (uint160 sqrtPriceX96,) = _camelotV3GetSqrtTwapX96(pool, twapInterval);
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
+        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+
+        if (tokenIn == token0 && tokenOut == token1) return (amountIn * price) >> 96;
+        if (tokenIn == token1 && tokenOut == token0) return amountIn / price;
+        revert CamelotV3Facet_InvalidPool();
+    }
+
+    function _reverseQuotePool(address pool, uint256 amountOut, address tokenIn, address tokenOut, uint32 twapInterval)
+        internal
+        view
+        returns (uint256)
+    {
+        if (pool == address(0)) revert CamelotV3Facet_InvalidPoolAddress();
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+            revert CamelotV3Facet_UnregisteredPool();
+        }
+
+        (uint160 sqrtPriceX96,) = _camelotV3GetSqrtTwapX96(pool, twapInterval);
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
+        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+
+        if (tokenIn == token0 && tokenOut == token1) return (amountOut << 96) / price;
+        if (tokenIn == token1 && tokenOut == token0) return amountOut * price;
+        revert CamelotV3Facet_InvalidPool();
+    }
+
+    // ========================================================================
+    // TWAP & Path Encoding
+    // ========================================================================
+
+    function _camelotV3GetSqrtTwapX96(address poolAddress, uint32 twapInterval)
         internal
         view
         returns (uint160 sqrtPriceX96, uint256 deadline)
@@ -236,49 +316,6 @@ abstract contract CamelotV3Base {
         }
     }
 
-    /// @notice Quotes output amount for exact input on a Camelot V3 pool
-    function _camelotV3QuoteExactInputForPool(
-        address poolAddress,
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut,
-        uint32 twapInterval
-    )
-        internal
-        view
-        returns (uint256 amountOut)
-    {
-        if (poolAddress == address(0)) revert CamelotV3Facet_InvalidPool();
-        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
-            revert CamelotV3Facet_UnregisteredPool();
-        }
-
-        (uint160 sqrtPriceX96,) = _camelotV3GetSqrtTwapX96(poolAddress, twapInterval);
-        address token0 = IUniswapV3Pool(poolAddress).token0();
-        address token1 = IUniswapV3Pool(poolAddress).token1();
-
-        if (tokenIn == token0 && tokenOut == token1) {
-            return _camelotV3AmountOutForZeroForOne(uint256(sqrtPriceX96), amountIn);
-        }
-        if (tokenIn == token1 && tokenOut == token0) {
-            return _camelotV3AmountOutForOneForZero(uint256(sqrtPriceX96), amountIn);
-        }
-        revert CamelotV3Facet_InvalidPool();
-    }
-
-    function _camelotV3AmountOutForZeroForOne(uint256 sqrtPriceX96, uint256 amountIn) internal pure returns (uint256) {
-        uint256 priceToken1PerToken0 = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
-        return (amountIn * priceToken1PerToken0) >> 96;
-    }
-
-    function _camelotV3AmountOutForOneForZero(uint256 sqrtPriceX96, uint256 amountIn) internal pure returns (uint256) {
-        uint256 priceToken1PerToken0 = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
-        return amountIn / priceToken1PerToken0;
-    }
-
-    /// @notice Encodes a multi-hop path for the Camelot V3 router
-    /// @param path Array of token addresses describing the swap path
-    /// @return encodedPath ABI-packed encoded path bytes
     function _encodePath(address[] memory path) internal pure returns (bytes memory encodedPath) {
         encodedPath = abi.encodePacked(path[0]);
         for (uint256 i = 1; i < path.length; ++i) {

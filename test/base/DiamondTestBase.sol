@@ -3,25 +3,29 @@ pragma solidity ^0.8.31;
 
 import { BaseTest } from "./BaseTest.sol";
 
-// ── Core contracts ───────────────────────────────────────────────────────
+// ── Core contracts
+// ───────────────────────────────────────────────────────
 import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { Garden } from "src/garden/Garden.sol";
 import { GardenFactory } from "src/factory/GardenFactory.sol";
 
-// ── Base facets ──────────────────────────────────────────────────────────
+// ── Base facets
+// ──────────────────────────────────────────────────────────
 import { DiamondCutFacet } from "src/garden/facets/baseFacets/cut/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "src/garden/facets/baseFacets/loupe/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "src/garden/facets/baseFacets/ownership/OwnershipFacet.sol";
 import { UpgradeFacet } from "src/garden/facets/baseFacets/upgrade/UpgradeFacet.sol";
 
-// ── Interfaces ───────────────────────────────────────────────────────────
+// ── Interfaces
+// ───────────────────────────────────────────────────────────
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 import { IDiamondLoupe } from "src/garden/facets/baseFacets/loupe/IDiamondLoupe.sol";
 import { IUpgrade } from "src/garden/facets/baseFacets/upgrade/IUpgrade.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
 import { IERC173 } from "src/interfaces/IERC173.sol";
 
-// ── Mocks ────────────────────────────────────────────────────────────────
+// ── Mocks
+// ────────────────────────────────────────────────────────────────
 import { MockProtocolStatus } from "../mock/MockProtocolStatus.sol";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -31,35 +35,65 @@ import { MockProtocolStatus } from "../mock/MockProtocolStatus.sol";
 // upgrade / garden-type tests without importing real protocol facets.
 
 contract StubFacetA {
-    function stubA1() external pure returns (uint256) { return 1; }
-    function stubA2() external pure returns (uint256) { return 2; }
+    function stubA1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function stubA2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract StubFacetB {
-    function stubB1() external pure returns (uint256) { return 1; }
-    function stubB2() external pure returns (uint256) { return 2; }
+    function stubB1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function stubB2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract StubFacetC {
-    function stubC1() external pure returns (uint256) { return 1; }
-    function stubC2() external pure returns (uint256) { return 2; }
+    function stubC1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function stubC2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract StubFacetD {
-    function stubD1() external pure returns (uint256) { return 1; }
-    function stubD2() external pure returns (uint256) { return 2; }
+    function stubD1() external pure returns (uint256) {
+        return 1;
+    }
+
+    function stubD2() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 /// @dev Replacement for StubFacetA (same selectors, different address)
 contract StubFacetA2 {
-    function stubA1() external pure returns (uint256) { return 10; }
-    function stubA2() external pure returns (uint256) { return 20; }
+    function stubA1() external pure returns (uint256) {
+        return 10;
+    }
+
+    function stubA2() external pure returns (uint256) {
+        return 20;
+    }
 }
 
 /// @dev Replacement for StubFacetB (same selectors, different address)
 contract StubFacetB2 {
-    function stubB1() external pure returns (uint256) { return 10; }
-    function stubB2() external pure returns (uint256) { return 20; }
+    function stubB1() external pure returns (uint256) {
+        return 10;
+    }
+
+    function stubB2() external pure returns (uint256) {
+        return 20;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -80,17 +114,20 @@ contract StubFacetB2 {
 ///         - Perform upgrades
 ///         - Deploy GardenFactory
 abstract contract DiamondTestBase is BaseTest {
-    // ── Core contracts ───────────────────────────────────────────────
+    // ── Core contracts
+    // ───────────────────────────────────────────────
     FacetRegistry public registry;
     MockProtocolStatus public protocolStatus;
 
-    // ── Base facet instances (real) ──────────────────────────────────
+    // ── Base facet instances (real)
+    // ──────────────────────────────────
     DiamondCutFacet public diamondCutFacet;
     DiamondLoupeFacet public diamondLoupeFacet;
     OwnershipFacet public ownershipFacet;
     UpgradeFacet public upgradeFacet;
 
-    // ── Stub module facets ──────────────────────────────────────────
+    // ── Stub module facets
+    // ──────────────────────────────────────────
     StubFacetA public stubA;
     StubFacetB public stubB;
     StubFacetC public stubC;
@@ -98,13 +135,15 @@ abstract contract DiamondTestBase is BaseTest {
     StubFacetA2 public stubA2;
     StubFacetB2 public stubB2;
 
-    // ── Base facet selector arrays ──────────────────────────────────
+    // ── Base facet selector arrays
+    // ──────────────────────────────────
     bytes4[] public selsCut;
     bytes4[] public selsLoupe;
     bytes4[] public selsOwnership;
     bytes4[] public selsUpgrade;
 
-    // ── Stub facet selector arrays ──────────────────────────────────
+    // ── Stub facet selector arrays
+    // ──────────────────────────────────
     bytes4[] public selsStubA;
     bytes4[] public selsStubB;
     bytes4[] public selsStubC;
@@ -117,13 +156,15 @@ abstract contract DiamondTestBase is BaseTest {
     function setUp() public virtual override {
         super.setUp();
 
-        // ── Deploy base facets ───────────────────────────────────────
+        // ── Deploy base facets
+        // ───────────────────────────────────────
         diamondCutFacet = new DiamondCutFacet();
         diamondLoupeFacet = new DiamondLoupeFacet();
         ownershipFacet = new OwnershipFacet();
         upgradeFacet = new UpgradeFacet();
 
-        // ── Deploy stub module facets ────────────────────────────────
+        // ── Deploy stub module facets
+        // ────────────────────────────────
         stubA = new StubFacetA();
         stubB = new StubFacetB();
         stubC = new StubFacetC();
@@ -131,7 +172,8 @@ abstract contract DiamondTestBase is BaseTest {
         stubA2 = new StubFacetA2();
         stubB2 = new StubFacetB2();
 
-        // ── Build base facet selector arrays ─────────────────────────
+        // ── Build base facet selector arrays
+        // ─────────────────────────
         selsCut = _singleSelector(IDiamondCut.diamondCut.selector);
 
         selsLoupe = new bytes4[](5);
@@ -148,19 +190,16 @@ abstract contract DiamondTestBase is BaseTest {
         selsUpgrade[1] = IUpgrade.upgradeDetails.selector;
         selsUpgrade[2] = IUpgrade.getModuleVersion.selector;
 
-        // ── Build stub selector arrays ───────────────────────────────
+        // ── Build stub selector arrays
+        // ───────────────────────────────
         selsStubA = _twoSelectors(StubFacetA.stubA1.selector, StubFacetA.stubA2.selector);
         selsStubB = _twoSelectors(StubFacetB.stubB1.selector, StubFacetB.stubB2.selector);
         selsStubC = _twoSelectors(StubFacetC.stubC1.selector, StubFacetC.stubC2.selector);
         selsStubD = _twoSelectors(StubFacetD.stubD1.selector, StubFacetD.stubD2.selector);
 
         // ── Deploy FacetRegistry with real base facets ────────────────
-        address[4] memory baseFacets = [
-            address(diamondCutFacet),
-            address(diamondLoupeFacet),
-            address(ownershipFacet),
-            address(upgradeFacet)
-        ];
+        address[4] memory baseFacets =
+            [address(diamondCutFacet), address(diamondLoupeFacet), address(ownershipFacet), address(upgradeFacet)];
         bytes4[][] memory baseFacetSelectors = new bytes4[][](4);
         baseFacetSelectors[0] = selsCut;
         baseFacetSelectors[1] = selsLoupe;
@@ -186,9 +225,7 @@ abstract contract DiamondTestBase is BaseTest {
     function _addFacetToModule(bytes32 moduleId, address facet, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: facet,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: sels
+            facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }
@@ -197,9 +234,7 @@ abstract contract DiamondTestBase is BaseTest {
     function _replaceFacetInModule(bytes32 moduleId, address newFacet, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: newFacet,
-            action: IDiamondCut.FacetCutAction.Replace,
-            functionSelectors: sels
+            facetAddress: newFacet, action: IDiamondCut.FacetCutAction.Replace, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }
@@ -208,9 +243,7 @@ abstract contract DiamondTestBase is BaseTest {
     function _removeFacetFromModule(bytes32 moduleId, bytes4[] memory sels) internal {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: sels
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: sels
         });
         registry.upgradeModule(moduleId, cuts);
     }

@@ -49,10 +49,7 @@ contract GardenFactoryInvariantTest is GardenFactoryTestBase {
     function invariant_userGardenCountMatchesGhost() public view {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
-            assertEq(
-                factory.getUserGardenCount(actors[i]),
-                handler.ghost_userGardenCount(actors[i])
-            );
+            assertEq(factory.getUserGardenCount(actors[i]), handler.ghost_userGardenCount(actors[i]));
         }
     }
 
@@ -70,10 +67,7 @@ contract GardenFactoryInvariantTest is GardenFactoryTestBase {
     function invariant_userGardensArrayMatchesCount() public view {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
-            assertEq(
-                factory.getUserGardens(actors[i]).length,
-                factory.getUserGardenCount(actors[i])
-            );
+            assertEq(factory.getUserGardens(actors[i]).length, factory.getUserGardenCount(actors[i]));
         }
     }
 
@@ -115,10 +109,7 @@ contract GardenFactoryInvariantTest is GardenFactoryTestBase {
     function invariant_typeCountMatchesGhost() public view {
         bytes32[] memory types = handler.getGardenTypes();
         for (uint256 i = 0; i < types.length; i++) {
-            assertEq(
-                factory.getGardensByTypeCount(types[i]),
-                handler.ghost_typeCount(types[i])
-            );
+            assertEq(factory.getGardensByTypeCount(types[i]), handler.ghost_typeCount(types[i]));
         }
     }
 

@@ -7,7 +7,8 @@ import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 import { LiquidityPoolRegistry } from "src/liquidityPoolRegistry/LiquidityPoolRegistry.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 
-// ── Import real utility facets ──────────────────────────────────────────
+// ── Import real utility facets
+// ──────────────────────────────────────────
 import { WithdrawFacet } from "src/garden/facets/utilityFacets/arbitrumOne/withdraw/WithdrawFacet.sol";
 import { IWithdraw } from "src/garden/facets/utilityFacets/arbitrumOne/withdraw/IWithdraw.sol";
 
@@ -156,8 +157,7 @@ abstract contract DexFacetTestBase is DiamondTestBase {
         address tokenA,
         address tokenB,
         bytes32 dexId,
-        string memory pairName,
-        uint24 swapFee
+        string memory pairName
     )
         internal
     {
@@ -167,8 +167,7 @@ abstract contract DexFacetTestBase is DiamondTestBase {
                 tokenA: tokenA,
                 tokenB: tokenB,
                 dexId: dexId,
-                pairName: pairName,
-                swapFee: swapFee
+                pairName: pairName
             })
         );
     }

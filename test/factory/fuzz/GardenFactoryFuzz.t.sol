@@ -105,9 +105,7 @@ contract GardenFactoryFuzzTest is GardenFactoryTestBase {
         vm.assume(index == 0 || index > 10);
 
         vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(bytes4(keccak256("GardenFactory_IndexOutOfRange(uint256)")), index)
-        );
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("GardenFactory_IndexOutOfRange(uint256)")), index));
         factory.createGarden(index, GARDEN_TYPE_1);
     }
 
@@ -121,9 +119,7 @@ contract GardenFactoryFuzzTest is GardenFactoryTestBase {
 
         vm.prank(user);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("GardenFactory_IndexAlreadyUsed(address,uint256)")), user, index
-            )
+            abi.encodeWithSelector(bytes4(keccak256("GardenFactory_IndexAlreadyUsed(address,uint256)")), user, index)
         );
         factory.createGarden(index, GARDEN_TYPE_1);
     }
@@ -135,9 +131,7 @@ contract GardenFactoryFuzzTest is GardenFactoryTestBase {
 
         vm.prank(alice);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("GardenFactory_GardenTypeNotRegistered(bytes32)")), gardenType
-            )
+            abi.encodeWithSelector(bytes4(keccak256("GardenFactory_GardenTypeNotRegistered(bytes32)")), gardenType)
         );
         factory.createGarden(1, gardenType);
     }
@@ -225,12 +219,7 @@ contract GardenFactoryFuzzTest is GardenFactoryTestBase {
     // ═══════════════════════════════════════════════════════════════════
 
     /// @notice Garden type tracking should be consistent regardless of creation order
-    function testFuzz_createGarden_typeTrackingConsistentAcrossTypes(
-        uint256 idx1,
-        uint256 idx2
-    )
-        public
-    {
+    function testFuzz_createGarden_typeTrackingConsistentAcrossTypes(uint256 idx1, uint256 idx2) public {
         idx1 = bound(idx1, 1, 5);
         idx2 = bound(idx2, 6, 10);
 

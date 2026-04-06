@@ -22,7 +22,14 @@ contract MockIndexCalculation is IIndexCalculation {
         _revertReason = reason;
     }
 
-    function getWeights(string[] memory /* symbols */ ) external view override returns (uint256[] memory) {
+    function getWeights(
+        string[] memory /* symbols */
+    )
+        external
+        view
+        override
+        returns (uint256[] memory)
+    {
         if (_shouldRevert) revert(_revertReason);
         return _weights;
     }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.31;
 
 import { PoolRegistryTestBase } from "../PoolRegistryTestBase.sol";
 import { PoolRegistryHandler } from "./PoolRegistryHandler.sol";
+import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 
 contract PoolRegistryInvariantTest is PoolRegistryTestBase {
     PoolRegistryHandler public handler;
@@ -41,32 +42,6 @@ contract PoolRegistryInvariantTest is PoolRegistryTestBase {
     }
 
     // ═════════════════════════════════════════════════════════════════
-    //                     ACTIVE STATUS INVARIANTS
-    // ═════════════════════════════════════════════════════════════════
-
-    /// @notice isPoolActive must match ghost state for registered pools
-    function invariant_activeStatusMatchesGhost() public view {
-        uint256 len = handler.ghost_poolsLength();
-        for (uint256 i = 0; i < len; i++) {
-            address pool = handler.ghost_poolAt(i);
-            if (handler.ghost_isRegistered(pool)) {
-                assertEq(registry.isPoolActive(pool), handler.ghost_isActive(pool));
-            }
-        }
-    }
-
-    /// @notice Unregistered pools must never report as active
-    function invariant_unregisteredPoolsNeverActive() public view {
-        uint256 len = handler.ghost_poolsLength();
-        for (uint256 i = 0; i < len; i++) {
-            address pool = handler.ghost_poolAt(i);
-            if (!handler.ghost_isRegistered(pool)) {
-                assertFalse(registry.isPoolActive(pool));
-            }
-        }
-    }
-
-    // ═════════════════════════════════════════════════════════════════
     //                     POOL INFO INVARIANTS
     // ═════════════════════════════════════════════════════════════════
 
@@ -76,8 +51,8 @@ contract PoolRegistryInvariantTest is PoolRegistryTestBase {
         for (uint256 i = 0; i < len; i++) {
             address pool = handler.ghost_poolAt(i);
             if (handler.ghost_isRegistered(pool)) {
-                (,address t0, address t1,) = registry.getPoolSwapInfo(pool);
-                assertTrue(t0 < t1);
+                ILiquidityPoolRegistry.PoolInfo memory info = registry.getPool(pool);
+                assertTrue(info.token0 < info.token1);
             }
         }
     }
@@ -120,7 +95,9 @@ contract PoolRegistryInvariantTest is PoolRegistryTestBase {
             bool found = false;
             for (uint256 j = 0; j < allPools.length; j++) {
                 if (registry.isPoolRegistered(allPools[j])) {
-                    if (registry.getPool(allPools[j]).pairId == pairIds[i]) {
+                    ILiquidityPoolRegistry.PoolInfo memory info = registry.getPool(allPools[j]);
+                    bytes32 computedPairId = keccak256(abi.encode(info.token0, info.token1));
+                    if (computedPairId == pairIds[i]) {
                         found = true;
                         break;
                     }
