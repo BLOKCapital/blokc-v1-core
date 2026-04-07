@@ -5,12 +5,14 @@ import { Script } from "forge-std/Script.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { LiquidityPoolRegistry } from "src/liquidityPoolRegistry/LiquidityPoolRegistry.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
+import { IUniswapV3 } from "src/garden/facets/utilityFacets/ethereum/uniswapV3/IUniswapV3.sol";
+import { IUniswapV2 } from "src/garden/facets/utilityFacets/ethereum/uniswapV2/IUniswapV2.sol";
 import { console2 } from "forge-std/console2.sol";
 
 contract DeployLiquidityPoolRegistry is BaseScript {
     function run() public broadcaster {
         setUp();
-        LiquidityPoolRegistry liquidityPoolRegistry = new LiquidityPoolRegistry(deployer);
+        LiquidityPoolRegistry liquidityPoolRegistry = new LiquidityPoolRegistry{ salt: salt }(deployer);
         console2.log("LiquidityPoolRegistry deployed at:", address(liquidityPoolRegistry));
 
         // =====================================================================
@@ -33,10 +35,15 @@ contract DeployLiquidityPoolRegistry is BaseScript {
         bytes32 uniswapV2 = keccak256("UNISWAP_V2");
 
         // =====================================================================
-        // AMM Types
+        //  REGISTER DEXes (must be done before adding pools)
         // =====================================================================
-        bytes32 ammV3 = keccak256("V3");
-        bytes32 ammV2 = keccak256("V2");
+
+        liquidityPoolRegistry.registerDex(
+            uniswapV3, IUniswapV3.uniswapV3Swap.selector, IUniswapV3.uniswapV3Quote.selector
+        );
+        liquidityPoolRegistry.registerDex(
+            uniswapV2, IUniswapV2.uniswapV2Swap.selector, IUniswapV2.uniswapV2Quote.selector
+        );
 
         // =====================================================================
         //  UNISWAP V3 POOLS

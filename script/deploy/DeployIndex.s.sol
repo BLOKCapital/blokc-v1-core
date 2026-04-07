@@ -8,9 +8,10 @@ import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 import { IndexFactory } from "src/indices/IndexFactory.sol";
 import { MarketCapWeighted } from "src/indices/indexCalculations/MarketCapWeighted.sol";
 import { CirculatingSupply } from "src/indices/CirculatingSupply.sol";
+import { MarketCapWeightedHardcoded } from "src/indices/indexCalculations/MarketCapWeightedHardcoded.sol";
 
 contract DeployIndex is BaseScript {
-    address gardenFactoryAddress = 0x9194f750F2d2f1832acF8bE567C5F59f7734e10d;
+    address gardenFactoryAddress = 0xA6c558f50c435896aEDe997091bD06ef6cAd3603;
 
     function run() public broadcaster {
         setUp();
@@ -93,5 +94,20 @@ contract DeployIndex is BaseScript {
 
         // address indexAddress = indexFactory.deployIndex("MCW_INDEX2_ETH_BTC", address(marketCapWeighted),
         // indexSymbols); console2.log("Index2 deployed at:", indexAddress);
+
+        // Deploying MarketCapWeightedHardcoded for testing purposes
+        MarketCapWeightedHardcoded marketCapWeightedHardcoded =
+            new MarketCapWeightedHardcoded(address(indexComponentRegistry));
+        console2.log("MarketCapWeightedHardcoded deployed at:", address(marketCapWeightedHardcoded));
+
+        indexCalculationRegistry.registerIndexCalculation(address(marketCapWeightedHardcoded));
+
+        string[] memory indexSymbols = new string[](2);
+        indexSymbols[0] = "BTC";
+        indexSymbols[1] = "ETH";
+
+        address indexAddress =
+            indexFactory.deployIndex("MCW_INDEX2_ETH_BTC", address(marketCapWeightedHardcoded), indexSymbols);
+        console2.log("Index2 deployed at:", indexAddress);
     }
 }

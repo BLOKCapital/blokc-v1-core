@@ -10,7 +10,7 @@ import { console2 } from "forge-std/console2.sol";
 contract DeployLiquidityPoolRegistry is BaseScript {
     function run() public broadcaster {
         setUp();
-        address liquidityPoolRegistryAddress = 0xeADe4091f50B1fd0b6315c9028543f5177E59a56;
+        address liquidityPoolRegistryAddress = 0xA3178280c191dD46c551b91c651F337E47594d85;
         LiquidityPoolRegistry liquidityPoolRegistry = LiquidityPoolRegistry(liquidityPoolRegistryAddress);
 
         // =====================================================================

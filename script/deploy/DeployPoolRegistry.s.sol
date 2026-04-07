@@ -5,12 +5,16 @@ import { Script } from "forge-std/Script.sol";
 import { BaseScript } from "script/Base.s.sol";
 import { LiquidityPoolRegistry } from "src/liquidityPoolRegistry/LiquidityPoolRegistry.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
+import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/IUniswapV3.sol";
+import { IUniswapV2 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/IUniswapV2.sol";
+import { ICamelotV3 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/ICamelotV3.sol";
+import { ICamelotV2 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/ICamelotV2.sol";
 import { console2 } from "forge-std/console2.sol";
 
 contract DeployLiquidityPoolRegistry is BaseScript {
     function run() public broadcaster {
         setUp();
-        LiquidityPoolRegistry liquidityPoolRegistry = new LiquidityPoolRegistry(deployer);
+        LiquidityPoolRegistry liquidityPoolRegistry = new LiquidityPoolRegistry{ salt: salt }(deployer);
         console2.log("LiquidityPoolRegistry deployed at:", address(liquidityPoolRegistry));
 
         // =====================================================================
@@ -38,6 +42,23 @@ contract DeployLiquidityPoolRegistry is BaseScript {
         bytes32 uniswapV2 = keccak256("UNISWAP_V2");
         bytes32 camelotV2 = keccak256("CAMELOT_V2");
         bytes32 camelotV3 = keccak256("CAMELOT_V3");
+
+        // =====================================================================
+        //  REGISTER DEXes (must be done before adding pools)
+        // =====================================================================
+
+        liquidityPoolRegistry.registerDex(
+            uniswapV3, IUniswapV3.uniswapV3Swap.selector, IUniswapV3.uniswapV3Quote.selector
+        );
+        liquidityPoolRegistry.registerDex(
+            uniswapV2, IUniswapV2.uniswapV2Swap.selector, IUniswapV2.uniswapV2Quote.selector
+        );
+        liquidityPoolRegistry.registerDex(
+            camelotV3, ICamelotV3.camelotV3Swap.selector, ICamelotV3.camelotV3Quote.selector
+        );
+        liquidityPoolRegistry.registerDex(
+            camelotV2, ICamelotV2.camelotV2Swap.selector, ICamelotV2.camelotV2Quote.selector
+        );
 
         // =====================================================================
         //  UNISWAP V3 POOLS
@@ -227,6 +248,16 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: usdt,
                 dexId: uniswapV3,
                 pairName: "WBTC/USDT"
+            })
+        );
+
+        liquidityPoolRegistry.addPool(
+            ILiquidityPoolRegistry.AddPoolParams({
+                poolAddress: 0xac70bD92F89e6739B3a08Db9B6081a923912f73D,
+                tokenA: wbtc,
+                tokenB: usdc,
+                dexId: uniswapV3,
+                pairName: "WBTC/USDC"
             })
         );
 

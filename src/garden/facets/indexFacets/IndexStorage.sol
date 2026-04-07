@@ -41,13 +41,13 @@ library IndexStorage {
     // ========================================================================
 
     /// @notice IndexFactory contract address
-    address internal constant INDEX_FACTORY_ADDRESS = 0x37E983b2369BEE476C808696E5e9d64eA244A7A2;
+    address internal constant INDEX_FACTORY_ADDRESS = 0x983dC1CC4A089e8537C8EeA42eedEd0B2bC73152;
 
     /// @notice IndexComponentRegistry contract address
-    address internal constant INDEX_COMPONENT_REGISTRY_ADDRESS = 0xD8614dc6eE0230e21D591B3825a75A282EeaE2fB;
+    address internal constant INDEX_COMPONENT_REGISTRY_ADDRESS = 0x361EC253B0055623544f218AD6AF06253A212374;
 
     /// @notice LiquidityPoolRegistry contract address (for DEX selector resolution)
-    address internal constant POOL_REGISTRY_ADDRESS = 0xeADe4091f50B1fd0b6315c9028543f5177E59a56;
+    address internal constant POOL_REGISTRY_ADDRESS = 0xA3178280c191dD46c551b91c651F337E47594d85;
 
     // ========================================================================
     // Rebalancing Parameters

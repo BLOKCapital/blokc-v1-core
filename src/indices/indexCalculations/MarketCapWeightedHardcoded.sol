@@ -52,10 +52,10 @@ contract MarketCapWeightedHardcoded is IIndexCalculation {
     uint256 private constant MAX_COMPONENT_MARKET_CAP = 1e30;
 
     /// @notice Hardcoded circulating supply of ETH in whole token units
-    uint256 private constant ETH_CIRCULATING_SUPPLY = 120_692_290;
+    uint256 private constant ETH_CIRCULATING_SUPPLY = 120_691_190;
 
     /// @notice Hardcoded circulating supply of BTC in whole token units
-    uint256 private constant BTC_CIRCULATING_SUPPLY = 19_995_028;
+    uint256 private constant BTC_CIRCULATING_SUPPLY = 20_012_568;
 
     bytes32 private constant ETH_HASH = keccak256("ETH");
     bytes32 private constant WETH_HASH = keccak256("WETH");
