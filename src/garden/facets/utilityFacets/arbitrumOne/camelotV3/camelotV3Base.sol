@@ -47,7 +47,7 @@ abstract contract CamelotV3Base {
     address internal constant CAMELOT_V3_FACTORY_ADDRESS = 0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B;
 
     /// @notice Liquidity pool registry address on Arbitrum One
-    address internal constant POOL_REGISTRY_ADDRESS = 0xeADe4091f50B1fd0b6315c9028543f5177E59a56;
+    address internal constant POOL_REGISTRY_ADDRESS = 0xA3178280c191dD46c551b91c651F337E47594d85;
 
     /// @notice Emitted when a Camelot V3 swap is successfully executed
     event CamelotV3FacetTokensSwapped(
@@ -178,7 +178,9 @@ abstract contract CamelotV3Base {
             })
         );
 
-        emit CamelotV3FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], params.amountIn, amountOut);
+        emit CamelotV3FacetTokensSwapped(
+            params.path[0], params.path[params.path.length - 1], params.amountIn, amountOut
+        );
     }
 
     function _camelotV3ExactOutputSingle(ICamelotV3.CamelotV3ExactOutputSingleParams memory params) internal {
@@ -215,7 +217,9 @@ abstract contract CamelotV3Base {
             })
         );
 
-        emit CamelotV3FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], amountIn, params.amountOut);
+        emit CamelotV3FacetTokensSwapped(
+            params.path[0], params.path[params.path.length - 1], amountIn, params.amountOut
+        );
     }
 
     // ========================================================================
@@ -232,8 +236,9 @@ abstract contract CamelotV3Base {
         }
 
         // 2. Pool must be the canonical Camelot factory pool for this pair
-        (bool ok, bytes memory data) =
-            CAMELOT_V3_FACTORY_ADDRESS.staticcall(abi.encodeWithSignature("poolByPair(address,address)", tokenIn, tokenOut));
+        (bool ok, bytes memory data) = CAMELOT_V3_FACTORY_ADDRESS.staticcall(
+            abi.encodeWithSignature("poolByPair(address,address)", tokenIn, tokenOut)
+        );
         if (!ok) revert CamelotV3Facet_InvalidPoolAddress();
 
         address canonical = abi.decode(data, (address));
@@ -251,7 +256,13 @@ abstract contract CamelotV3Base {
     // Quote Helpers
     // ========================================================================
 
-    function _quotePool(address pool, uint256 amountIn, address tokenIn, address tokenOut, uint32 twapInterval)
+    function _quotePool(
+        address pool,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
         internal
         view
         returns (uint256)
@@ -271,7 +282,13 @@ abstract contract CamelotV3Base {
         revert CamelotV3Facet_InvalidPool();
     }
 
-    function _reverseQuotePool(address pool, uint256 amountOut, address tokenIn, address tokenOut, uint32 twapInterval)
+    function _reverseQuotePool(
+        address pool,
+        uint256 amountOut,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
         internal
         view
         returns (uint256)
@@ -295,7 +312,10 @@ abstract contract CamelotV3Base {
     // TWAP & Path Encoding
     // ========================================================================
 
-    function _camelotV3GetSqrtTwapX96(address poolAddress, uint32 twapInterval)
+    function _camelotV3GetSqrtTwapX96(
+        address poolAddress,
+        uint32 twapInterval
+    )
         internal
         view
         returns (uint160 sqrtPriceX96, uint256 deadline)

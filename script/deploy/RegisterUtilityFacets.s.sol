@@ -17,7 +17,7 @@ import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant FACET_REGISTRY = 0x51F061273398b93369F3C99520813656c779f293;
+    address constant FACET_REGISTRY = 0x1e237507bb8520a253300b9e22bFccCd396E45cF;
 
     // Module IDs
     bytes32 constant MODULE_WITHDRAW = keccak256("WITHDRAW");
@@ -62,20 +62,13 @@ contract RegisterUtilityFacets is BaseScript {
 
         // Uniswap V2
         UniswapV2Facet uniswapV2Facet = new UniswapV2Facet();
-        bytes4[] memory uniswapV2Selectors = new bytes4[](13);
-        uniswapV2Selectors[0] = uniswapV2Facet.uniswapV2SwapExactTokensForTokens.selector;
-        uniswapV2Selectors[1] = uniswapV2Facet.uniswapV2SwapTokensForExactTokens.selector;
-        uniswapV2Selectors[2] = uniswapV2Facet.uniswapV2SwapExactETHForTokens.selector;
-        uniswapV2Selectors[3] = uniswapV2Facet.uniswapV2SwapTokensForExactETH.selector;
-        uniswapV2Selectors[4] = uniswapV2Facet.uniswapV2SwapExactTokensForETH.selector;
-        uniswapV2Selectors[5] = uniswapV2Facet.uniswapV2SwapETHForExactTokens.selector;
-        uniswapV2Selectors[6] = uniswapV2Facet.uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens.selector;
-        uniswapV2Selectors[7] = uniswapV2Facet.uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens.selector;
-        uniswapV2Selectors[8] = uniswapV2Facet.uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens.selector;
-        uniswapV2Selectors[9] = uniswapV2Facet.uniswapV2GetAmountOut.selector;
-        uniswapV2Selectors[10] = uniswapV2Facet.uniswapV2GetAmountIn.selector;
-        uniswapV2Selectors[11] = uniswapV2Facet.uniswapV2GetAmountsOut.selector;
-        uniswapV2Selectors[12] = uniswapV2Facet.uniswapV2GetAmountsIn.selector;
+        bytes4[] memory uniswapV2Selectors = new bytes4[](6);
+        uniswapV2Selectors[0] = uniswapV2Facet.uniswapV2Swap.selector;
+        uniswapV2Selectors[1] = uniswapV2Facet.uniswapV2Quote.selector;
+        uniswapV2Selectors[2] = uniswapV2Facet.uniswapV2GetAmountOut.selector;
+        uniswapV2Selectors[3] = uniswapV2Facet.uniswapV2GetAmountIn.selector;
+        uniswapV2Selectors[4] = uniswapV2Facet.uniswapV2GetAmountsOut.selector;
+        uniswapV2Selectors[5] = uniswapV2Facet.uniswapV2GetAmountsIn.selector;
         console2.log("UniswapV2Facet deployed at:", address(uniswapV2Facet));
 
         // Uniswap V3
@@ -89,10 +82,9 @@ contract RegisterUtilityFacets is BaseScript {
 
         // Camelot V2
         CamelotV2Facet camelotV2Facet = new CamelotV2Facet();
-        bytes4[] memory camelotV2Selectors = new bytes4[](3);
-        camelotV2Selectors[0] = camelotV2Facet.camelotV2ExactInputSingle.selector;
-        camelotV2Selectors[1] = camelotV2Facet.camelotV2ExactInput.selector;
-        camelotV2Selectors[2] = camelotV2Facet.camelotV2ExactOutputSingle.selector;
+        bytes4[] memory camelotV2Selectors = new bytes4[](2);
+        camelotV2Selectors[0] = camelotV2Facet.camelotV2Swap.selector;
+        camelotV2Selectors[1] = camelotV2Facet.camelotV2Quote.selector;
         console2.log("CamelotV2Facet deployed at:", address(camelotV2Facet));
 
         // Camelot V3
