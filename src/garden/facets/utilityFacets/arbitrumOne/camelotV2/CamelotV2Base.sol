@@ -55,7 +55,7 @@ abstract contract CamelotV2Base {
     address internal constant CAMELOT_V2_FACTORY_ADDRESS = 0x6EcCab422D763aC031210895C81787E87B43A652;
 
     /// @notice Liquidity pool registry address on Arbitrum One
-    address internal constant POOL_REGISTRY_ADDRESS = 0xeADe4091f50B1fd0b6315c9028543f5177E59a56;
+    address internal constant POOL_REGISTRY_ADDRESS = 0xA3178280c191dD46c551b91c651F337E47594d85;
 
     /// @notice Emitted when a Camelot V2 swap is successfully executed
     /// @param tokenIn The input token address
@@ -89,14 +89,15 @@ abstract contract CamelotV2Base {
         uint256 balanceBefore = IERC20(tokenOutAddr).balanceOf(address(this));
 
         // Execute the swap via the fee-on-transfer compatible router function
-        ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS).swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            instruction.amountIn,
-            instruction.amountOut,
-            instruction.tokens,
-            address(this),
-            address(0), // referrer
-            block.timestamp
-        );
+        ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
+            .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                instruction.amountIn,
+                instruction.amountOut,
+                instruction.tokens,
+                address(this),
+                address(0), // referrer
+                block.timestamp
+            );
 
         // Compute actual output from balance delta
         uint256 amountOut = IERC20(tokenOutAddr).balanceOf(address(this)) - balanceBefore;
@@ -142,8 +143,9 @@ abstract contract CamelotV2Base {
         }
 
         // 2. Pool must be the canonical Camelot factory pool for this pair
-        (bool ok, bytes memory data) =
-            CAMELOT_V2_FACTORY_ADDRESS.staticcall(abi.encodeWithSignature("getPair(address,address)", tokenIn, tokenOut));
+        (bool ok, bytes memory data) = CAMELOT_V2_FACTORY_ADDRESS.staticcall(
+            abi.encodeWithSignature("getPair(address,address)", tokenIn, tokenOut)
+        );
         if (!ok) revert CamelotV2Facet_GetPairFailed();
 
         address canonical = abi.decode(data, (address));
@@ -162,7 +164,12 @@ abstract contract CamelotV2Base {
     // ========================================================================
 
     /// @notice Quotes output amount for exact input on a specific Camelot V2 pool using constant-product formula
-    function _quotePool(address pool, uint256 amountIn, address tokenIn, address tokenOut)
+    function _quotePool(
+        address pool,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut
+    )
         internal
         view
         returns (uint256)
@@ -193,7 +200,12 @@ abstract contract CamelotV2Base {
     }
 
     /// @notice Quotes input amount needed for exact output on a specific Camelot V2 pool (reverse quote)
-    function _reverseQuotePool(address pool, uint256 amountOut, address tokenIn, address tokenOut)
+    function _reverseQuotePool(
+        address pool,
+        uint256 amountOut,
+        address tokenIn,
+        address tokenOut
+    )
         internal
         view
         returns (uint256)
@@ -216,7 +228,8 @@ abstract contract CamelotV2Base {
             reserveOut = uint256(reserve0);
         }
 
-        // Reverse constant-product formula: amountIn = (reserveIn * amountOut * 1000) / ((reserveOut - amountOut) * 997) + 1
+        // Reverse constant-product formula: amountIn = (reserveIn * amountOut * 1000) / ((reserveOut - amountOut) *
+        // 997) + 1
         uint256 numerator = reserveIn * amountOut * 1000;
         uint256 denominator = (reserveOut - amountOut) * 997;
         return (numerator / denominator) + 1;
