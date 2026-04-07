@@ -16,56 +16,25 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 
 // Uniswap V2 Contracts
 import { IUniswapV2Router02 } from "v2-periphery/interfaces/IUniswapV2Router02.sol";
+import { IUniswapV2Factory } from "v2-core/interfaces/IUniswapV2Factory.sol";
 
 // Local Interfaces
 import { IUniswapV2 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/IUniswapV2.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
-
-interface IUniswapV2PairLike {
-    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
-    function token0() external view returns (address);
-    function token1() external view returns (address);
-}
+import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 
 // ============================================================================
 // Errors
 // ============================================================================
 
-/// @notice Thrown when contract has insufficient token balance
-error UniswapV2Facet_InsufficientBalance();
-
-/// @notice Thrown when token approval fails
-error UniswapV2Facet_ApprovalFailed();
-
 /// @notice Thrown when pool is not registered in the PoolRegistry
 error UniswapV2Facet_UnregisteredPool();
-
-/// @notice Thrown when get pair call to factory fails
-error UniswapV2Facet_GetPairFailed();
 
 /// @notice Thrown when pool address is invalid (zero address)
 error UniswapV2Facet_InvalidPoolAddress();
 
-/// @notice Thrown when swap deadline has already passed
-error UniswapV2Facet_SwapDeadlineHasPassed();
-
 /// @notice Thrown when swap path is invalid
 error UniswapV2Facet_InvalidPath();
-
-/// @notice Thrown when swap amount is zero
-error UniswapV2Facet_InvalidAmount();
-
-/// @notice Thrown when output amount is less than minimum specified
-error UniswapV2Facet_InsufficientAmountOut();
-
-/// @notice Thrown when router address is zero
-error UniswapV2Facet_InvalidRouterAddress();
-
-/// @notice Thrown when token address is zero
-error UniswapV2Facet_InvalidTokenAddress();
-
-/// @notice Thrown when ETH value sent is insufficient
-error UniswapV2Facet_InsufficientETHValue();
 
 /**
  * @title UniswapV2Base
@@ -86,7 +55,6 @@ abstract contract UniswapV2Base {
     address internal constant UNISWAP_V2_ROUTER_ADDRESS = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
     /// @notice Pool Registry address on Arbitrum One
     address internal constant POOL_REGISTRY_ADDRESS = 0xeADe4091f50B1fd0b6315c9028543f5177E59a56;
-
     /// @notice Uniswap V2 Factory address on Arbitrum One
     address internal constant UNISWAP_V2_FACTORY_ADDRESS = 0xf1D7CC64Fb4452F05c498126312eBE29f30Fbcf9;
 
@@ -104,7 +72,78 @@ abstract contract UniswapV2Base {
     );
 
     // ========================================================================
-    // Internal Swap Functions
+    // Internal Swap Dispatcher
+    // ========================================================================
+
+    /// @notice Standardised swap dispatcher for the rebalance flow.
+    ///         Validates pools upfront, then delegates to the appropriate internal helper.
+    /// @param instruction The universal SwapInstruction
+    function _uniswapV2Swap(SwapInstruction calldata instruction) internal {
+        uint256 hops = instruction.pools.length;
+        if (hops == 0 || instruction.tokens.length != hops + 1) revert UniswapV2Facet_InvalidPath();
+
+        // Validate all pools upfront: registered in PoolRegistry + canonical in Uniswap factory
+        _validateSwapPools(instruction);
+
+        if (!instruction.exactOutput) {
+            // Exact input: use swapExactTokensForTokens
+            _uniswapV2SwapExactTokensForTokens(
+                IUniswapV2.UniswapV2SwapExactTokensForTokensParams({
+                    amountIn: instruction.amountIn,
+                    amountOutMin: instruction.amountOut,
+                    path: instruction.tokens,
+                    to: address(this),
+                    deadline: block.timestamp
+                })
+            );
+        } else {
+            // Exact output: use swapTokensForExactTokens
+            _uniswapV2SwapTokensForExactTokens(
+                IUniswapV2.UniswapV2SwapTokensForExactTokensParams({
+                    amountOut: instruction.amountOut,
+                    amountInMax: instruction.amountIn,
+                    path: instruction.tokens,
+                    to: address(this),
+                    deadline: block.timestamp
+                })
+            );
+        }
+    }
+
+    // ========================================================================
+    // Internal Quote Dispatcher
+    // ========================================================================
+
+    /// @notice Unified quote dispatcher. Uses router's getAmountsOut / getAmountsIn.
+    /// @param instruction The QuoteInstruction describing the path and direction
+    /// @return result exactOutput=false: estimated output. exactOutput=true: estimated input needed.
+    function _uniswapV2Quote(QuoteInstruction calldata instruction) internal view returns (uint256 result) {
+        uint256 hops = instruction.pools.length;
+        if (hops == 0 || instruction.tokens.length != hops + 1) revert UniswapV2Facet_InvalidPath();
+
+        // Validate all pools are registered
+        for (uint256 i; i < hops; i++) {
+            if (instruction.pools[i] == address(0)) revert UniswapV2Facet_InvalidPoolAddress();
+            if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(instruction.pools[i])) {
+                revert UniswapV2Facet_UnregisteredPool();
+            }
+        }
+
+        IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
+
+        if (!instruction.exactOutput) {
+            // Exact input: get expected output
+            uint256[] memory amounts = router.getAmountsOut(instruction.amount, instruction.tokens);
+            result = amounts[amounts.length - 1];
+        } else {
+            // Exact output: get required input
+            uint256[] memory amounts = router.getAmountsIn(instruction.amount, instruction.tokens);
+            result = amounts[0];
+        }
+    }
+
+    // ========================================================================
+    // Internal Swap Functions (helpers — no validation)
     // ========================================================================
 
     /// @notice Executes an exact-input token-to-token swap via Uniswap V2
@@ -114,13 +153,6 @@ abstract contract UniswapV2Base {
         internal
         returns (uint256[] memory amounts)
     {
-        if (params.amountIn == 0) revert UniswapV2Facet_InvalidAmount();
-        if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert UniswapV2Facet_SwapDeadlineHasPassed();
-
-        // Validate all pools in path
-        _validatePools(params.path);
-
         IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
         IERC20 tokenIn = IERC20(params.path[0]);
 
@@ -131,14 +163,6 @@ abstract contract UniswapV2Base {
         amounts = router.swapExactTokensForTokens(
             params.amountIn, params.amountOutMin, params.path, address(this), params.deadline
         );
-
-        // Get the amount of output tokens received
-        uint256 amountOut = IERC20(params.path[params.path.length - 1]).balanceOf(address(this));
-
-        // Validate the amount of output tokens received
-        if (amountOut < params.amountOutMin) {
-            revert UniswapV2Facet_InsufficientAmountOut();
-        }
 
         emit UniswapV2FacetTokensSwapped(
             params.path[0], params.path[params.path.length - 1], amounts[0], amounts[amounts.length - 1]
@@ -152,13 +176,6 @@ abstract contract UniswapV2Base {
         internal
         returns (uint256[] memory amounts)
     {
-        if (params.amountOut == 0) revert UniswapV2Facet_InvalidAmount();
-        if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert UniswapV2Facet_SwapDeadlineHasPassed();
-
-        // Validate all pools in path
-        _validatePools(params.path);
-
         IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
         IERC20 tokenIn = IERC20(params.path[0]);
 
@@ -173,217 +190,6 @@ abstract contract UniswapV2Base {
         emit UniswapV2FacetTokensSwapped(
             params.path[0], params.path[params.path.length - 1], amounts[0], amounts[amounts.length - 1]
         );
-    }
-
-    /// @notice Executes an exact-input ETH-to-token swap via Uniswap V2
-    /// @param params Swap parameters including amounts, path, and deadline
-    /// @return amounts Array of input and output amounts for each step in the path
-    function _uniswapV2SwapExactETHForTokens(IUniswapV2.UniswapV2SwapExactETHForTokensParams memory params)
-        internal
-        returns (uint256[] memory amounts)
-    {
-        if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert UniswapV2Facet_SwapDeadlineHasPassed();
-
-        IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
-
-        // Validate path starts with WETH
-        if (params.path[0] != router.WETH()) revert UniswapV2Facet_InvalidPath();
-
-        // Validate all pools in path
-        _validatePools(params.path);
-
-        // Execute swap with ETH value
-        amounts = router.swapExactETHForTokens{ value: msg.value }(
-            params.amountOutMin, params.path, address(this), params.deadline
-        );
-
-        emit UniswapV2FacetTokensSwapped(
-            params.path[0], params.path[params.path.length - 1], amounts[0], amounts[amounts.length - 1]
-        );
-    }
-
-    /// @notice Executes an exact-output token-to-ETH swap via Uniswap V2
-    /// @param params Swap parameters including amounts, path, and deadline
-    /// @return amounts Array of input and output amounts for each step in the path
-    function _uniswapV2SwapTokensForExactETH(IUniswapV2.UniswapV2SwapTokensForExactETHParams memory params)
-        internal
-        returns (uint256[] memory amounts)
-    {
-        if (params.amountOut == 0) revert UniswapV2Facet_InvalidAmount();
-        if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert UniswapV2Facet_SwapDeadlineHasPassed();
-
-        IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
-
-        // Validate path ends with WETH
-        if (params.path[params.path.length - 1] != router.WETH()) revert UniswapV2Facet_InvalidPath();
-
-        // Validate all pools in path
-        _validatePools(params.path);
-
-        IERC20 tokenIn = IERC20(params.path[0]);
-
-        // Approve router to spend tokens
-        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountInMax);
-
-        // Execute swap
-        amounts = router.swapTokensForExactETH(
-            params.amountOut, params.amountInMax, params.path, address(this), params.deadline
-        );
-
-        emit UniswapV2FacetTokensSwapped(
-            params.path[0], params.path[params.path.length - 1], amounts[0], amounts[amounts.length - 1]
-        );
-    }
-
-    /// @notice Executes an exact-input token-to-ETH swap via Uniswap V2
-    /// @param params Swap parameters including amounts, path, and deadline
-    /// @return amounts Array of input and output amounts for each step in the path
-    function _uniswapV2SwapExactTokensForETH(IUniswapV2.UniswapV2SwapExactTokensForETHParams memory params)
-        internal
-        returns (uint256[] memory amounts)
-    {
-        if (params.amountIn == 0) revert UniswapV2Facet_InvalidAmount();
-        if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert UniswapV2Facet_SwapDeadlineHasPassed();
-
-        IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
-
-        // Validate path ends with WETH
-        if (params.path[params.path.length - 1] != router.WETH()) revert UniswapV2Facet_InvalidPath();
-
-        // Validate all pools in path
-        _validatePools(params.path);
-
-        IERC20 tokenIn = IERC20(params.path[0]);
-
-        // Approve router to spend tokens
-        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
-
-        // Execute swap
-        amounts = router.swapExactTokensForETH(
-            params.amountIn, params.amountOutMin, params.path, address(this), params.deadline
-        );
-
-        emit UniswapV2FacetTokensSwapped(
-            params.path[0], params.path[params.path.length - 1], amounts[0], amounts[amounts.length - 1]
-        );
-    }
-
-    /// @notice Executes an exact-output ETH-to-token swap via Uniswap V2
-    /// @param params Swap parameters including amounts, path, and deadline
-    /// @return amounts Array of input and output amounts for each step in the path
-    function _uniswapV2SwapETHForExactTokens(IUniswapV2.UniswapV2SwapETHForExactTokensParams memory params)
-        internal
-        returns (uint256[] memory amounts)
-    {
-        if (params.amountOut == 0) revert UniswapV2Facet_InvalidAmount();
-        if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert UniswapV2Facet_SwapDeadlineHasPassed();
-
-        IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
-
-        // Validate path starts with WETH
-        if (params.path[0] != router.WETH()) revert UniswapV2Facet_InvalidPath();
-
-        // Validate all pools in path
-        _validatePools(params.path);
-
-        // Execute swap with ETH value
-        amounts = router.swapETHForExactTokens{ value: msg.value }(
-            params.amountOut, params.path, address(this), params.deadline
-        );
-
-        emit UniswapV2FacetTokensSwapped(
-            params.path[0], params.path[params.path.length - 1], amounts[0], amounts[amounts.length - 1]
-        );
-    }
-
-    /// @notice Executes an exact-input token-to-token swap supporting fee-on-transfer tokens via Uniswap V2
-    /// @param params Swap parameters including amounts, path, and deadline
-    function _uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(
-        IUniswapV2.UniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokensParams memory params
-    )
-        internal
-    {
-        if (params.amountIn == 0) revert UniswapV2Facet_InvalidAmount();
-        if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert UniswapV2Facet_SwapDeadlineHasPassed();
-
-        // Validate all pools in path
-        _validatePools(params.path);
-
-        IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
-        IERC20 tokenIn = IERC20(params.path[0]);
-
-        // Approve router to spend tokens
-        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
-
-        // Execute swap
-        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            params.amountIn, params.amountOutMin, params.path, address(this), params.deadline
-        );
-
-        emit UniswapV2FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], params.amountIn, 0);
-    }
-
-    /// @notice Executes an exact-input ETH-to-token swap supporting fee-on-transfer tokens via Uniswap V2
-    /// @param params Swap parameters including amounts, path, and deadline
-    function _uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(
-        IUniswapV2.UniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokensParams memory params
-    )
-        internal
-    {
-        if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert UniswapV2Facet_SwapDeadlineHasPassed();
-
-        IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
-
-        // Validate path starts with WETH
-        if (params.path[0] != router.WETH()) revert UniswapV2Facet_InvalidPath();
-
-        // Validate all pools in path
-        _validatePools(params.path);
-
-        // Execute swap with ETH value
-        router.swapExactETHForTokensSupportingFeeOnTransferTokens{ value: msg.value }(
-            params.amountOutMin, params.path, address(this), params.deadline
-        );
-
-        emit UniswapV2FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], msg.value, 0);
-    }
-
-    /// @notice Executes an exact-input token-to-ETH swap supporting fee-on-transfer tokens via Uniswap V2
-    /// @param params Swap parameters including amounts, path, and deadline
-    function _uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(
-        IUniswapV2.UniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokensParams memory params
-    )
-        internal
-    {
-        if (params.amountIn == 0) revert UniswapV2Facet_InvalidAmount();
-        if (params.path.length < 2) revert UniswapV2Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert UniswapV2Facet_SwapDeadlineHasPassed();
-
-        IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
-
-        // Validate path ends with WETH
-        if (params.path[params.path.length - 1] != router.WETH()) revert UniswapV2Facet_InvalidPath();
-
-        // Validate all pools in path
-        _validatePools(params.path);
-
-        IERC20 tokenIn = IERC20(params.path[0]);
-
-        // Approve router to spend tokens
-        tokenIn.forceApprove(UNISWAP_V2_ROUTER_ADDRESS, params.amountIn);
-
-        // Execute swap
-        router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            params.amountIn, params.amountOutMin, params.path, address(this), params.deadline
-        );
-
-        emit UniswapV2FacetTokensSwapped(params.path[0], params.path[params.path.length - 1], params.amountIn, 0);
     }
 
     // ========================================================================
@@ -462,89 +268,32 @@ abstract contract UniswapV2Base {
         amountIn = router.getAmountIn(amountOut, reserveIn, reserveOut);
     }
 
-    /// @notice Given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
-    /// @param amountA Amount of token A
-    /// @param reserveA Reserve of token A in the pair
-    /// @param reserveB Reserve of token B in the pair
-    /// @return amountB Equivalent amount of token B
-    function _uniswapV2Quote(
-        uint256 amountA,
-        uint256 reserveA,
-        uint256 reserveB
-    )
-        internal
-        pure
-        returns (uint256 amountB)
-    {
-        IUniswapV2Router02 router = IUniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
-        amountB = router.quote(amountA, reserveA, reserveB);
-    }
-
     // ========================================================================
-    // Internal Helper Functions
+    // Internal Validation Functions
     // ========================================================================
 
-    /// @notice Quotes output amount for exact input on a specific pool (must be registered)
-    /// @param poolAddress Address of the V2 pair
-    /// @param amountIn Amount of input token
-    /// @param tokenIn Input token address
-    /// @param tokenOut Output token address
-    /// @return amountOut Expected output amount
-    function _uniswapV2QuoteExactInputForPool(
-        address poolAddress,
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut
-    )
-        internal
-        view
-        returns (uint256 amountOut)
-    {
-        if (poolAddress == address(0)) revert UniswapV2Facet_InvalidTokenAddress();
-        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
+    /// @notice Validates a single pool: registered in PoolRegistry AND canonical in Uniswap V2 factory
+    /// @param pool The pool address from SwapInstruction.pools[]
+    /// @param tokenIn The input token for this hop
+    /// @param tokenOut The output token for this hop
+    function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
+        if (pool == address(0)) revert UniswapV2Facet_InvalidPoolAddress();
+
+        // 1. Pool must be registered in our PoolRegistry
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
             revert UniswapV2Facet_UnregisteredPool();
         }
 
-        (uint112 reserve0, uint112 reserve1,) = IUniswapV2PairLike(poolAddress).getReserves();
-        address token0 = IUniswapV2PairLike(poolAddress).token0();
-        address token1 = IUniswapV2PairLike(poolAddress).token1();
-
-        uint256 reserveIn;
-        uint256 reserveOut;
-        if (tokenIn == token0 && tokenOut == token1) {
-            reserveIn = uint256(reserve0);
-            reserveOut = uint256(reserve1);
-        } else if (tokenIn == token1 && tokenOut == token0) {
-            reserveIn = uint256(reserve1);
-            reserveOut = uint256(reserve0);
-        } else {
-            revert UniswapV2Facet_InvalidPath();
-        }
-
-        return _uniswapV2GetAmountOut(amountIn, reserveIn, reserveOut);
+        // 2. Pool must be the canonical Uniswap V2 factory pair for this token pair
+        address canonical = IUniswapV2Factory(UNISWAP_V2_FACTORY_ADDRESS).getPair(tokenIn, tokenOut);
+        if (canonical != pool) revert UniswapV2Facet_UnregisteredPool();
     }
 
-    /// @notice Validates that all consecutive token pairs in a path have registered pools
-    /// @param path The array of token addresses forming the swap path
-    function _validatePools(address[] memory path) internal view {
-        for (uint256 i = 0; i < path.length - 1; i++) {
-            (bool ok, bytes memory data) = UNISWAP_V2_FACTORY_ADDRESS.staticcall(
-                abi.encodeWithSignature("getPair(address,address)", path[i], path[i + 1])
-            );
-
-            if (!ok) {
-                revert UniswapV2Facet_GetPairFailed();
-            }
-
-            address pool = abi.decode(data, (address));
-
-            if (pool == address(0)) {
-                revert UniswapV2Facet_InvalidPoolAddress();
-            }
-
-            if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
-                revert UniswapV2Facet_UnregisteredPool();
-            }
+    /// @notice Validates all pools in a SwapInstruction upfront before execution
+    /// @param instruction The swap instruction to validate
+    function _validateSwapPools(SwapInstruction calldata instruction) internal view {
+        for (uint256 i; i < instruction.pools.length; i++) {
+            _validatePool(instruction.pools[i], instruction.tokens[i], instruction.tokens[i + 1]);
         }
     }
 }
