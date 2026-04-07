@@ -10,16 +10,15 @@ pragma solidity ^0.8.31;
 
 ################################################################################*/
 
-/// @notice A single swap instruction provided by the CRE to rebalance the garden
-/// @param selector The function selector of the DEX facet function to call
-/// @param data The ABI-encoded arguments for the function (excluding selector)
-/// @param outputToken The ERC20 token expected to increase in balance after this swap
-/// @param minOutput The minimum amount of outputToken the garden must receive from this swap
-struct SwapCall {
-    bytes4 selector;
-    bytes data;
-    address outputToken;
-    uint256 minOutput;
+import { SwapInstruction } from "src/interfaces/ISwapInstruction.sol";
+
+/// @notice A single swap step provided by the CRE to rebalance the garden.
+///         The dexId is used to resolve the swap selector from the PoolRegistry at execution time.
+/// @param dexId DEX identifier (e.g. keccak256("UNISWAP_V3")) — resolved to a selector on-chain
+/// @param instruction The universal SwapInstruction containing tokens, pools, amounts
+struct SwapStep {
+    bytes32 dexId;
+    SwapInstruction instruction;
 }
 
 /// @notice Pending rebalance intent data
@@ -98,13 +97,12 @@ interface IIndex {
     /// @dev Can be called by anyone (primarily CRE automation)
     function rebalanceIntent() external;
 
-    /// @notice Execute rebalance with CRE-provided swap calls
+    /// @notice Execute rebalance with CRE-provided swap steps
     /// @dev Can be called by anyone (primarily CRE automation).
-    ///      Each SwapCall contains:
-    ///      - selector: The 4-byte function selector of a DEX facet function
-    ///      - data: ABI-encoded function arguments (excluding selector)
-    /// @param swapCalls Array of swap calls from CRE
-    function rebalance(SwapCall[] calldata swapCalls) external;
+    ///      Each SwapStep contains a dexId (resolved to a selector on-chain via PoolRegistry)
+    ///      and a universal SwapInstruction with tokens, pools, and amounts.
+    /// @param steps Array of swap steps from CRE
+    function rebalance(SwapStep[] calldata steps) external;
 
     /// @notice Check if the garden is connected to an index
     /// @return True if connected to an index

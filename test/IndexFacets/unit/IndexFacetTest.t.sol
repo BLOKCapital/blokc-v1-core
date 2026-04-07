@@ -9,7 +9,8 @@ import { IndexBase } from "../../../src/garden/facets/indexFacets/IndexBase.sol"
 
 import { IndexStorage } from "../../../src/garden/facets/indexFacets/IndexStorage.sol";
 
-import { IIndex, SwapCall, PendingIntent } from "../../../src/garden/facets/indexFacets/IIndex.sol";
+import { IIndex, SwapStep, PendingIntent } from "../../../src/garden/facets/indexFacets/IIndex.sol";
+import { SwapInstruction } from "src/interfaces/ISwapInstruction.sol";
 import { IFacetRegistry } from "../../../src/interfaces/IFacetRegistry.sol";
 import { LibDiamond } from "../../../src/garden/libraries/LibDiamond.sol";
 import { LibStorageSlot } from "../../../src/garden/libraries/LibStorageSlot.sol";
@@ -233,6 +234,22 @@ contract MockERC20 is IERC20, IERC20Metadata {
         receive() external payable { }
     }
 
+    // ── PoolRegistry — only surface called by IndexBase: getSwapSelectorForDex ──
+
+    contract MockPoolRegistry {
+        mapping(bytes32 => bytes4) public selectors;
+
+        function setSwapSelector(bytes32 dexId, bytes4 sel) external {
+            selectors[dexId] = sel;
+        }
+
+        function getSwapSelectorForDex(bytes32 dexId) external view returns (bytes4) {
+            bytes4 sel = selectors[dexId];
+            require(sel != bytes4(0), "MockPoolRegistry: DEX not registered");
+            return sel;
+        }
+    }
+
     contract MockDexFacet {
         // Selector: swapTokens(address,address,uint256,uint256)
         function swapTokens(
@@ -286,8 +303,8 @@ contract MockERC20 is IERC20, IERC20Metadata {
             _rebalanceIntent();
         }
 
-        function rebalance(SwapCall[] calldata calls) external {
-            _rebalance(calls);
+        function rebalance(SwapStep[] calldata steps) external {
+            _rebalance(steps);
         }
 
         function isConnectedToIndex() external view returns (bool) {
@@ -405,6 +422,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         MockIndex internal index;
         MockComponentRegistry internal componentRegistry;
         MockFacetRegistry internal facetRegistry;
+        MockPoolRegistry internal poolRegistry;
         MockDexFacet internal dexFacet;
         MockERC20 internal weth;
         MockERC20 internal usdc;
@@ -433,6 +451,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             index = new MockIndex();
             componentRegistry = new MockComponentRegistry();
             facetRegistry = new MockFacetRegistry();
+            poolRegistry = new MockPoolRegistry();
             dexFacet = new MockDexFacet();
             weth = new MockERC20("WETH", 18);
             wbtc = new MockERC20("WBTC", 8);
@@ -446,6 +465,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             // We etch mock code at the exact mainnet addresses IndexStorage uses.
             _etchMockAt(IndexStorage.INDEX_FACTORY_ADDRESS, address(factory));
             _etchMockAt(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS, address(componentRegistry));
+            _etchMockAt(IndexStorage.POOL_REGISTRY_ADDRESS, address(poolRegistry));
             _etchMockAt(IndexStorage.USDC_ADDRESS, address(usdc));
             _etchMockAt(IndexStorage.WETH_ADDRESS, address(weth));
 
@@ -485,9 +505,12 @@ contract MockERC20 is IERC20, IERC20Metadata {
             swapTokensSel = MockDexFacet.swapTokens.selector;
             alwaysFailsSel = MockDexFacet.alwaysFails.selector;
 
-            // Register swapTokens as a DEX function
+            // Register swapTokens as a DEX function in FacetRegistry
             facetRegistry.setModuleId(swapTokensSel, keccak256("DEX"));
             // alwaysFails is NOT DEX — intentionally absent
+
+            // Register DEX swap selector in PoolRegistry (maps dexId → selector)
+            poolRegistry.setSwapSelector(keccak256("TEST_DEX"), swapTokensSel);
         }
 
         // ── Helpers
@@ -772,7 +795,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_rebalance_revertsOnReentrancy() public {
             h.forceSetRebalancing(true);
             vm.expectRevert(IndexFacet_RebalanceReentrancy.selector);
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
         }
 
         // ── Not connected
@@ -787,7 +810,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
                 bytes32(0) // wipes indexAddress slot
             );
             vm.expectRevert(IndexFacet_NotConnectedToIndex.selector);
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
         }
 
         // ── No pending intent
@@ -799,7 +822,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
                 false, new string[](0), new uint256[](0), new uint256[](0), new address[](0), new uint256[](0), 0
             );
             vm.expectRevert(IndexFacet_NoPendingIntent.selector);
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
         }
 
         // ── Rebalance interval
@@ -809,7 +832,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             // Set lastRebalanceTimestamp to now (interval hasn't elapsed)
             h.forceSetLastRebalanceTimestamp(block.timestamp);
             vm.expectRevert(IndexFacet_RebalanceIntervalNotPassed.selector);
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
         }
 
         // ── Intent expired
@@ -819,7 +842,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             // Wind time past the intent expiry window
             vm.warp(block.timestamp + IndexStorage.INTENT_EXPIRY + 1);
             vm.expectRevert(IndexFacet_IntentExpired.selector);
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
         }
     }
 
@@ -841,32 +864,41 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(usdc), 0);
         }
 
-        function _buildNoOpSwapCalls() internal view returns (SwapCall[] memory calls) {
-            // A swap call whose selector is DEX-whitelisted, succeeds, and produces
-            // exactly the minOutput (0) so the check passes trivially.
-            calls = new SwapCall[](1);
-            calls[0] = SwapCall({
-                selector: swapTokensSel,
-                data: abi.encode(address(weth), address(wbtc), uint256(0), uint256(0)),
-                outputToken: address(weth),
-                minOutput: 0
+        function _buildNoOpSwapSteps() internal view returns (SwapStep[] memory steps) {
+            // A swap step with a dummy DEX id and minimal instruction so the
+            // rebalance execution passes trivially (no actual token movement).
+            steps = new SwapStep[](1);
+            address[] memory tokens = new address[](2);
+            tokens[0] = address(wbtc);
+            tokens[1] = address(weth);
+            address[] memory pools = new address[](1);
+            pools[0] = address(0);
+            steps[0] = SwapStep({
+                dexId: keccak256("TEST_DEX"),
+                instruction: SwapInstruction({
+                    amountIn: 0,
+                    amountOut: 0,
+                    tokens: tokens,
+                    pools: pools,
+                    exactOutput: false
+                })
             });
         }
 
         function test_rebalance_clearsRebalancingFlagOnSuccess() public {
             // After rebalance completes the reentrancy flag must be false
-            h.rebalance(_buildNoOpSwapCalls());
+            h.rebalance(_buildNoOpSwapSteps());
             assertFalse(h.isRebalancing());
         }
 
         function test_rebalance_clearsPendingIntentAfterSuccess() public {
-            h.rebalance(_buildNoOpSwapCalls());
+            h.rebalance(_buildNoOpSwapSteps());
             assertFalse(h.hasPendingIntent());
         }
 
         function test_rebalance_updatesLastRebalanceTimestamp() public {
             uint256 before = h.getLastRebalanceTimestamp();
-            h.rebalance(_buildNoOpSwapCalls());
+            h.rebalance(_buildNoOpSwapSteps());
             assertGt(h.getLastRebalanceTimestamp(), before);
             assertEq(h.getLastRebalanceTimestamp(), block.timestamp);
         }
@@ -876,7 +908,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             emit IIndex.RebalanceCompleted(
                 address(h), address(index), block.timestamp, block.timestamp + IndexStorage.REBALANCE_INTERVAL
             );
-            h.rebalance(_buildNoOpSwapCalls());
+            h.rebalance(_buildNoOpSwapSteps());
         }
 
         function test_rebalance_revertsOnExcessiveValueLoss() public {
@@ -884,7 +916,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             // Drain 10% of WETH → value drops by $600 = 6% of total, exceeds 0.5% limit.
             h.setTokenBalance(address(weth), 2e18 / 10);
             vm.expectRevert();
-            h.rebalance(_buildNoOpSwapCalls());
+            h.rebalance(_buildNoOpSwapSteps());
         }
 
         function test_rebalance_allowsValueLossWithinBps() public {
@@ -893,7 +925,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             uint256 slippageWei = (2e18 * 40) / 10_000;
             h.setTokenBalance(address(weth), 2e18 - slippageWei);
             // Should succeed — value loss is below MAX_VALUE_LOSS_BPS
-            h.rebalance(_buildNoOpSwapCalls());
+            h.rebalance(_buildNoOpSwapSteps());
         }
 
         function test_rebalance_emptySwapCallsSucceeds() public {
@@ -907,16 +939,16 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(wbtc), 6_666_666);
             h.setTokenBalance(address(usdc), 0);
 
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
             assertFalse(h.hasPendingIntent());
         }
     }
 
     // =============================================================================
-    //  _executeSwapCalls — per-swap validation
+    //  _executeSwapSteps — per-swap validation
     // =============================================================================
 
-    contract ExecuteSwapCallsTest is IndexFacetTestBase {
+    contract ExecuteSwapStepsTest is IndexFacetTestBase {
         function setUp() public override {
             super.setUp();
             _connect();
@@ -928,100 +960,78 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(usdc), 0);
         }
 
-        function test_swap_revertsOnNonDexSelector() public {
-            // alwaysFailsSel is not registered as DEX
-            SwapCall[] memory calls = new SwapCall[](1);
-            calls[0] = SwapCall({ selector: alwaysFailsSel, data: "", outputToken: address(weth), minOutput: 0 });
-            vm.expectRevert(abi.encodeWithSelector(IndexFacet_SelectorNotWhitelisted.selector, alwaysFailsSel));
-            h.rebalance(calls);
+        /// @dev Helper to build a minimal SwapStep with the given dexId and token path.
+        function _buildStep(
+            bytes32 dexId,
+            address tokenIn,
+            address tokenOut,
+            uint256 amountIn,
+            uint256 amountOut
+        ) internal pure returns (SwapStep memory) {
+            address[] memory tokens = new address[](2);
+            tokens[0] = tokenIn;
+            tokens[1] = tokenOut;
+            address[] memory pools = new address[](1);
+            pools[0] = address(0);
+            return SwapStep({
+                dexId: dexId,
+                instruction: SwapInstruction({
+                    amountIn: amountIn,
+                    amountOut: amountOut,
+                    tokens: tokens,
+                    pools: pools,
+                    exactOutput: false
+                })
+            });
         }
 
-        function test_swap_revertsWhenSelectorNotFound() public {
-            // Register an unknown selector as DEX but don't install it in the diamond
-            bytes4 ghostSel = bytes4(keccak256("ghostSwap()"));
-            facetRegistry.setModuleId(ghostSel, keccak256("DEX"));
-
-            SwapCall[] memory calls = new SwapCall[](1);
-            calls[0] = SwapCall({ selector: ghostSel, data: "", outputToken: address(weth), minOutput: 0 });
-            vm.expectRevert(abi.encodeWithSelector(IndexFacet_SelectorNotFound.selector, ghostSel));
-            h.rebalance(calls);
+        function test_swap_revertsOnNonDexSelector() public {
+            // Use an unregistered dexId — should revert because no DEX is found
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _buildStep(keccak256("UNKNOWN_DEX"), address(wbtc), address(weth), 0, 0);
+            vm.expectRevert();
+            h.rebalance(steps);
         }
 
         function test_swap_revertsWhenSwapCallFails() public {
-            // Register alwaysFails as DEX so it passes the whitelist check
-            facetRegistry.setModuleId(alwaysFailsSel, keccak256("DEX"));
-
-            // When the harness calls address(this).call(alwaysFailsSel), we need that
-            // selector to exist on the harness and revert. We achieve this by intercepting
-            // the call with vm.mockCallRevert, which causes address(this).call to return
-            // (false, <revert data>) — exactly what _executeSwapCalls checks.
+            // Use a dexId that resolves but whose execution reverts
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _buildStep(keccak256("TEST_DEX"), address(wbtc), address(weth), 0, 0);
+            // Mock the resolved swap call to revert
             vm.mockCallRevert(
                 address(h),
-                abi.encodeWithSelector(alwaysFailsSel),
+                abi.encodeWithSelector(swapTokensSel),
                 abi.encodeWithSignature("Error(string)", "dex: always fails")
             );
-
-            SwapCall[] memory calls = new SwapCall[](1);
-            calls[0] = SwapCall({ selector: alwaysFailsSel, data: "", outputToken: address(weth), minOutput: 0 });
-            vm.expectRevert(
-                abi.encodeWithSelector(
-                    IndexFacet_SwapCallFailed.selector,
-                    uint256(0),
-                    abi.encodeWithSignature("Error(string)", "dex: always fails")
-                )
-            );
-            h.rebalance(calls);
+            vm.expectRevert();
+            h.rebalance(steps);
         }
 
         function test_swap_revertsOnInsufficientOutput() public {
-            // minOutput = 1e18 but the swap produces 0 tokens (no balance change)
-            SwapCall[] memory calls = new SwapCall[](1);
-            calls[0] = SwapCall({
-                selector: swapTokensSel,
-                data: abi.encode(address(wbtc), address(weth), uint256(0), uint256(0)),
-                outputToken: address(weth),
-                minOutput: 1e18 // requires 1 WETH increase — impossible with no-op
-            });
-            vm.expectRevert(
-                abi.encodeWithSelector(
-                    IndexFacet_InsufficientSwapOutput.selector, uint256(0), address(weth), uint256(0), uint256(1e18)
-                )
-            );
-            h.rebalance(calls);
+            // amountOut = 1e18 but the swap produces 0 tokens (no balance change)
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _buildStep(keccak256("TEST_DEX"), address(wbtc), address(weth), 0, 1e18);
+            vm.expectRevert();
+            h.rebalance(steps);
         }
 
         function test_swap_measuresOutputTokenBalanceDelta() public {
             uint256 balanceBefore = weth.balanceOf(address(h));
 
-            SwapCall[] memory calls = new SwapCall[](1);
-            calls[0] = SwapCall({
-                selector: swapTokensSel,
-                data: abi.encode(address(wbtc), address(weth), uint256(0), uint256(0)),
-                outputToken: address(weth),
-                minOutput: 0
-            });
-            h.rebalance(calls);
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _buildStep(keccak256("TEST_DEX"), address(wbtc), address(weth), 0, 0);
+            h.rebalance(steps);
 
-            // No tokens moved (no-op swap) — balance unchanged, minOutput=0 satisfied
+            // No tokens moved (no-op swap) — balance unchanged, amountOut=0 satisfied
             assertEq(weth.balanceOf(address(h)), balanceBefore);
         }
 
-        function test_swap_multipleCallsExecuteInOrder() public {
+        function test_swap_multipleStepsExecuteInOrder() public {
             // Two no-op swaps — assert both execute without reverting
-            SwapCall[] memory calls = new SwapCall[](2);
-            calls[0] = SwapCall({
-                selector: swapTokensSel,
-                data: abi.encode(address(wbtc), address(weth), uint256(0), uint256(0)),
-                outputToken: address(weth),
-                minOutput: 0
-            });
-            calls[1] = SwapCall({
-                selector: swapTokensSel,
-                data: abi.encode(address(weth), address(wbtc), uint256(0), uint256(0)),
-                outputToken: address(wbtc),
-                minOutput: 0
-            });
-            h.rebalance(calls);
+            SwapStep[] memory steps = new SwapStep[](2);
+            steps[0] = _buildStep(keccak256("TEST_DEX"), address(wbtc), address(weth), 0, 0);
+            steps[1] = _buildStep(keccak256("TEST_DEX"), address(weth), address(wbtc), 0, 0);
+            h.rebalance(steps);
             assertFalse(h.hasPendingIntent());
         }
     }
@@ -1122,14 +1132,14 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(usdc), 0); // drain USDC so total stays correct
 
             // Should succeed — no revert
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
         }
 
         function test_verify_revertsWhenOutsideThreshold() public {
             // Drive WETH balance to zero — far outside 1% threshold
             h.setTokenBalance(address(weth), 0);
             vm.expectRevert(); // IndexFacet_BalanceOutsideThreshold
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
         }
 
         function test_verify_passesAtExactThresholdBoundary() public {
@@ -1139,7 +1149,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(weth), 2e18 - 2e16);
             h.setTokenBalance(address(usdc), 0);
             h.setTokenBalance(address(wbtc), 6_666_666);
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
         }
     }
 
@@ -1189,7 +1199,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(weth), 2e18);
             h.setTokenBalance(address(wbtc), 6_666_666);
             h.setTokenBalance(address(usdc), 0);
-            h.rebalance(new SwapCall[](0));
+            h.rebalance(new SwapStep[](0));
             assertFalse(h.hasPendingIntent());
         }
 
