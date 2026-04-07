@@ -10,16 +10,13 @@ pragma solidity ^0.8.31;
 
 ################################################################################*/
 
-// OpenZeppelin Contracts
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 // Local Interfaces
 import { IUniswapV2 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/IUniswapV2.sol";
 
 // Local Libraries
 import { UniswapV2Base } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/UniswapV2Base.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
+import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 
 /**
  * @title UniswapV2Facet
@@ -31,114 +28,28 @@ import { Facet } from "src/garden/facets/Facet.sol";
  * operations.
  */
 contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
-    using SafeERC20 for IERC20;
-
     // ========================================================================
     // External Functions
     // ========================================================================
 
     /// @inheritdoc IUniswapV2
-    function uniswapV2SwapExactTokensForTokens(UniswapV2SwapExactTokensForTokensParams calldata params)
-        external
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-        returns (uint256[] memory amounts)
-    {
-        return _uniswapV2SwapExactTokensForTokens(params);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2SwapTokensForExactTokens(UniswapV2SwapTokensForExactTokensParams calldata params)
-        external
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-        returns (uint256[] memory amounts)
-    {
-        return _uniswapV2SwapTokensForExactTokens(params);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2SwapExactETHForTokens(UniswapV2SwapExactETHForTokensParams calldata params)
-        external
-        payable
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-        returns (uint256[] memory amounts)
-    {
-        return _uniswapV2SwapExactETHForTokens(params);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2SwapTokensForExactETH(UniswapV2SwapTokensForExactETHParams calldata params)
-        external
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-        returns (uint256[] memory amounts)
-    {
-        return _uniswapV2SwapTokensForExactETH(params);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2SwapExactTokensForETH(UniswapV2SwapExactTokensForETHParams calldata params)
-        external
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-        returns (uint256[] memory amounts)
-    {
-        return _uniswapV2SwapExactTokensForETH(params);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2SwapETHForExactTokens(UniswapV2SwapETHForExactTokensParams calldata params)
-        external
-        payable
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-        returns (uint256[] memory amounts)
-    {
-        return _uniswapV2SwapETHForExactTokens(params);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(UniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokensParams calldata params)
+    function uniswapV2Swap(SwapInstruction calldata instruction)
         external
         override
         onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
     {
-        _uniswapV2SwapExactTokensForTokensSupportingFeeOnTransferTokens(params);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(UniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokensParams calldata params)
-        external
-        payable
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-    {
-        _uniswapV2SwapExactETHForTokensSupportingFeeOnTransferTokens(params);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(UniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokensParams calldata params)
-        external
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-    {
-        _uniswapV2SwapExactTokensForETHSupportingFeeOnTransferTokens(params);
+        _uniswapV2Swap(instruction);
     }
 
     // ========================================================================
     // External Functions (View)
     // ========================================================================
+
+    /// @inheritdoc IUniswapV2
+    function uniswapV2Quote(QuoteInstruction calldata instruction) external view override returns (uint256 result) {
+        return _uniswapV2Quote(instruction);
+    }
 
     /// @inheritdoc IUniswapV2
     function uniswapV2GetAmountOut(
@@ -192,34 +103,5 @@ contract UniswapV2Facet is IUniswapV2, UniswapV2Base, Facet {
         returns (uint256[] memory amounts)
     {
         return _uniswapV2GetAmountsIn(amountOut, path);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2Quote(
-        uint256 amountA,
-        uint256 reserveA,
-        uint256 reserveB
-    )
-        external
-        pure
-        override
-        returns (uint256 amountB)
-    {
-        return _uniswapV2Quote(amountA, reserveA, reserveB);
-    }
-
-    /// @inheritdoc IUniswapV2
-    function uniswapV2QuoteExactInputForPool(
-        address poolAddress,
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut
-    )
-        external
-        view
-        override
-        returns (uint256 amountOut)
-    {
-        return _uniswapV2QuoteExactInputForPool(poolAddress, amountIn, tokenIn, tokenOut);
     }
 }

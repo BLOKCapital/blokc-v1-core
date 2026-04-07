@@ -15,15 +15,13 @@ import { ICamelotRouterV2 } from "src/interfaces/ICamelotRouterV2.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 
 interface ICamelotV2PairLike {
     function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
     function token0() external view returns (address);
     function token1() external view returns (address);
 }
-
-/// @notice Thrown when the swap output amount is below the minimum acceptable threshold
-error CamelotV2Facet_InsufficientAmountOut();
 
 /// @notice Thrown when the factory getPair call fails
 error CamelotV2Facet_GetPairFailed();
@@ -34,12 +32,18 @@ error CamelotV2Facet_InvalidPoolAddress();
 /// @notice Thrown when a pool along the swap path is not registered in the pool registry
 error CamelotV2Facet_UnregisteredPool();
 
+/// @notice Thrown when the swap path is invalid (wrong lengths)
+error CamelotV2Facet_InvalidPath();
+
+/// @notice Thrown when exact-output is requested (not supported on Camelot V2)
+error CamelotV2Facet_ExactOutputNotSupported();
+
 /**
  * @title CamelotV2Base
- * @notice Base contract that implements internal functions for swapping tokens through Camelot V2 on Arbitrum One. This
- * contract is intended to be inherited by a CamelotV2Facet that exposes the swap functions with appropriate access
- * control and user-facing error messages. It includes functions to perform single-hop and multi-hop exact-input and
- * exact-output swaps, along with events for off-chain tracking of swap operations.
+ * @notice Base contract for Camelot V2 swaps and quotes on Arbitrum One. Camelot V2 uses
+ *         the classic AMM (constant-product) with 0.3% fee. One pool per token pair,
+ *         identified by factory's getPair(tokenA, tokenB). Only exact-input swaps are
+ *         supported; exact-output reverts.
  */
 abstract contract CamelotV2Base {
     using SafeERC20 for IERC20;
@@ -62,189 +66,159 @@ abstract contract CamelotV2Base {
         address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
     );
 
-    /// @notice Executes a Camelot V2 exact input single-hop swap
-    /// @param amountIn The amount of input tokens to swap
-    /// @param amountOutMin The minimum amount of output tokens to receive
-    /// @param path The path of tokens to swap
-    /// @param referrer The address of the referrer
-    /// @param deadline The deadline for the swap
-    function _camelotV2ExactInputSingle(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address referrer,
-        uint256 deadline
-    )
-        internal
-    {
-        // Validate the pools for the given path
-        _validatePools(path);
+    // ========================================================================
+    // Swap Dispatcher
+    // ========================================================================
+
+    /// @notice Standardised swap dispatcher. Validates pools upfront, then delegates to the router.
+    ///         Only exact-input swaps are supported. Exact-output reverts.
+    function _camelotV2Swap(SwapInstruction calldata instruction) internal {
+        uint256 hops = instruction.pools.length;
+        if (hops == 0 || instruction.tokens.length != hops + 1) revert CamelotV2Facet_InvalidPath();
+
+        if (instruction.exactOutput) revert CamelotV2Facet_ExactOutputNotSupported();
+
+        _validateSwapPools(instruction);
 
         // Approve the input tokens for the swap
-        IERC20 tokenIn = IERC20(path[0]);
-        tokenIn.forceApprove(CAMELOT_V2_ROUTER_ADDRESS, amountIn);
+        IERC20 tokenIn = IERC20(instruction.tokens[0]);
+        tokenIn.forceApprove(CAMELOT_V2_ROUTER_ADDRESS, instruction.amountIn);
 
-        // Execute the swap
-        ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
-            .swapExactTokensForTokensSupportingFeeOnTransferTokens(
-                amountIn, amountOutMin, path, address(this), referrer, deadline
-            );
+        // Snapshot output token balance before swap
+        address tokenOutAddr = instruction.tokens[instruction.tokens.length - 1];
+        uint256 balanceBefore = IERC20(tokenOutAddr).balanceOf(address(this));
 
-        // Get the amount of output tokens received
-        uint256 amountOut = IERC20(path[path.length - 1]).balanceOf(address(this));
+        // Execute the swap via the fee-on-transfer compatible router function
+        ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS).swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            instruction.amountIn,
+            instruction.amountOut,
+            instruction.tokens,
+            address(this),
+            address(0), // referrer
+            block.timestamp
+        );
 
-        // Validate the amount of output tokens received
-        if (amountOut < amountOutMin) {
-            revert CamelotV2Facet_InsufficientAmountOut();
-        }
+        // Compute actual output from balance delta
+        uint256 amountOut = IERC20(tokenOutAddr).balanceOf(address(this)) - balanceBefore;
 
-        // Emit the tokens swapped event
-        emit CamelotV2FacetTokensSwapped(path[0], path[path.length - 1], amountIn, amountOut);
+        emit CamelotV2FacetTokensSwapped(instruction.tokens[0], tokenOutAddr, instruction.amountIn, amountOut);
     }
 
-    /// @notice Executes a Camelot V2 exact input multi-hop swap
-    /// @param amountInMax The maximum amount of input tokens to swap
-    /// @param amountOutMin The minimum amount of output tokens to receive
-    /// @param path The path of tokens to swap
-    /// @param referrer The address of the referrer
-    /// @param deadline The deadline for the swap
-    function _camelotV2ExactInput(
-        uint256 amountInMax,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address referrer,
-        uint256 deadline
-    )
-        internal
-    {
-        // Validate the pools for the given path
-        _validatePools(path);
+    // ========================================================================
+    // Quote Dispatcher
+    // ========================================================================
 
-        // Approve the input tokens for the swap
-        IERC20 tokenIn = IERC20(path[0]);
-        tokenIn.forceApprove(CAMELOT_V2_ROUTER_ADDRESS, amountInMax);
+    /// @notice Unified quote dispatcher. Chains quotes through each pool using constant-product formula.
+    function _camelotV2Quote(QuoteInstruction calldata inst) internal view returns (uint256 result) {
+        uint256 hops = inst.pools.length;
+        if (hops == 0 || inst.tokens.length != hops + 1) revert CamelotV2Facet_InvalidPath();
 
-        // Execute the swap
-        ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
-            .swapExactTokensForTokensSupportingFeeOnTransferTokens(
-                amountInMax, amountOutMin, path, address(this), referrer, deadline
-            );
-
-        // Get the amount of output tokens received
-        uint256 amountOut = IERC20(path[path.length - 1]).balanceOf(address(this));
-
-        // Validate the amount of output tokens received
-
-        if (amountOut < amountOutMin) {
-            revert CamelotV2Facet_InsufficientAmountOut();
+        if (!inst.exactOutput) {
+            // Forward: chain amountIn through each hop
+            result = inst.amount;
+            for (uint256 i; i < hops; i++) {
+                result = _quotePool(inst.pools[i], result, inst.tokens[i], inst.tokens[i + 1]);
+            }
+        } else {
+            // Reverse: chain amountOut backwards through each hop
+            result = inst.amount;
+            for (uint256 i = hops; i > 0; i--) {
+                result = _reverseQuotePool(inst.pools[i - 1], result, inst.tokens[i - 1], inst.tokens[i]);
+            }
         }
-
-        // Emit the tokens swapped event
-        emit CamelotV2FacetTokensSwapped(path[0], path[path.length - 1], amountInMax, amountOut);
     }
 
-    /// @notice Executes a Camelot V2 exact output single-hop swap to ETH
-    /// @param amountIn The amount of input tokens to swap
-    /// @param amountOutMin The minimum amount of output tokens to receive
-    /// @param path The path of tokens to swap
-    /// @param referrer The address of the referrer
-    /// @param deadline The deadline for the swap
-    function _camelotV2ExactOutputSingle(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address referrer,
-        uint256 deadline
-    )
-        internal
-    {
-        _validatePools(path);
+    // ========================================================================
+    // Validation
+    // ========================================================================
 
-        // Approve the input tokens for the swap
-        IERC20 tokenIn = IERC20(path[0]);
-        tokenIn.forceApprove(CAMELOT_V2_ROUTER_ADDRESS, amountIn);
+    /// @notice Validates a single pool: registered in PoolRegistry AND canonical in Camelot factory
+    function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
+        if (pool == address(0)) revert CamelotV2Facet_InvalidPoolAddress();
 
-        // Execute the swap
-        ICamelotRouterV2(CAMELOT_V2_ROUTER_ADDRESS)
-            .swapExactTokensForETHSupportingFeeOnTransferTokens(
-                amountIn, amountOutMin, path, address(this), referrer, deadline
-            );
-
-        // Get the amount of output tokens received
-        uint256 amountOut = address(this).balance;
-
-        // Validate the amount of output tokens received
-
-        if (amountOut < amountOutMin) {
-            revert CamelotV2Facet_InsufficientAmountOut();
-        }
-
-        // Emit the tokens swapped event
-        emit CamelotV2FacetTokensSwapped(path[0], path[path.length - 1], amountIn, amountOut);
-    }
-
-    /// @notice Quotes output amount for exact input on a specific Camelot V2 pool (must be registered)
-    function _camelotV2QuoteExactInputForPool(
-        address poolAddress,
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut
-    )
-        internal
-        view
-        returns (uint256 amountOut)
-    {
-        if (poolAddress == address(0)) revert CamelotV2Facet_InvalidPoolAddress();
-        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
+        // 1. Pool must be registered in our PoolRegistry
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
             revert CamelotV2Facet_UnregisteredPool();
         }
 
-        (uint112 reserve0, uint112 reserve1,) = ICamelotV2PairLike(poolAddress).getReserves();
-        address token0 = ICamelotV2PairLike(poolAddress).token0();
-        address token1 = ICamelotV2PairLike(poolAddress).token1();
+        // 2. Pool must be the canonical Camelot factory pool for this pair
+        (bool ok, bytes memory data) =
+            CAMELOT_V2_FACTORY_ADDRESS.staticcall(abi.encodeWithSignature("getPair(address,address)", tokenIn, tokenOut));
+        if (!ok) revert CamelotV2Facet_GetPairFailed();
+
+        address canonical = abi.decode(data, (address));
+        if (canonical != pool) revert CamelotV2Facet_UnregisteredPool();
+    }
+
+    /// @notice Validates all pools in a SwapInstruction upfront
+    function _validateSwapPools(SwapInstruction calldata instruction) internal view {
+        for (uint256 i; i < instruction.pools.length; i++) {
+            _validatePool(instruction.pools[i], instruction.tokens[i], instruction.tokens[i + 1]);
+        }
+    }
+
+    // ========================================================================
+    // Quote Helpers
+    // ========================================================================
+
+    /// @notice Quotes output amount for exact input on a specific Camelot V2 pool using constant-product formula
+    function _quotePool(address pool, uint256 amountIn, address tokenIn, address tokenOut)
+        internal
+        view
+        returns (uint256)
+    {
+        if (pool == address(0)) revert CamelotV2Facet_InvalidPoolAddress();
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+            revert CamelotV2Facet_UnregisteredPool();
+        }
+
+        (uint112 reserve0, uint112 reserve1,) = ICamelotV2PairLike(pool).getReserves();
+        address token0 = ICamelotV2PairLike(pool).token0();
 
         uint256 reserveIn;
         uint256 reserveOut;
-        if (tokenIn == token0 && tokenOut == token1) {
+        if (tokenIn == token0) {
             reserveIn = uint256(reserve0);
             reserveOut = uint256(reserve1);
-        } else if (tokenIn == token1 && tokenOut == token0) {
+        } else {
             reserveIn = uint256(reserve1);
             reserveOut = uint256(reserve0);
-        } else {
-            revert CamelotV2Facet_InvalidPoolAddress();
         }
 
-        // Camelot V2 uses same constant-product formula as Uniswap V2 (0.3% fee)
-        require(amountIn > 0, "CamelotV2: INSUFFICIENT_INPUT_AMOUNT");
-        require(reserveIn > 0 && reserveOut > 0, "CamelotV2: INSUFFICIENT_LIQUIDITY");
+        // Constant-product formula with 0.3% fee
         uint256 amountInWithFee = amountIn * 997;
         uint256 numerator = amountInWithFee * reserveOut;
         uint256 denominator = reserveIn * 1000 + amountInWithFee;
         return numerator / denominator;
     }
 
-    /// @notice Validates that all pools along the swap path exist and are registered
-    /// @param path The array of token addresses forming the swap path
-    function _validatePools(address[] calldata path) internal view {
-        for (uint256 i = 0; i < path.length - 1; i++) {
-            (bool ok, bytes memory data) = CAMELOT_V2_FACTORY_ADDRESS.staticcall(
-                abi.encodeWithSignature("getPair(address,address)", path[i], path[i + 1])
-            );
-
-            if (!ok) {
-                revert CamelotV2Facet_GetPairFailed();
-            }
-
-            address pool = abi.decode(data, (address));
-
-            if (pool == address(0)) {
-                revert CamelotV2Facet_InvalidPoolAddress();
-            }
-
-            if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
-                revert CamelotV2Facet_UnregisteredPool();
-            }
+    /// @notice Quotes input amount needed for exact output on a specific Camelot V2 pool (reverse quote)
+    function _reverseQuotePool(address pool, uint256 amountOut, address tokenIn, address tokenOut)
+        internal
+        view
+        returns (uint256)
+    {
+        if (pool == address(0)) revert CamelotV2Facet_InvalidPoolAddress();
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+            revert CamelotV2Facet_UnregisteredPool();
         }
+
+        (uint112 reserve0, uint112 reserve1,) = ICamelotV2PairLike(pool).getReserves();
+        address token0 = ICamelotV2PairLike(pool).token0();
+
+        uint256 reserveIn;
+        uint256 reserveOut;
+        if (tokenIn == token0) {
+            reserveIn = uint256(reserve0);
+            reserveOut = uint256(reserve1);
+        } else {
+            reserveIn = uint256(reserve1);
+            reserveOut = uint256(reserve0);
+        }
+
+        // Reverse constant-product formula: amountIn = (reserveIn * amountOut * 1000) / ((reserveOut - amountOut) * 997) + 1
+        uint256 numerator = reserveIn * amountOut * 1000;
+        uint256 denominator = (reserveOut - amountOut) * 997;
+        return (numerator / denominator) + 1;
     }
 }
