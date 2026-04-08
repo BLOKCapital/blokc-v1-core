@@ -56,8 +56,11 @@ library IndexStorage {
     /// @notice Precision for calculations (1e18 = 100%)
     uint256 internal constant PRECISION = 1e18;
 
-    /// @notice Balance threshold in basis points (1% = 100 bps)
-    uint256 internal constant BALANCE_THRESHOLD_BPS = 100;
+    /// @notice Balance threshold in basis points (2% = 200 bps)
+    /// @dev 2% accommodates multi-hop swap fees (~0.6% per 2-hop route), price
+    ///      movement between intent creation and execution, and rounding on small
+    ///      allocations. Industry standard for multi-token index rebalancing.
+    uint256 internal constant BALANCE_THRESHOLD_BPS = 200;
 
     /// @notice Minimum cooldown between consecutive rebalance executions (1 hour).
     uint256 internal constant REBALANCE_INTERVAL = 1 hours;
