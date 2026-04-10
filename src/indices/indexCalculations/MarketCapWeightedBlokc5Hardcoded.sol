@@ -35,7 +35,7 @@ error MarketCapWeightedBlokc5Hardcoded_MarketCapExceedsSanityBound();
 error MarketCapWeightedBlokc5Hardcoded_ComponentWeightBelowMinimum();
 
 /// @notice Thrown when an unsupported symbol is provided
-error MarketCapWeightedBlokc5Hardcoded_UnsupportedSymbol(string symbol);
+error MarketCapWeightedBlokc5Hardcoded_UnsupportedSymbol(bytes32 symbol);
 
 /**
  * @title MarketCapWeightedBlokc5Hardcoded
@@ -63,11 +63,11 @@ contract MarketCapWeightedBlokc5Hardcoded is IIndexCalculation {
     uint256 private constant UNI_CIRCULATING_SUPPLY = 632_591_562;
     uint256 private constant ARB_CIRCULATING_SUPPLY = 6_040_824_145;
 
-    bytes32 private constant BTC_HASH = keccak256("BTC");
-    bytes32 private constant ETH_HASH = keccak256("ETH");
-    bytes32 private constant LINK_HASH = keccak256("LINK");
-    bytes32 private constant UNI_HASH = keccak256("UNI");
-    bytes32 private constant ARB_HASH = keccak256("ARB");
+    bytes32 private constant BTC_SYMBOL = bytes32("BTC");
+    bytes32 private constant ETH_SYMBOL = bytes32("ETH");
+    bytes32 private constant LINK_SYMBOL = bytes32("LINK");
+    bytes32 private constant UNI_SYMBOL = bytes32("UNI");
+    bytes32 private constant ARB_SYMBOL = bytes32("ARB");
 
     constructor(address _indexComponentRegistryAddress) {
         if (_indexComponentRegistryAddress == address(0)) {
@@ -77,7 +77,7 @@ contract MarketCapWeightedBlokc5Hardcoded is IIndexCalculation {
     }
 
     /// @inheritdoc IIndexCalculation
-    function getWeights(string[] memory symbols) external override returns (uint256[] memory weights) {
+    function getWeights(bytes32[] memory symbols) external override returns (uint256[] memory weights) {
         uint256 len = symbols.length;
         weights = new uint256[](len);
         uint256[] memory marketCaps = new uint256[](len);
@@ -101,19 +101,18 @@ contract MarketCapWeightedBlokc5Hardcoded is IIndexCalculation {
     }
 
     /// @notice Returns the hardcoded circulating supply for a supported symbol
-    /// @param symbol Component symbol ("BTC", "WBTC", "ETH", "WETH", "LINK", "UNI", or "ARB")
-    function _getCirculatingSupply(string memory symbol) internal pure returns (uint256) {
-        bytes32 symbolHash = keccak256(bytes(symbol));
-        if (symbolHash == BTC_HASH) return BTC_CIRCULATING_SUPPLY;
-        if (symbolHash == ETH_HASH) return ETH_CIRCULATING_SUPPLY;
-        if (symbolHash == LINK_HASH) return LINK_CIRCULATING_SUPPLY;
-        if (symbolHash == UNI_HASH) return UNI_CIRCULATING_SUPPLY;
-        if (symbolHash == ARB_HASH) return ARB_CIRCULATING_SUPPLY;
+    /// @param symbol Component symbol as bytes32
+    function _getCirculatingSupply(bytes32 symbol) internal pure returns (uint256) {
+        if (symbol == BTC_SYMBOL) return BTC_CIRCULATING_SUPPLY;
+        if (symbol == ETH_SYMBOL) return ETH_CIRCULATING_SUPPLY;
+        if (symbol == LINK_SYMBOL) return LINK_CIRCULATING_SUPPLY;
+        if (symbol == UNI_SYMBOL) return UNI_CIRCULATING_SUPPLY;
+        if (symbol == ARB_SYMBOL) return ARB_CIRCULATING_SUPPLY;
         revert MarketCapWeightedBlokc5Hardcoded_UnsupportedSymbol(symbol);
     }
 
     /// @notice Calculates market cap for a single component using hardcoded supply
-    function _getComponentMarketCap(string memory symbol) internal returns (uint256 componentMarketCap) {
+    function _getComponentMarketCap(bytes32 symbol) internal returns (uint256 componentMarketCap) {
         (uint256 componentPrice, uint8 componentPriceDecimals) = _getComponentPrice(symbol);
         uint256 circulatingSupply = _getCirculatingSupply(symbol);
         componentMarketCap = Math.mulDiv(
@@ -125,7 +124,7 @@ contract MarketCapWeightedBlokc5Hardcoded is IIndexCalculation {
     }
 
     /// @notice Retrieves current price for a component from the IndexComponentRegistry oracle
-    function _getComponentPrice(string memory symbol)
+    function _getComponentPrice(bytes32 symbol)
         internal
         returns (uint256 componentPrice, uint8 componentPriceDecimals)
     {

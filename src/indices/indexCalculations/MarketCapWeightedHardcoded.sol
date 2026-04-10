@@ -35,7 +35,7 @@ error MarketCapWeightedHardcoded_MarketCapExceedsSanityBound();
 error MarketCapWeightedHardcoded_ComponentWeightBelowMinimum();
 
 /// @notice Thrown when an unsupported symbol is provided
-error MarketCapWeightedHardcoded_UnsupportedSymbol(string symbol);
+error MarketCapWeightedHardcoded_UnsupportedSymbol(bytes32 symbol);
 
 /**
  * @title MarketCapWeightedHardcoded
@@ -57,10 +57,10 @@ contract MarketCapWeightedHardcoded is IIndexCalculation {
     /// @notice Hardcoded circulating supply of BTC in whole token units
     uint256 private constant BTC_CIRCULATING_SUPPLY = 20_012_568;
 
-    bytes32 private constant ETH_HASH = keccak256("ETH");
-    bytes32 private constant WETH_HASH = keccak256("WETH");
-    bytes32 private constant BTC_HASH = keccak256("BTC");
-    bytes32 private constant WBTC_HASH = keccak256("WBTC");
+    bytes32 private constant ETH_SYMBOL = bytes32("ETH");
+    bytes32 private constant WETH_SYMBOL = bytes32("WETH");
+    bytes32 private constant BTC_SYMBOL = bytes32("BTC");
+    bytes32 private constant WBTC_SYMBOL = bytes32("WBTC");
 
     constructor(address _indexComponentRegistryAddress) {
         if (_indexComponentRegistryAddress == address(0)) {
@@ -70,7 +70,7 @@ contract MarketCapWeightedHardcoded is IIndexCalculation {
     }
 
     /// @inheritdoc IIndexCalculation
-    function getWeights(string[] memory symbols) external override returns (uint256[] memory weights) {
+    function getWeights(bytes32[] memory symbols) external override returns (uint256[] memory weights) {
         uint256 len = symbols.length;
         weights = new uint256[](len);
         uint256[] memory marketCaps = new uint256[](len);
@@ -92,16 +92,15 @@ contract MarketCapWeightedHardcoded is IIndexCalculation {
     }
 
     /// @notice Returns the hardcoded circulating supply for a supported symbol
-    /// @param symbol Component symbol ("ETH", "WETH", "BTC", or "WBTC")
-    function _getCirculatingSupply(string memory symbol) internal pure returns (uint256) {
-        bytes32 symbolHash = keccak256(bytes(symbol));
-        if (symbolHash == ETH_HASH || symbolHash == WETH_HASH) return ETH_CIRCULATING_SUPPLY;
-        if (symbolHash == BTC_HASH || symbolHash == WBTC_HASH) return BTC_CIRCULATING_SUPPLY;
+    /// @param symbol Component symbol (bytes32("ETH"), bytes32("WETH"), bytes32("BTC"), or bytes32("WBTC"))
+    function _getCirculatingSupply(bytes32 symbol) internal pure returns (uint256) {
+        if (symbol == ETH_SYMBOL || symbol == WETH_SYMBOL) return ETH_CIRCULATING_SUPPLY;
+        if (symbol == BTC_SYMBOL || symbol == WBTC_SYMBOL) return BTC_CIRCULATING_SUPPLY;
         revert MarketCapWeightedHardcoded_UnsupportedSymbol(symbol);
     }
 
     /// @notice Calculates market cap for a single component using hardcoded supply
-    function _getComponentMarketCap(string memory symbol) internal returns (uint256 componentMarketCap) {
+    function _getComponentMarketCap(bytes32 symbol) internal returns (uint256 componentMarketCap) {
         (uint256 componentPrice, uint8 componentPriceDecimals) = _getComponentPrice(symbol);
         uint256 circulatingSupply = _getCirculatingSupply(symbol);
         componentMarketCap = Math.mulDiv(
@@ -113,7 +112,7 @@ contract MarketCapWeightedHardcoded is IIndexCalculation {
     }
 
     /// @notice Retrieves current price for a component from the IndexComponentRegistry oracle
-    function _getComponentPrice(string memory symbol)
+    function _getComponentPrice(bytes32 symbol)
         internal
         returns (uint256 componentPrice, uint8 componentPriceDecimals)
     {

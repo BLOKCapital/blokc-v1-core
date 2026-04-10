@@ -72,12 +72,10 @@ contract IndexFacet is IIndex, IndexBase, Facet {
         returns (
             bool active,
             uint256 totalValueUsd,
-            string[] memory symbols,
-            uint256[] memory currentValues,
+            bytes32[] memory symbols,
             uint256[] memory targetValues
         )
     {
         return _getPendingIntent();
     }
 }
-

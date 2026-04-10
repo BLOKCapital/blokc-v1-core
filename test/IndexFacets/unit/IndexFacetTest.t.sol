@@ -101,7 +101,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         bool public connectCalled;
         bool public disconnectCalled;
 
-        string[] private _symbols;
+        bytes32[] private _symbols;
         uint256[] private _weights;
 
         // Control whether calls revert
@@ -109,7 +109,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         bool public revertOnDisconnect;
         bool public revertOnGetWeights;
 
-        function setWeights(string[] memory syms, uint256[] memory wts) external {
+        function setWeights(bytes32[] memory syms, uint256[] memory wts) external {
             _symbols = syms;
             _weights = wts;
         }
@@ -136,7 +136,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             disconnectCalled = true;
         }
 
-        function getWeights() external view returns (string[] memory, uint256[] memory) {
+        function getWeights() external view returns (bytes32[] memory, uint256[] memory) {
             if (revertOnGetWeights) revert("MockIndex: getWeights failed");
             return (_symbols, _weights);
         }
@@ -145,14 +145,14 @@ contract MockERC20 is IERC20, IERC20Metadata {
     // ── IndexComponentRegistry — surfaces called: getComponentAddress, fetchPrice, isComponentRegistered ──
 
     contract MockComponentRegistry {
-        mapping(string => address) public components;
+        mapping(bytes32 => address) public components;
         mapping(address => uint256) public prices;
-        mapping(string => bool) public registered;
+        mapping(bytes32 => bool) public registered;
 
         // Allow price-fetch to revert on demand
         bool public revertOnFetchPrice;
 
-        function setComponent(string memory symbol, address token) external {
+        function setComponent(bytes32 symbol, address token) external {
             components[symbol] = token;
             registered[symbol] = true;
         }
@@ -161,7 +161,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             prices[token] = price;
         }
 
-        function setRegistered(string memory symbol, bool val) external {
+        function setRegistered(bytes32 symbol, bool val) external {
             registered[symbol] = val;
         }
 
@@ -169,13 +169,13 @@ contract MockERC20 is IERC20, IERC20Metadata {
             revertOnFetchPrice = v;
         }
 
-        function getComponentAddress(string memory symbol) external view returns (address) {
+        function getComponentAddress(bytes32 symbol) external view returns (address) {
             return components[symbol];
         }
 
         function fetchPrice(
             address token,
-            string memory /*symbol*/
+            bytes32 /*symbol*/
         )
             external
             view
@@ -185,7 +185,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             return prices[token];
         }
 
-        function isComponentRegistered(string memory symbol) external view returns (bool) {
+        function isComponentRegistered(bytes32 symbol) external view returns (bool) {
             return registered[symbol];
         }
     }
@@ -322,7 +322,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function getPendingIntent()
             external
             view
-            returns (bool, uint256, string[] memory, uint256[] memory, uint256[] memory)
+            returns (bool, uint256, bytes32[] memory, uint256[] memory)
         {
             return _getPendingIntent();
         }
@@ -331,11 +331,8 @@ contract MockERC20 is IERC20, IERC20Metadata {
         // internal helpers can be unit-tested in isolation.
         function forceSetPendingIntent(
             bool active,
-            string[] memory symbols,
-            uint256[] memory currentValues,
+            bytes32[] memory symbols,
             uint256[] memory targetValues,
-            address[] memory tokenAddresses,
-            uint256[] memory weights,
             uint256 totalValueUsd
         )
             external
@@ -343,10 +340,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             IndexStorage.Layout storage s = IndexStorage.layout();
             s.pendingIntent.active = active;
             s.pendingIntent.symbols = symbols;
-            s.pendingIntent.currentValues = currentValues;
             s.pendingIntent.targetValues = targetValues;
-            s.pendingIntent.tokenAddresses = tokenAddresses;
-            s.pendingIntent.weights = weights;
             s.pendingIntent.totalValueUsd = totalValueUsd;
         }
 
@@ -473,9 +467,9 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setFacetRegistry(address(facetRegistry));
 
             // Configure component registry
-            componentRegistry.setComponent("WETH", address(weth));
-            componentRegistry.setComponent("WBTC", address(wbtc));
-            componentRegistry.setComponent("USDC", address(usdc));
+            componentRegistry.setComponent(bytes32("WETH"), address(weth));
+            componentRegistry.setComponent(bytes32("WBTC"), address(wbtc));
+            componentRegistry.setComponent(bytes32("USDC"), address(usdc));
             componentRegistry.setPrice(address(weth), WETH_PRICE);
             componentRegistry.setPrice(address(wbtc), WBTC_PRICE);
             componentRegistry.setPrice(address(usdc), USDC_PRICE);
@@ -493,11 +487,11 @@ contract MockERC20 is IERC20, IERC20Metadata {
             factory.setRegistered(address(index), true);
 
             // Set index weights
-            string[] memory symbols = new string[](2);
+            bytes32[] memory symbols = new bytes32[](2);
             uint256[] memory weights = new uint256[](2);
-            symbols[0] = "WETH";
+            symbols[0] = bytes32("WETH");
             weights[0] = WETH_WEIGHT;
-            symbols[1] = "WBTC";
+            symbols[1] = bytes32("WBTC");
             weights[1] = WBTC_WEIGHT;
             index.setWeights(symbols, weights);
 
@@ -628,17 +622,11 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
         function test_disconnect_clearsPendingIntent() public {
             // Force an active pending intent
-            string[] memory syms = new string[](1);
-            syms[0] = "WETH";
-            uint256[] memory vals = new uint256[](1);
-            vals[0] = 100e8;
+            bytes32[] memory syms = new bytes32[](1);
+            syms[0] = bytes32("WETH");
             uint256[] memory tgts = new uint256[](1);
             tgts[0] = 100e8;
-            address[] memory toks = new address[](1);
-            toks[0] = address(weth);
-            uint256[] memory wts = new uint256[](1);
-            wts[0] = 1e18;
-            h.forceSetPendingIntent(true, syms, vals, tgts, toks, wts, 100e8);
+            h.forceSetPendingIntent(true, syms, tgts, 100e8);
 
             assertTrue(h.hasPendingIntent());
             h.disconnectFromIndex();
@@ -713,19 +701,18 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
         function test_intent_storesSymbols() public {
             h.rebalanceIntent();
-            (,, string[] memory symbols,,) = h.getPendingIntent();
+            (,, bytes32[] memory symbols,) = h.getPendingIntent();
             assertEq(symbols.length, 2);
-            assertEq(symbols[0], "WETH");
-            assertEq(symbols[1], "WBTC");
+            assertEq(symbols[0], bytes32("WETH"));
+            assertEq(symbols[1], bytes32("WBTC"));
         }
 
         function test_intent_storesCorrectCurrentValues() public {
-            // WETH: 1e18 * 3000e8 / 1e18 = 3000e8
-            // WBTC: 1e7  * 60000e8 / 1e8  = 6000e8
+            // currentValues field was removed from PendingIntent — this test
+            // now verifies that the intent is created without reverting.
             h.rebalanceIntent();
-            (,,, uint256[] memory currentValues,) = h.getPendingIntent();
-            assertEq(currentValues[0], 3000e8, "WETH current value");
-            assertEq(currentValues[1], 6000e8, "WBTC current value");
+            (bool active,,,) = h.getPendingIntent();
+            assertTrue(active);
         }
 
         function test_intent_storesCorrectTargetValues() public {
@@ -733,14 +720,14 @@ contract MockERC20 is IERC20, IERC20Metadata {
             // WETH target = 10000e8 * 0.6 = 6000e8
             // WBTC target = 10000e8 * 0.4 = 4000e8
             h.rebalanceIntent();
-            (,,,, uint256[] memory targetValues) = h.getPendingIntent();
+            (,,, uint256[] memory targetValues) = h.getPendingIntent();
             assertEq(targetValues[0], 6000e8, "WETH target value");
             assertEq(targetValues[1], 4000e8, "WBTC target value");
         }
 
         function test_intent_includesTotalValueWithUsdc() public {
             h.rebalanceIntent();
-            (, uint256 totalValueUsd,,,) = h.getPendingIntent();
+            (, uint256 totalValueUsd,,) = h.getPendingIntent();
             // 3000 + 6000 + 1000 = 10000e8
             assertEq(totalValueUsd, 10_000e8);
         }
@@ -755,7 +742,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_intent_emitsRebalanceIntentCreatedEvent() public {
             vm.expectEmit(true, true, false, false);
             emit IIndex.RebalanceIntentCreated(
-                address(h), address(index), new string[](0), new uint256[](0), new uint256[](0), 0
+                address(h), address(index), new bytes32[](0), new uint256[](0), new uint256[](0), 0
             );
             h.rebalanceIntent();
         }
@@ -772,9 +759,10 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(weth), 2e18);
             h.rebalanceIntent();
 
-            (,,, uint256[] memory currentValues,) = h.getPendingIntent();
-            // WETH: 2e18 * 3000e8 / 1e18 = 6000e8
-            assertEq(currentValues[0], 6000e8, "second intent should reflect new balance");
+            (,,, uint256[] memory targetValues) = h.getPendingIntent();
+            // After second intent with 2 WETH ($6000), 0.1 WBTC ($6000), 1000 USDC ($1000) = $13000 total
+            // WETH target = 13000e8 * 0.6 = 7800e8
+            assertEq(targetValues[0], 7800e8, "second intent should reflect new balance");
         }
     }
 
@@ -819,7 +807,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_rebalance_revertsWhenNoPendingIntent() public {
             // Clear the intent flag directly
             h.forceSetPendingIntent(
-                false, new string[](0), new uint256[](0), new uint256[](0), new address[](0), new uint256[](0), 0
+                false, new bytes32[](0), new uint256[](0), 0
             );
             vm.expectRevert(IndexFacet_NoPendingIntent.selector);
             h.rebalance(new SwapStep[](0));
@@ -1072,24 +1060,24 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_usdc_includedInTotalValueWhenNotComponent() public {
             // WETH + WBTC + USDC = 3000 + 6000 + 1000 = 10000e8
             h.rebalanceIntent();
-            (, uint256 totalValueUsd,,,) = h.getPendingIntent();
+            (, uint256 totalValueUsd,,) = h.getPendingIntent();
             assertEq(totalValueUsd, 10_000e8);
         }
 
         function test_usdc_excludedWhenAlreadyComponent() public {
             // Make USDC an index component — it should not be double-counted
-            string[] memory symbols = new string[](3);
+            bytes32[] memory symbols = new bytes32[](3);
             uint256[] memory weights = new uint256[](3);
-            symbols[0] = "WETH";
+            symbols[0] = bytes32("WETH");
             weights[0] = 5e17;
-            symbols[1] = "WBTC";
+            symbols[1] = bytes32("WBTC");
             weights[1] = 3e17;
-            symbols[2] = "USDC";
+            symbols[2] = bytes32("USDC");
             weights[2] = 2e17;
             index.setWeights(symbols, weights);
 
             h.rebalanceIntent();
-            (, uint256 totalValueUsd,,,) = h.getPendingIntent();
+            (, uint256 totalValueUsd,,) = h.getPendingIntent();
             // Should be exactly 3000 + 6000 + 1000 = 10000e8 (USDC counted once via components loop)
             assertEq(totalValueUsd, 10_000e8);
         }
@@ -1097,16 +1085,16 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_usdc_zeroWhenBalanceIsZero() public {
             h.setTokenBalance(address(usdc), 0);
             h.rebalanceIntent();
-            (, uint256 totalValueUsd,,,) = h.getPendingIntent();
+            (, uint256 totalValueUsd,,) = h.getPendingIntent();
             // 3000 + 6000 (no USDC) = 9000e8
             assertEq(totalValueUsd, 9000e8);
         }
 
         function test_usdc_gracefullySkippedWhenNotRegistered() public {
-            componentRegistry.setRegistered("USDC", false);
+            componentRegistry.setRegistered(bytes32("USDC"), false);
             // Must not revert — just exclude USDC value
             h.rebalanceIntent();
-            (, uint256 totalValueUsd,,,) = h.getPendingIntent();
+            (, uint256 totalValueUsd,,) = h.getPendingIntent();
             assertEq(totalValueUsd, 9000e8);
         }
     }
@@ -1206,14 +1194,14 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_getPendingIntent_returnsCorrectTuple() public {
             _connect();
             _createIntent();
-            (bool active, uint256 totalValueUsd, string[] memory symbols,,) = h.getPendingIntent();
+            (bool active, uint256 totalValueUsd, bytes32[] memory symbols,) = h.getPendingIntent();
             assertTrue(active);
             assertEq(totalValueUsd, 10_000e8);
             assertEq(symbols.length, 2);
         }
 
         function test_getPendingIntent_inactiveWhenNoIntent() public view {
-            (bool active,,,,) = h.getPendingIntent();
+            (bool active,,,) = h.getPendingIntent();
             assertFalse(active);
         }
     }

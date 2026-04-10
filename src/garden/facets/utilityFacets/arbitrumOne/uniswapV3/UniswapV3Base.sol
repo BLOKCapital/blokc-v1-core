@@ -26,6 +26,7 @@ import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstructi
 
 // Local Libraries
 import { TickMath } from "src/garden/libraries/TickMath.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // ============================================================================
 // Errors
@@ -331,6 +332,10 @@ abstract contract UniswapV3Base {
     }
 
     /// @notice Quotes output for a single pool given an input amount (exact input direction)
+    /// @dev Uses two-step Math.mulDiv to avoid precision loss from intermediate truncation.
+    ///      price = sqrtPriceX96² / 2¹⁹²  (token1 per token0 in raw units)
+    ///      token0→token1: amountOut = amountIn × sqrtP² / 2¹⁹²
+    ///      token1→token0: amountOut = amountIn × 2¹⁹² / sqrtP²
     function _quotePool(
         address pool,
         uint256 amountIn,
@@ -351,18 +356,23 @@ abstract contract UniswapV3Base {
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
 
-        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        uint256 sqrtP = uint256(sqrtPriceX96);
+        uint256 Q96 = 1 << 96;
 
         if (tokenIn == token0 && tokenOut == token1) {
-            return (amountIn * price) >> 96;
+            // amountOut = amountIn * sqrtP² / 2^192  (split into two mulDivs)
+            return Math.mulDiv(Math.mulDiv(amountIn, sqrtP, Q96), sqrtP, Q96);
         }
         if (tokenIn == token1 && tokenOut == token0) {
-            return amountIn / price;
+            // amountOut = amountIn * 2^192 / sqrtP²  (split into two mulDivs)
+            return Math.mulDiv(Math.mulDiv(amountIn, Q96, sqrtP), Q96, sqrtP);
         }
         revert UniswapV3Facet_InvalidPath();
     }
 
     /// @notice Reverse-quotes: given a desired output amount, estimates the input needed
+    /// @dev Inverse of _quotePool, using Math.mulDiv for full precision. Rounds up
+    ///      so the estimated input is sufficient to produce at least the desired output.
     function _reverseQuotePool(
         address pool,
         uint256 amountOut,
@@ -383,14 +393,17 @@ abstract contract UniswapV3Base {
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
 
-        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        uint256 sqrtP = uint256(sqrtPriceX96);
+        uint256 Q96 = 1 << 96;
 
-        // Reverse of _quotePool: if forward is out = in * price, reverse is in = out / price
+        // Reverse of _quotePool: invert the direction
         if (tokenIn == token0 && tokenOut == token1) {
-            return (amountOut << 96) / price;
+            // Forward: out = in * sqrtP² / 2^192  →  Reverse: in = out * 2^192 / sqrtP²
+            return Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
         }
         if (tokenIn == token1 && tokenOut == token0) {
-            return amountOut * price;
+            // Forward: out = in * 2^192 / sqrtP²  →  Reverse: in = out * sqrtP² / 2^192
+            return Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
         }
         revert UniswapV3Facet_InvalidPath();
     }

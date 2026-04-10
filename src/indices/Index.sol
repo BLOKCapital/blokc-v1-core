@@ -55,11 +55,11 @@ error Index_GardenNotConnected(address garden);
 
 /// @notice Thrown when attempting to add unregistered component to index
 /// @param symbol Symbol of the unregistered component
-error Index_ComponentNotRegistered(string symbol);
+error Index_ComponentNotRegistered(bytes32 symbol);
 
 /// @notice Thrown when a duplicate symbol is provided during index creation
 /// @param symbol The duplicate symbol
-error Index_DuplicateSymbol(string symbol);
+error Index_DuplicateSymbol(bytes32 symbol);
 
 /// @notice Thrown when maximum connected gardens limit is reached
 error Index_MaxConnectedGardensReached();
@@ -95,7 +95,7 @@ contract Index is Ownable {
     bytes32 public constant INDEX_TYPE = keccak256("INDEX");
 
     /// @notice Emitted when index weights are recalculated
-    event WeightsUpdated(string[] symbols, uint256[] weights, uint256 timestamp);
+    event WeightsUpdated(bytes32[] symbols, uint256[] weights, uint256 timestamp);
 
     /// @notice Reference to the calculation strategy contract (e.g., market cap weighted)
     /// @dev Immutable to ensure index methodology remains consistent
@@ -109,9 +109,9 @@ contract Index is Ownable {
     /// @dev Immutable to ensure consistent interaction with garden factory
     IGardenFactory public immutable GARDEN_FACTORY;
 
-    /// @notice Mapping of component addresses to their current weights
+    /// @notice Mapping of component symbols to their current weights
     /// @dev Weights are scaled to 1e18 (100% = 1e18)
-    mapping(string => uint256) private _componentWeights;
+    mapping(bytes32 => uint256) private _componentWeights;
 
     /// @notice Timestamp of the last rebalance
     /// @dev Used to enforce REBALANCE_INTERVAL
@@ -119,7 +119,7 @@ contract Index is Ownable {
 
     /// @notice Set of component symbols in this index
     /// @dev EnumerableSet provides efficient iteration and membership checks
-    EnumerableSet.StringSet private _componentSymbols;
+    EnumerableSet.Bytes32Set private _componentSymbols;
 
     /// @notice Set of garden addresses connected to this index
     /// @dev Gardens track this index's composition for their portfolios
@@ -136,7 +136,7 @@ contract Index is Ownable {
         address indexCalculationAddress,
         address indexComponentRegistryAddress,
         address gardenFactoryAddress,
-        string[] memory symbols
+        bytes32[] memory symbols
     )
         Ownable(initialOwner)
     {
@@ -156,7 +156,7 @@ contract Index is Ownable {
         GARDEN_FACTORY = IGardenFactory(gardenFactoryAddress);
 
         for (uint256 i = 0; i < symbols.length; i++) {
-            string memory symbol = symbols[i];
+            bytes32 symbol = symbols[i];
             if (!INDEX_COMPONENT_REGISTRY.isComponentRegistered(symbol)) {
                 revert Index_ComponentNotRegistered(symbol);
             }
@@ -212,13 +212,14 @@ contract Index is Ownable {
     //=======================================================================
 
     /// @notice Returns the current weights for all components in the index
-    /// @return symbols Array of component symbols
+    /// @return symbols Array of component symbols as bytes32
     /// @return weights Array of weights (scaled to 1e18, where 1e18 = 100%)
     /// @dev Arrays are parallel - weights[i] corresponds to symbols[i]
-    function getWeights() external view returns (string[] memory symbols, uint256[] memory weights) {
-        symbols = new string[](EnumerableSet.length(_componentSymbols));
-        weights = new uint256[](EnumerableSet.length(_componentSymbols));
-        for (uint256 i = 0; i < EnumerableSet.length(_componentSymbols); i++) {
+    function getWeights() external view returns (bytes32[] memory symbols, uint256[] memory weights) {
+        uint256 len = EnumerableSet.length(_componentSymbols);
+        symbols = new bytes32[](len);
+        weights = new uint256[](len);
+        for (uint256 i = 0; i < len; i++) {
             symbols[i] = EnumerableSet.at(_componentSymbols, i);
             weights[i] = _componentWeights[symbols[i]];
         }
@@ -249,8 +250,9 @@ contract Index is Ownable {
         }
 
         // Create array from EnumerableSet for calculation strategy
-        string[] memory symbols = new string[](EnumerableSet.length(_componentSymbols));
-        for (uint256 i = 0; i < EnumerableSet.length(_componentSymbols); i++) {
+        uint256 len = EnumerableSet.length(_componentSymbols);
+        bytes32[] memory symbols = new bytes32[](len);
+        for (uint256 i = 0; i < len; i++) {
             symbols[i] = EnumerableSet.at(_componentSymbols, i);
         }
 
@@ -266,8 +268,8 @@ contract Index is Ownable {
             weightSum += weights[i];
         }
 
-        // Validate weights sum to ~100% (allow 0.01% tolerance for rounding)
-        if (weightSum < 1e18 - 1e14 || weightSum > 1e18) {
+        // Validate weights sum to ~100% (allow 0.01% tolerance for rounding, symmetric)
+        if (weightSum < 1e18 - 1e14 || weightSum > 1e18 + 1e14) {
             revert Index_InvalidWeightSum(weightSum);
         }
 
