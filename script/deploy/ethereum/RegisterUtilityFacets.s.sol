@@ -79,15 +79,13 @@ contract RegisterUtilityFacets is BaseScript {
 
         // SushiSwap V3
         SushiSwapV3Facet sushiSwapV3Facet = new SushiSwapV3Facet();
-        bytes4[] memory sushiSwapV3Selectors = new bytes4[](7);
-        sushiSwapV3Selectors[0] = sushiSwapV3Facet.sushiSwapV3ExactInputSingle.selector;
-        sushiSwapV3Selectors[1] = sushiSwapV3Facet.sushiSwapV3ExactInput.selector;
-        sushiSwapV3Selectors[2] = sushiSwapV3Facet.sushiSwapV3ExactOutputSingle.selector;
-        sushiSwapV3Selectors[3] = sushiSwapV3Facet.sushiSwapV3ExactOutput.selector;
-        sushiSwapV3Selectors[4] = sushiSwapV3Facet.getSushiSqrtTwapX96.selector;
-        sushiSwapV3Selectors[5] = sushiSwapV3Facet.getSushiCombinedTwapX96.selector;
+        bytes4[] memory sushiSwapV3Selectors = new bytes4[](5);
+        sushiSwapV3Selectors[0] = sushiSwapV3Facet.sushiSwapV3Swap.selector;
+        sushiSwapV3Selectors[1] = sushiSwapV3Facet.sushiSwapV3Quote.selector;
+        sushiSwapV3Selectors[2] = sushiSwapV3Facet.getSushiSqrtTwapX96.selector;
+        sushiSwapV3Selectors[3] = sushiSwapV3Facet.getSushiCombinedTwapX96.selector;
         // this is important because sushiswap's pools call this callback during swaps, and it needs to be registered to route correctly through the diamond proxy
-        sushiSwapV3Selectors[6] = sushiSwapV3Facet.uniswapV3SwapCallback.selector; 
+        sushiSwapV3Selectors[4] = sushiSwapV3Facet.uniswapV3SwapCallback.selector;
         console2.log("SushiSwapV3Facet deployed at:", address(sushiSwapV3Facet));
 
         IDiamondCut.FacetCut[] memory dexCuts = new IDiamondCut.FacetCut[](3);

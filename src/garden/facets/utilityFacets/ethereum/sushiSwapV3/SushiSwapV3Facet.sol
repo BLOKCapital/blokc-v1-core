@@ -16,6 +16,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 
 // Local Interfaces
 import { ISushiSwapV3 } from "src/garden/facets/utilityFacets/ethereum/sushiSwapV3/ISushiSwapV3.sol";
+import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 
 // Local Libraries
 import { SushiSwapV3Base } from "src/garden/facets/utilityFacets/ethereum/sushiSwapV3/SushiSwapV3Base.sol";
@@ -23,59 +24,32 @@ import { Facet } from "src/garden/facets/Facet.sol";
 
 /**
  * @title SushiSwapV3Facet
- * @notice Facet for SushiSwap V3 (clAMM) interactions on Ethereum Mainnet.
- * @dev SushiSwap V3 has no SwapRouter — swaps call pool.swap() directly, which triggers
- *      uniswapV3SwapCallback on this contract to pull tokens into the pool mid-swap.
- *      uniswapV3SwapCallback must be registered as a facet selector so the diamond proxy
- *      routes pool callbacks here. It is NOT nonReentrant (called from inside a live swap)
- *      but is secured by verifying msg.sender against the registered pool in callbackData.
+ * @notice Facet for SushiSwap V3 (clAMM) interactions on Ethereum Mainnet, enabling token swaps and price oracle
+ * queries. This contract implements the ISushiSwapV3 interface and inherits from SushiSwapV3Base for shared logic.
+ * SushiSwap V3 has no SwapRouter — swaps call pool.swap() directly, which triggers uniswapV3SwapCallback on this
+ * contract to pull tokens into the pool mid-swap. uniswapV3SwapCallback must be registered as a facet selector so
+ * the diamond proxy routes pool callbacks here. It is NOT nonReentrant (called from inside a live swap) but is
+ * secured by verifying msg.sender against the registered pool in callbackData.
  */
 contract SushiSwapV3Facet is ISushiSwapV3, SushiSwapV3Base, Facet {
     using SafeERC20 for IERC20;
 
     // ========================================================================
-    // External Functions (Swaps)
+    // External Functions
     // ========================================================================
 
     /// @inheritdoc ISushiSwapV3
-    function sushiSwapV3ExactInputSingle(SushiSwapV3ExactInputSingleParams memory params)
+    function sushiSwapV3Swap(SwapInstruction calldata instruction)
         external
         override
         onlyGardenCanCallDexWhenIndexConnected
         nonReentrant
     {
-        _sushiSwapV3ExactInputSingle(params);
-    }
-
-    /// @inheritdoc ISushiSwapV3
-    function sushiSwapV3ExactInput(SushiSwapV3ExactInputParams memory params)
-        external
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-    {
-        _sushiSwapV3ExactInput(params);
-    }
-
-    /// @inheritdoc ISushiSwapV3
-    function sushiSwapV3ExactOutputSingle(SushiSwapV3ExactOutputSingleParams memory params)
-        external
-        override
-        onlyGardenCanCallDexWhenIndexConnected
-        nonReentrant
-    {
-        _sushiSwapV3ExactOutputSingle(params);
-    }
-
-    /// @notice Multi-hop exact-output is not supported — use sushiSwapV3ExactInput instead
-    /// @dev Reverse-chaining multiple pool.swap() calls for exact output requires reimplementing
-    ///      Uniswap's SwapRouter callback chain, which SushiSwap V3 does not provide.
-    function sushiSwapV3ExactOutput(SushiSwapV3ExactOutputParams memory) external override {
-        revert("SushiSwapV3: multi-hop exactOutput not supported");
+        _sushiSwapV3Swap(instruction);
     }
 
     // ========================================================================
-    // External Functions (View — TWAP)
+    // External Functions (View)
     // ========================================================================
 
     /// @inheritdoc ISushiSwapV3
@@ -105,19 +79,8 @@ contract SushiSwapV3Facet is ISushiSwapV3, SushiSwapV3Base, Facet {
     }
 
     /// @inheritdoc ISushiSwapV3
-    function sushiSwapV3QuoteExactInputForPool(
-        address poolAddress,
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut,
-        uint32 twapInterval
-    )
-        external
-        view
-        override
-        returns (uint256 amountOut)
-    {
-        return _sushiSwapV3QuoteExactInputForPool(poolAddress, amountIn, tokenIn, tokenOut, twapInterval);
+    function sushiSwapV3Quote(QuoteInstruction calldata instruction) external view override returns (uint256 result) {
+        return _sushiSwapV3Quote(instruction);
     }
 
     // ========================================================================

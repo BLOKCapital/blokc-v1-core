@@ -10,6 +10,8 @@ pragma solidity ^0.8.31;
 
 ################################################################################*/
 
+import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
+
 /// @title ISushiSwapV3
 /// @author BLOK Capital DAO
 /// @notice Interface for SushiSwap V3 integration (swaps and TWAP queries)
@@ -73,6 +75,8 @@ interface ISushiSwapV3 {
     }
 
     /// @notice Parameters for a multi-hop exact-output swap
+    /// @dev Not supported — SushiSwap V3 has no SwapRouter to handle reverse-chained callbacks.
+    ///      Defined for structural parity; always reverts when called.
     /// @param pathWithFees Array describing the token path and fees between hops
     /// @param deadline Unix timestamp after which the swap is invalid
     /// @param amountOut Amount of output token to receive
@@ -96,37 +100,19 @@ interface ISushiSwapV3 {
     // Functions
     // ========================================================================
 
-    /// @notice Executes a single-hop exact-input swap on SushiSwap V3
-    /// @dev Swaps an exact amount of input token for output token using a single pool.
-    ///      Pool must be registered in the LiquidityPoolRegistry. All operations are restricted
-    ///      to the diamond owner.
-    /// @param params Swap parameters including tokens, amounts, fees, and deadline
-    function sushiSwapV3ExactInputSingle(SushiSwapV3ExactInputSingleParams calldata params) external;
-
-    /// @notice Executes a multi-hop exact-input swap on SushiSwap V3
-    /// @dev Swaps an exact amount of input token across multiple pools in a path.
-    ///      All pools in the path must be registered in the LiquidityPoolRegistry.
-    /// @param params Multi-hop swap parameters including path, amounts, and deadline
-    function sushiSwapV3ExactInput(SushiSwapV3ExactInputParams calldata params) external;
-
-    /// @notice Executes a single-hop exact-output swap on SushiSwap V3
-    /// @dev Swaps an exact amount of output token for input token using a single pool.
-    ///      Pool must be registered in the LiquidityPoolRegistry. All operations are restricted
-    ///      to the diamond owner.
-    /// @param params Swap parameters including tokens, amounts, fees, and deadline
-    function sushiSwapV3ExactOutputSingle(SushiSwapV3ExactOutputSingleParams calldata params) external;
-
-    /// @notice Executes a multi-hop exact-output swap on SushiSwap V3
-    /// @dev Swaps an exact amount of output token across multiple pools in a path.
-    ///      All pools in the path must be registered in the LiquidityPoolRegistry.
-    /// @param params Multi-hop swap parameters including path, amounts, and deadline
-    function sushiSwapV3ExactOutput(SushiSwapV3ExactOutputParams calldata params) external;
+    /// @notice Single entry point for all SushiSwap V3 swaps.
+    ///         Derives fee tiers on-chain from pool contracts. Handles single-hop and
+    ///         multi-hop, exact-input and exact-output (single only) — all from one selector.
+    /// @dev Multi-hop exact-output is not supported — SushiSwap V3 has no SwapRouter to
+    ///      handle reverse-chained callbacks.
+    /// @param instruction The universal SwapInstruction (same struct across all DEX facets)
+    function sushiSwapV3Swap(SwapInstruction calldata instruction) external;
 
     /// @notice Gets the TWAP sqrt price for a single SushiSwap V3 pool
     /// @dev Returns either the current spot price (if twapInterval is 0) or the
     ///      TWAP price over the specified interval. Price is returned in Q64.96 format.
     /// @param sushiSwapV3Pool Address of the SushiSwap V3 pool to query
-    /// @param twapInterval TWAP observation interval in seconds (applies to all pools)
+    /// @param twapInterval TWAP observation interval in seconds (0 = spot price)
     /// @return sqrtPriceX96 The sqrt price in Q64.96 format
     /// @return deadline Suggested deadline for swaps using this price (now + 300s)
     function getSushiSqrtTwapX96(
@@ -152,21 +138,11 @@ interface ISushiSwapV3 {
         view
         returns (uint256 combinedPriceX96, uint256 deadline);
 
-    /// @notice Quotes output amount for exact input on a specific SushiSwap V3 pool
-    /// @param poolAddress Address of the V3 pool (must be registered in PoolRegistry)
-    /// @param amountIn Amount of input token
-    /// @param tokenIn Input token address
-    /// @param tokenOut Output token address
-    /// @param twapInterval TWAP interval (0 for spot price)
-    /// @return amountOut Expected output amount
-    function sushiSwapV3QuoteExactInputForPool(
-        address poolAddress,
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut,
-        uint32 twapInterval
-    )
-        external
-        view
-        returns (uint256 amountOut);
+    /// @notice Single entry point for all SushiSwap V3 quotes.
+    ///         Handles single-hop and multi-hop, exact-input and exact-output.
+    ///         Uses 30s TWAP by default for manipulation resistance.
+    /// @param instruction The universal QuoteInstruction (same struct across all DEX facets)
+    /// @return result exactOutput=false: estimated output amount.
+    ///                exactOutput=true:  estimated input amount needed.
+    function sushiSwapV3Quote(QuoteInstruction calldata instruction) external view returns (uint256 result);
 }

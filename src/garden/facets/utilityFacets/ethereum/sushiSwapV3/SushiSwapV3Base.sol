@@ -21,6 +21,7 @@ import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswa
 // Local Interfaces
 import { ISushiSwapV3 } from "src/garden/facets/utilityFacets/ethereum/sushiSwapV3/ISushiSwapV3.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
+import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 
 // Local Libraries
 import { TickMath } from "src/garden/libraries/TickMath.sol";
@@ -29,13 +30,16 @@ import { TickMath } from "src/garden/libraries/TickMath.sol";
 // Errors
 // ============================================================================
 
+/// @notice Thrown when contract has insufficient token balance
+error SushiSwapV3Facet_InsufficientBalance();
+
 /// @notice Thrown when pool is not registered in the LiquidityPoolRegistry
 error SushiSwapV3Facet_UnregisteredPool();
 
 /// @notice Thrown when swap deadline has already passed
 error SushiSwapV3Facet_SwapDeadlineHasPassed();
 
-/// @notice Thrown when swap path has fewer than two tokens
+/// @notice Thrown when swap path is invalid
 error SushiSwapV3Facet_InvalidPath();
 
 /// @notice Thrown when multi-hop path has fewer than two pools
@@ -56,13 +60,16 @@ error SushiSwapV3Facet_ExcessiveInputAmount();
 /// @notice Thrown when uniswapV3SwapCallback is called by an unexpected address
 error SushiSwapV3Facet_InvalidCallbackCaller();
 
+/// @notice Thrown when multi-hop exact-output is attempted (not supported without a SwapRouter)
+error SushiSwapV3Facet_MultiHopExactOutputNotSupported();
+
 /**
  * @title SushiSwapV3Base
- * @notice Base contract for SushiSwap V3 (clAMM) interactions on Ethereum Mainnet.
- * @dev SushiSwap V3 shares the same pool interface as Uniswap V3 but does not deploy a SwapRouter.
- *      Swaps are executed by calling pool.swap() directly, which triggers a uniswapV3SwapCallback
- *      on the caller (this contract) to pull tokens into the pool mid-swap.
- *      TWAP price queries work identically to Uniswap V3 since the pool interface is the same.
+ * @notice Base contract for SushiSwap V3 (clAMM) interactions on Ethereum Mainnet, providing shared logic for swaps
+ * and price queries. This abstract contract is inherited by SushiSwapV3Facet which implements the external functions.
+ * It includes internal functions for executing exact input/output swaps (single and multi-hop) and fetching TWAP
+ * prices. SushiSwap V3 shares the same pool interface as Uniswap V3 but does not deploy a SwapRouter — swaps are
+ * executed by calling pool.swap() directly, which triggers a uniswapV3SwapCallback to pull tokens mid-swap.
  */
 abstract contract SushiSwapV3Base {
     using SafeERC20 for IERC20;
@@ -76,9 +83,9 @@ abstract contract SushiSwapV3Base {
     /// @notice Pool Registry address on Ethereum Mainnet
     address internal constant POOL_REGISTRY_ADDRESS = 0xDe6338E4dd7B0A2076e8CE63cC0443dC6cE7f0B6;
 
-    /// @dev Lower bound for sqrtPriceLimitX96 — passed when direction is zeroForOne to mean no price limit
+    /// @dev Lower bound for sqrtPriceLimitX96 — passed when zeroForOne to mean no price limit
     uint160 internal constant MIN_SQRT_RATIO = 4295128739;
-    /// @dev Upper bound for sqrtPriceLimitX96 — passed when direction is oneForZero to mean no price limit
+    /// @dev Upper bound for sqrtPriceLimitX96 — passed when oneForZero to mean no price limit
     uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
     // ========================================================================
@@ -94,22 +101,17 @@ abstract contract SushiSwapV3Base {
         address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
     );
 
-    // ========================================================================
-    // Internal Swap Functions
-    // ========================================================================
-
-    /// @notice Executes a single-hop exact-input swap via pool.swap()
-    /// @dev pool.swap() triggers uniswapV3SwapCallback on the diamond (implemented in SushiSwapV3Facet)
-    ///      which calls _handleSushiSwapCallback here to transfer the owed tokens to the pool.
-    function _sushiSwapV3ExactInputSingle(ISushiSwapV3.SushiSwapV3ExactInputSingleParams memory params)
+    /// @notice SushiSwap V3 base exact input single swap
+    /// @param params Single-hop swap parameters including tokens, amounts, fees, and deadline
+    /// @param pool The SushiSwap V3 pool to swap through
+    /// @dev Calls pool.swap() directly; the pool triggers uniswapV3SwapCallback to pull tokens.
+    function _sushiSwapV3ExactInputSingle(
+        ISushiSwapV3.SushiSwapV3ExactInputSingleParams memory params,
+        address pool
+    )
         internal
         returns (uint256 amountOut)
     {
-        if (block.timestamp > params.deadline) revert SushiSwapV3Facet_SwapDeadlineHasPassed();
-
-        _validatePool(params.tokenIn, params.tokenOut, params.swapFee);
-
-        address pool = IUniswapV3Factory(SUSHISWAP_FACTORY_ADDRESS).getPool(params.tokenIn, params.tokenOut, params.swapFee);
         bool zeroForOne = params.tokenIn == IUniswapV3Pool(pool).token0();
 
         (int256 amount0, int256 amount1) = IUniswapV3Pool(pool).swap(
@@ -126,23 +128,28 @@ abstract contract SushiSwapV3Base {
         emit SushiSwapV3FacetTokensSwapped(params.tokenIn, params.tokenOut, params.amountIn, amountOut);
     }
 
-    /// @notice Executes a multi-hop exact-input swap by chaining pool.swap() calls
-    /// @dev Each hop's output lands in address(this) and is paid in the next hop's callback.
-    ///      pathWithFees[i].fee is the fee tier for the pool between token[i] and token[i+1].
-    function _sushiSwapV3ExactInput(ISushiSwapV3.SushiSwapV3ExactInputParams memory params) internal {
-        if (params.pathWithFees.length < 2) revert SushiSwapV3Facet_InvalidPath();
-        if (block.timestamp > params.deadline) revert SushiSwapV3Facet_SwapDeadlineHasPassed();
+    /// @notice SushiSwap V3 base exact input swap (multi-hop)
+    /// @param params Multi-hop swap parameters including path, amounts, and deadline
+    /// @param pools Ordered pool addresses, one per hop (pools.length == pathWithFees.length - 1)
+    /// @dev Chains pool.swap() calls; each hop's output becomes the next hop's input.
+    ///      The callback for each hop transfers the owed tokens directly to the pool.
+    function _sushiSwapV3ExactInput(
+        ISushiSwapV3.SushiSwapV3ExactInputParams memory params,
+        address[] calldata pools
+    )
+        internal
+    {
+        if (params.pathWithFees.length < 2) {
+            revert SushiSwapV3Facet_InvalidPath();
+        }
 
         uint256 amountIn = params.amountIn;
 
-        for (uint256 i = 0; i < params.pathWithFees.length - 1; i++) {
+        for (uint256 i = 0; i < pools.length; i++) {
             address tokenIn = params.pathWithFees[i].token;
             address tokenOut = params.pathWithFees[i + 1].token;
-            uint24 fee = params.pathWithFees[i].fee;
+            address pool = pools[i];
 
-            _validatePool(tokenIn, tokenOut, fee);
-
-            address pool = IUniswapV3Factory(SUSHISWAP_FACTORY_ADDRESS).getPool(tokenIn, tokenOut, fee);
             bool zeroForOne = tokenIn == IUniswapV3Pool(pool).token0();
 
             (int256 amount0, int256 amount1) = IUniswapV3Pool(pool).swap(
@@ -167,15 +174,17 @@ abstract contract SushiSwapV3Base {
         );
     }
 
-    /// @notice Executes a single-hop exact-output swap via pool.swap() with negative amountSpecified
-    /// @dev Negative amountSpecified signals to the pool that we want an exact output amount.
+    /// @notice SushiSwap V3 base exact output single swap
+    /// @param params Single-hop swap parameters including tokens, amounts, fees, and deadline
+    /// @param pool The SushiSwap V3 pool to swap through
+    /// @dev Passes negative amountSpecified to signal exact-output to the pool.
     ///      The pool pulls however much input it needs via the callback, bounded by amountInMaximum.
-    function _sushiSwapV3ExactOutputSingle(ISushiSwapV3.SushiSwapV3ExactOutputSingleParams memory params) internal {
-        if (block.timestamp > params.deadline) revert SushiSwapV3Facet_SwapDeadlineHasPassed();
-
-        _validatePool(params.tokenIn, params.tokenOut, params.swapFee);
-
-        address pool = IUniswapV3Factory(SUSHISWAP_FACTORY_ADDRESS).getPool(params.tokenIn, params.tokenOut, params.swapFee);
+    function _sushiSwapV3ExactOutputSingle(
+        ISushiSwapV3.SushiSwapV3ExactOutputSingleParams memory params,
+        address pool
+    )
+        internal
+    {
         bool zeroForOne = params.tokenIn == IUniswapV3Pool(pool).token0();
 
         (int256 amount0, int256 amount1) = IUniswapV3Pool(pool).swap(
@@ -192,13 +201,185 @@ abstract contract SushiSwapV3Base {
         emit SushiSwapV3FacetTokensSwapped(params.tokenIn, params.tokenOut, amountIn, params.amountOut);
     }
 
+    /// @notice Multi-hop exact-output is not supported — SushiSwap V3 has no SwapRouter to
+    ///         handle reverse-chained callbacks. Always reverts.
+    function _sushiSwapV3ExactOutput(ISushiSwapV3.SushiSwapV3ExactOutputParams memory) internal pure {
+        revert SushiSwapV3Facet_MultiHopExactOutputNotSupported();
+    }
+
     // ========================================================================
-    // Internal TWAP Functions
+    // Swap Dispatcher
+    // ========================================================================
+
+    /// @notice Standardised swap dispatcher for the rebalance flow.
+    ///         Reads fee tiers from pool contracts on-chain, then delegates to the
+    ///         appropriate internal helper (single/multi, exactIn/exactOut).
+    function _sushiSwapV3Swap(SwapInstruction calldata inst) internal {
+        uint256 hops = inst.pools.length;
+        if (hops == 0 || inst.tokens.length != hops + 1) revert SushiSwapV3Facet_InvalidPath();
+
+        // Validate all pools upfront: registered in PoolRegistry + canonical in SushiSwap factory
+        _validateSwapPools(inst);
+
+        if (hops == 1) {
+            uint24 fee = IUniswapV3Pool(inst.pools[0]).fee();
+
+            if (!inst.exactOutput) {
+                _sushiSwapV3ExactInputSingle(
+                    ISushiSwapV3.SushiSwapV3ExactInputSingleParams({
+                        amountIn: inst.amountIn,
+                        amountOutMinimum: inst.amountOut,
+                        deadline: block.timestamp,
+                        tokenIn: inst.tokens[0],
+                        tokenOut: inst.tokens[1],
+                        swapFee: fee
+                    }),
+                    inst.pools[0]
+                );
+            } else {
+                _sushiSwapV3ExactOutputSingle(
+                    ISushiSwapV3.SushiSwapV3ExactOutputSingleParams({
+                        amountOut: inst.amountOut,
+                        amountInMaximum: inst.amountIn,
+                        deadline: block.timestamp,
+                        tokenIn: inst.tokens[0],
+                        tokenOut: inst.tokens[1],
+                        swapFee: fee
+                    }),
+                    inst.pools[0]
+                );
+            }
+        } else {
+            ISushiSwapV3.TokenWithFee[] memory pathWithFees = new ISushiSwapV3.TokenWithFee[](inst.tokens.length);
+            for (uint256 i; i < inst.tokens.length; i++) {
+                uint24 fee = i < hops ? IUniswapV3Pool(inst.pools[i]).fee() : 0;
+                pathWithFees[i] = ISushiSwapV3.TokenWithFee({ token: inst.tokens[i], fee: fee });
+            }
+
+            if (!inst.exactOutput) {
+                _sushiSwapV3ExactInput(
+                    ISushiSwapV3.SushiSwapV3ExactInputParams({
+                        pathWithFees: pathWithFees,
+                        deadline: block.timestamp,
+                        amountIn: inst.amountIn,
+                        amountOutMin: inst.amountOut
+                    }),
+                    inst.pools
+                );
+            } else {
+                _sushiSwapV3ExactOutput(
+                    ISushiSwapV3.SushiSwapV3ExactOutputParams({
+                        pathWithFees: pathWithFees,
+                        deadline: block.timestamp,
+                        amountOut: inst.amountOut,
+                        amountInMaximum: inst.amountIn
+                    })
+                );
+            }
+        }
+    }
+
+    // ========================================================================
+    // Quote Dispatcher
+    // ========================================================================
+
+    /// @notice Unified quote dispatcher. Chains quotes through each pool in the path.
+    ///         Uses 30s TWAP by default for manipulation resistance.
+    function _sushiSwapV3Quote(QuoteInstruction calldata inst) internal view returns (uint256 result) {
+        uint256 hops = inst.pools.length;
+        if (hops == 0 || inst.tokens.length != hops + 1) revert SushiSwapV3Facet_InvalidPath();
+
+        uint32 twapInterval = 30;
+
+        if (!inst.exactOutput) {
+            result = inst.amount;
+            for (uint256 i; i < hops; i++) {
+                result = _quotePool(inst.pools[i], result, inst.tokens[i], inst.tokens[i + 1], twapInterval);
+            }
+        } else {
+            result = inst.amount;
+            for (uint256 i = hops; i > 0; i--) {
+                result =
+                    _reverseQuotePool(inst.pools[i - 1], result, inst.tokens[i - 1], inst.tokens[i], twapInterval);
+            }
+        }
+    }
+
+    // ========================================================================
+    // Quote Helpers
+    // ========================================================================
+
+    function _quotePool(
+        address pool,
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
+        internal
+        view
+        returns (uint256 amountOut)
+    {
+        if (pool == address(0)) revert SushiSwapV3Facet_InvalidPoolAddress();
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+            revert SushiSwapV3Facet_UnregisteredPool();
+        }
+
+        (uint160 sqrtPriceX96,) = _getSushiSqrtTwapX96(pool, twapInterval);
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
+
+        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+
+        if (tokenIn == token0 && tokenOut == token1) {
+            return (amountIn * price) >> 96;
+        }
+        if (tokenIn == token1 && tokenOut == token0) {
+            return amountIn / price;
+        }
+        revert SushiSwapV3Facet_InvalidPath();
+    }
+
+    function _reverseQuotePool(
+        address pool,
+        uint256 amountOut,
+        address tokenIn,
+        address tokenOut,
+        uint32 twapInterval
+    )
+        internal
+        view
+        returns (uint256 amountIn)
+    {
+        if (pool == address(0)) revert SushiSwapV3Facet_InvalidPoolAddress();
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+            revert SushiSwapV3Facet_UnregisteredPool();
+        }
+
+        (uint160 sqrtPriceX96,) = _getSushiSqrtTwapX96(pool, twapInterval);
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
+
+        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+
+        if (tokenIn == token0 && tokenOut == token1) {
+            return (amountOut << 96) / price;
+        }
+        if (tokenIn == token1 && tokenOut == token0) {
+            return amountOut * price;
+        }
+        revert SushiSwapV3Facet_InvalidPath();
+    }
+
+    // ========================================================================
+    // TWAP Helpers
     // ========================================================================
 
     /// @notice Gets the TWAP sqrt price for a single SushiSwap V3 pool
+    /// @dev Returns either the current spot price (if twapInterval is 0) or the
+    ///      TWAP price over the specified interval. Price is returned in Q64.96 format.
     /// @param sushiSwapV3Pool Address of the SushiSwap V3 pool to query
-    /// @param twapInterval TWAP observation interval in seconds (0 = spot price)
+    /// @param twapInterval TWAP observation interval in seconds (applies to all pools)
     /// @return sqrtPriceX96 The sqrt price in Q64.96 format
     /// @return deadline Suggested deadline for swaps using this price (now + 300s)
     function _getSushiSqrtTwapX96(
@@ -209,9 +390,12 @@ abstract contract SushiSwapV3Base {
         view
         returns (uint160 sqrtPriceX96, uint256 deadline)
     {
-        if (sushiSwapV3Pool == address(0)) revert SushiSwapV3Facet_InvalidPoolAddress();
+        if (sushiSwapV3Pool == address(0)) {
+            revert SushiSwapV3Facet_InvalidPoolAddress();
+        }
 
         if (twapInterval == 0) {
+            // Use the instantaneous slot0 sqrt price
             (sqrtPriceX96,,,,,,) = IUniswapV3Pool(sushiSwapV3Pool).slot0();
             deadline = block.timestamp + 300;
         } else {
@@ -219,7 +403,10 @@ abstract contract SushiSwapV3Base {
             secondsAgo[0] = twapInterval;
             secondsAgo[1] = 0;
 
+            // Observe two cumulative ticks and compute average tick over interval
             (int56[] memory tickCumulative,) = IUniswapV3Pool(sushiSwapV3Pool).observe(secondsAgo);
+
+            // Average tick = (tickCumulative[1] - tickCumulative[0]) / interval
             int24 avgTick = int24(int56(tickCumulative[1] - tickCumulative[0]) / int56(int32(twapInterval)));
 
             sqrtPriceX96 = TickMath.getSqrtRatioAtTick(avgTick);
@@ -228,8 +415,10 @@ abstract contract SushiSwapV3Base {
     }
 
     /// @notice Gets a combined TWAP price across multiple SushiSwap V3 pools
+    /// @dev Multiplies prices from multiple pools together, with optional inversion.
+    ///      Useful for calculating prices across complex paths (e.g., ETH -> USDC -> DAI).
     /// @param pools Array of PoolInfo describing which pools to combine
-    /// @param twapInterval TWAP observation interval in seconds (0 = spot price)
+    /// @param twapInterval TWAP observation interval in seconds (applies to all pools)
     /// @return combinedPriceX96 The combined price in Q96 format
     /// @return deadline Suggested deadline for swaps using this price (now + 300s)
     function _getSushiCombinedTwapX96(
@@ -240,67 +429,12 @@ abstract contract SushiSwapV3Base {
         view
         returns (uint256 combinedPriceX96, uint256 deadline)
     {
-        if (pools.length < 2) revert SushiSwapV3Facet_PathMustHaveAtLeastTwoPools();
-
-        combinedPriceX96 = _pow(2, 96, 1);
-
-        for (uint256 i = 0; i < pools.length; i++) {
-            if (pools[i].pool == address(0)) revert SushiSwapV3Facet_InvalidPoolAddress();
-
-            uint160 sqrtPriceX96;
-
-            if (twapInterval == 0) {
-                (sqrtPriceX96,,,,,,) = IUniswapV3Pool(pools[i].pool).slot0();
-            } else {
-                uint32[] memory secondsAgo = new uint32[](2);
-                secondsAgo[0] = twapInterval;
-                secondsAgo[1] = 0;
-
-                (int56[] memory tickCumulative,) = IUniswapV3Pool(pools[i].pool).observe(secondsAgo);
-                int24 avgTick = int24((tickCumulative[1] - tickCumulative[0]) / int56(int32(twapInterval)));
-                sqrtPriceX96 = TickMath.getSqrtRatioAtTick(avgTick);
-            }
-
-            if (pools[i].inverse) {
-                sqrtPriceX96 = uint160(2 ** 192 / uint256(sqrtPriceX96));
-            }
-
-            combinedPriceX96 = (uint256(combinedPriceX96) * uint256(sqrtPriceX96)) / _pow(2, 96, 1);
+        if (pools.length < 2) {
+            revert SushiSwapV3Facet_PathMustHaveAtLeastTwoPools();
         }
 
+        combinedPriceX96 = _calculateCombinedPrice(pools, twapInterval);
         deadline = block.timestamp + 300;
-    }
-
-    /// @notice Quotes output amount for exact input on a specific SushiSwap V3 pool using TWAP
-    function _sushiSwapV3QuoteExactInputForPool(
-        address poolAddress,
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut,
-        uint32 twapInterval
-    )
-        internal
-        view
-        returns (uint256 amountOut)
-    {
-        if (poolAddress == address(0)) revert SushiSwapV3Facet_InvalidPoolAddress();
-        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(poolAddress)) {
-            revert SushiSwapV3Facet_UnregisteredPool();
-        }
-
-        (uint160 sqrtPriceX96,) = _getSushiSqrtTwapX96(poolAddress, twapInterval);
-        address token0 = IUniswapV3Pool(poolAddress).token0();
-        address token1 = IUniswapV3Pool(poolAddress).token1();
-
-        if (tokenIn == token0 && tokenOut == token1) {
-            uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
-            return (amountIn * price) >> 96;
-        }
-        if (tokenIn == token1 && tokenOut == token0) {
-            uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
-            return amountIn / price;
-        }
-        revert SushiSwapV3Facet_InvalidPath();
     }
 
     // ========================================================================
@@ -308,7 +442,7 @@ abstract contract SushiSwapV3Base {
     // ========================================================================
 
     /// @notice Handles the token pull triggered by a SushiSwap V3 pool during pool.swap()
-    /// @dev Must NOT have nonReentrant — called from inside an already-executing swap function.
+    /// @dev Must NOT have nonReentrant — called from inside an already-executing swap.
     ///      Secured by verifying msg.sender matches the pool encoded in callbackData and that
     ///      the pool is registered in the LiquidityPoolRegistry.
     /// @param amount0Delta Token0 owed to the pool (positive = we pay, negative = we receive)
@@ -330,12 +464,30 @@ abstract contract SushiSwapV3Base {
     // Pool Validation
     // ========================================================================
 
-    /// @notice Checks that a pool exists in the SushiSwap V3 factory and is registered
-    function _validatePool(address tokenIn, address tokenOut, uint24 swapFee) internal view {
-        address pool = IUniswapV3Factory(SUSHISWAP_FACTORY_ADDRESS).getPool(tokenIn, tokenOut, swapFee);
+    /// @notice Validates a single pool: registered in PoolRegistry AND canonical in SushiSwap factory
+    /// @param pool The pool address from SwapInstruction.pools[]
+    /// @param tokenIn The input token for this hop
+    /// @param tokenOut The output token for this hop
+    function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
+        if (pool == address(0)) revert SushiSwapV3Facet_InvalidPoolAddress();
+        if (tokenIn == address(0) || tokenOut == address(0)) revert SushiSwapV3Facet_InvalidTokenAddress();
 
-        if (pool == address(0) || !ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
+        // 1. Pool must be registered in our PoolRegistry
+        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
             revert SushiSwapV3Facet_UnregisteredPool();
+        }
+
+        // 2. Pool must be the canonical SushiSwap V3 factory pool for this pair + fee
+        uint24 fee = IUniswapV3Pool(pool).fee();
+        address canonical = IUniswapV3Factory(SUSHISWAP_FACTORY_ADDRESS).getPool(tokenIn, tokenOut, fee);
+        if (canonical != pool) revert SushiSwapV3Facet_UnregisteredPool();
+    }
+
+    /// @notice Validates all pools in a SwapInstruction upfront before execution
+    /// @param instruction The swap instruction to validate
+    function _validateSwapPools(SwapInstruction calldata instruction) internal view {
+        for (uint256 i; i < instruction.pools.length; i++) {
+            _validatePool(instruction.pools[i], instruction.tokens[i], instruction.tokens[i + 1]);
         }
     }
 
@@ -343,13 +495,69 @@ abstract contract SushiSwapV3Base {
     // Math Helpers
     // ========================================================================
 
-    /// @notice Assembly-optimized integer power with overflow guards (used for Q96 normalization)
+    /// @notice Calculates combined TWAP price across multiple pools
+    /// @dev Multiplies prices together, handling inversions. Uses Q96 fixed-point arithmetic.
+    /// @param pools Array of PoolInfo describing which pools to combine
+    /// @param twapInterval TWAP observation interval in seconds (applies to all pools)
+    /// @return combinedPriceX96 Combined price in Q96 format
+    function _calculateCombinedPrice(
+        ISushiSwapV3.PoolInfo[] memory pools,
+        uint32 twapInterval
+    )
+        internal
+        view
+        returns (uint256 combinedPriceX96)
+    {
+        // Start with 2**96 to preserve Q96 fixed-point scaling
+        combinedPriceX96 = _pow(2, 96, 1);
+
+        for (uint256 i = 0; i < pools.length; i++) {
+            if (pools[i].pool == address(0)) {
+                revert SushiSwapV3Facet_InvalidPoolAddress();
+            }
+
+            uint160 sqrtPriceX96;
+            address pool = pools[i].pool;
+            bool inverse = pools[i].inverse;
+
+            if (twapInterval == 0) {
+                // Use the instantaneous slot0 sqrt price
+                (sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
+            } else {
+                uint32[] memory secondsAgo = new uint32[](2);
+                secondsAgo[0] = twapInterval;
+                secondsAgo[1] = 0;
+
+                // Observe two cumulative ticks and compute average tick over interval
+                (int56[] memory tickCumulative,) = IUniswapV3Pool(pool).observe(secondsAgo);
+                int24 avgTick = int24((tickCumulative[1] - tickCumulative[0]) / int56(int32(twapInterval)));
+                sqrtPriceX96 = TickMath.getSqrtRatioAtTick(avgTick);
+            }
+
+            // If inverse, use reciprocal of the sqrt price (scaled)
+            if (inverse) {
+                sqrtPriceX96 = uint160(2 ** 192 / uint256(sqrtPriceX96));
+            }
+
+            // Multiply and normalize back to Q96
+            combinedPriceX96 = (uint256(combinedPriceX96) * uint256(sqrtPriceX96)) / _pow(2, 96, 1);
+        }
+    }
+
+    /// @notice Internal integer power function with rounding and overflow guards
+    /// @dev This helper is used for fixed-point normalization in Q96 calculations.
+    ///      Implemented in assembly for gas efficiency.
+    /// @param x Base value
+    /// @param n Exponent
+    /// @param b Base scaling (used for fixed-point rounding)
+    /// @return z Result of x**n in scaled representation
     function _pow(uint256 x, uint256 n, uint256 b) internal pure returns (uint256 z) {
         assembly {
             switch x
             case 0 {
                 switch n
                 case 0 { z := b }
+                // 0**0 = 1 in this context
                 default { z := 0 }
             }
             default {
@@ -359,15 +567,15 @@ abstract contract SushiSwapV3Base {
                 let half := div(b, 2)
                 for { n := div(n, 2) } n { n := div(n, 2) } {
                     let xx := mul(x, x)
-                    if iszero(eq(div(xx, x), x)) { revert(0, 0) }
+                    if iszero(eq(div(xx, x), x)) { revert(0, 0) } // Overflow check
                     let xxRound := add(xx, half)
-                    if lt(xxRound, xx) { revert(0, 0) }
+                    if lt(xxRound, xx) { revert(0, 0) } // Overflow check
                     x := div(xxRound, b)
                     if mod(n, 2) {
                         let zx := mul(z, x)
-                        if and(iszero(iszero(x)), iszero(eq(div(zx, x), z))) { revert(0, 0) }
+                        if and(iszero(iszero(x)), iszero(eq(div(zx, x), z))) { revert(0, 0) } // Overflow check
                         let zxRound := add(zx, half)
-                        if lt(zxRound, zx) { revert(0, 0) }
+                        if lt(zxRound, zx) { revert(0, 0) } // Overflow check
                         z := div(zxRound, b)
                     }
                 }
