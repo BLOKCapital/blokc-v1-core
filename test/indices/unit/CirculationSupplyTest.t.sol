@@ -87,10 +87,10 @@ contract CirculationSupplyTest is IndicesTestSetUp {
     }
 
     function test_updateBatch_lengthMismatch() public {
-        string[] memory _symbol = new string[](3);
-        _symbol[0] = "SOL";
-        _symbol[1] = "BTC";
-        _symbol[2] = "ETH";
+        bytes32[] memory _symbol = new bytes32[](3);
+        _symbol[0] = bytes32("SOL");
+        _symbol[1] = bytes32("BTC");
+        _symbol[2] = bytes32("ETH");
 
         vm.startPrank(updater);
         vm.expectRevert(CirculatingSupply_LengthMismatch.selector);
@@ -99,9 +99,9 @@ contract CirculationSupplyTest is IndicesTestSetUp {
     }
 
     function test_updateBatch_symbolNotRegistered() public {
-        string[] memory _symbol = new string[](2);
-        _symbol[0] = "SOL";
-        _symbol[1] = "BTC";
+        bytes32[] memory _symbol = new bytes32[](2);
+        _symbol[0] = bytes32("SOL");
+        _symbol[1] = bytes32("BTC");
 
         vm.startPrank(updater);
         vm.expectRevert(abi.encodeWithSelector(CirculatingSupply_SymbolNotRegistered.selector, _symbol[0]));
@@ -155,7 +155,7 @@ contract CirculationSupplyTest is IndicesTestSetUp {
     //                       getSupply -- Revert
     // ═══════════════════════════════════════════════════════════════════════
     function test_getSupply_circulatingSupply_notAvailable() public updateBatch {
-        string memory newSymbol = "BLOK";
+        bytes32 newSymbol = bytes32("BLOK");
         vm.expectRevert(abi.encodeWithSelector(CirculatingSupply_SupplyNotAvailable.selector, newSymbol));
         uint256 ethSupply = cirSupply.getSupply(newSymbol);
     }
@@ -181,7 +181,7 @@ contract CirculationSupplyTest is IndicesTestSetUp {
     }
 
     function test_getRawSupply_unknownSymbol() public {
-        assertEq(cirSupply.getRawSupply("BLOK"), 0);
+        assertEq(cirSupply.getRawSupply(bytes32("BLOK")), 0);
     }
 
     function test_getRawSupply_staleData() public updateBatch {

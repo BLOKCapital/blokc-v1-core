@@ -17,7 +17,7 @@ interface IIndex {
     /// @notice Returns the current normalized weights for each component in the index.
     /// @return symbols Array of component symbols
     /// @return weights Array of weights (scaled to 1e18, where 1e18 = 100%)
-    function getWeights() external view returns (string[] memory symbols, uint256[] memory weights);
+    function getWeights() external view returns (bytes32[] memory symbols, uint256[] memory weights);
 
     /// @notice Returns the timestamp of the last rebalance
     /// @return The block timestamp when the last rebalance occurred

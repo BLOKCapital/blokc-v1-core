@@ -40,15 +40,15 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.stopPrank();
 
         // check whether the component is registered or not
-        bool isBtcregistered = icr.isComponentRegistered("BTC");
-        bool isEthPriceFeedRegistered = icr.isComponentRegistered("ETH");
+        bool isBtcregistered = icr.isComponentRegistered(bytes32("BTC"));
+        bool isEthPriceFeedRegistered = icr.isComponentRegistered(bytes32("ETH"));
 
         assertEq(isBtcregistered, true);
         assertEq(isEthPriceFeedRegistered, true);
 
         // check for change in oracle record
-        IndexComponentRegistry.OracleRecord memory btcRecord = icr.getOracleRecord("BTC");
-        IndexComponentRegistry.OracleRecord memory ethRecord = icr.getOracleRecord("ETH");
+        IndexComponentRegistry.OracleRecord memory btcRecord = icr.getOracleRecord(bytes32("BTC"));
+        IndexComponentRegistry.OracleRecord memory ethRecord = icr.getOracleRecord(bytes32("ETH"));
 
         assertEq(btcRecord.price, btcPrice);
         assertEq(btcRecord.timestamp, block.timestamp);
@@ -65,22 +65,22 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         assertEq(ethRecord.isFeedWorking, true);
 
         // check for token address
-        address btc = icr.getComponentAddress("BTC");
-        address eth = icr.getComponentAddress("ETH");
+        address btc = icr.getComponentAddress(bytes32("BTC"));
+        address eth = icr.getComponentAddress(bytes32("ETH"));
         assertEq(btc, btcAddress);
         assertEq(eth, ethAddress);
 
         // check the pricefeed address
-        address btcOracleAddress = icr.getComponentSymbolToPriceFeedAddress("BTC");
-        address ethOracleAddress = icr.getComponentSymbolToPriceFeedAddress("ETH");
+        address btcOracleAddress = icr.getComponentSymbolToPriceFeedAddress(bytes32("BTC"));
+        address ethOracleAddress = icr.getComponentSymbolToPriceFeedAddress(bytes32("ETH"));
 
         assertEq(address(btcPriceFeed), btcOracleAddress);
         assertEq(address(ethPriceFeed), ethOracleAddress);
 
         //fetch price
 
-        uint256 storedPriceBtc = icr.fetchPrice(btcAddress, "BTC");
-        uint256 storedPriceEth = icr.fetchPrice(ethAddress, "ETH");
+        uint256 storedPriceBtc = icr.fetchPrice(btcAddress, bytes32("BTC"));
+        uint256 storedPriceEth = icr.fetchPrice(ethAddress, bytes32("ETH"));
 
         assertEq(storedPriceBtc, btcPrice);
         assertEq(storedPriceEth, ethPrice);
@@ -96,7 +96,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.expectRevert(IndexComponentRegistry_InvalidComponentAddress.selector);
         components.push(
             IndexComponentRegistry.Component({
-                symbol: "LINK", tokenAddress: address(0), priceFeedAddress: address(btcPriceFeed), heartbeat: 3600
+                symbol: bytes32("LINK"), tokenAddress: address(0), priceFeedAddress: address(btcPriceFeed), heartbeat: 3600
             })
         );
         icr.registerComponents(components);
@@ -108,7 +108,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.expectRevert(IndexComponentRegistry_InvalidPriceFeedAddress.selector);
         components.push(
             IndexComponentRegistry.Component({
-                symbol: "LINK", tokenAddress: makeAddr("newToken"), priceFeedAddress: address(0), heartbeat: 3600
+                symbol: bytes32("LINK"), tokenAddress: makeAddr("newToken"), priceFeedAddress: address(0), heartbeat: 3600
             })
         );
         icr.registerComponents(components);
@@ -119,7 +119,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.expectRevert(IndexComponentRegistry_ComponentAlreadyRegistered.selector);
         components.push(
             IndexComponentRegistry.Component({
-                symbol: "ETH", tokenAddress: ethAddress, priceFeedAddress: address(ethPriceFeed), heartbeat: 3600
+                symbol: bytes32("ETH"), tokenAddress: ethAddress, priceFeedAddress: address(ethPriceFeed), heartbeat: 3600
             })
         );
         icr.registerComponents(components);
@@ -186,8 +186,8 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
     }
 
     function test_fetchPrice() public setComponentPriceFeed {
-        uint256 storedPriceBtc = icr.fetchPrice(btcAddress, "BTC");
-        uint256 storedPriceEth = icr.fetchPrice(ethAddress, "ETH");
+        uint256 storedPriceBtc = icr.fetchPrice(btcAddress, bytes32("BTC"));
+        uint256 storedPriceEth = icr.fetchPrice(ethAddress, bytes32("ETH"));
 
         assertEq(storedPriceBtc, btcPrice);
         assertEq(storedPriceEth, ethPrice);
@@ -195,13 +195,13 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
 
     function test_fetchPrice_revert_unknown_feed_error() public {
         vm.expectRevert(abi.encodeWithSelector(IndexComponentRegistry__UnknownFeedError.selector, btcAddress));
-        icr.fetchPrice(btcAddress, "BTC");
+        icr.fetchPrice(btcAddress, bytes32("BTC"));
     }
 
     function test_fetchPrice_notUpdated_returnsCachedPrice() public setComponentPriceFeed {
         vm.warp(block.timestamp + 1800); // 30 minutes < 1 hour heartbeat
 
-        uint256 price = icr.fetchPrice(btcAddress, "BTC");
+        uint256 price = icr.fetchPrice(btcAddress, bytes32("BTC"));
         assertEq(price, btcPrice);
     }
 
@@ -209,7 +209,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.warp(block.timestamp + 3601);
 
         vm.expectRevert(abi.encodeWithSelector(IndexComponentRegistry__FeedFrozenError.selector, btcAddress));
-        icr.fetchPrice(btcAddress, "BTC");
+        icr.fetchPrice(btcAddress, bytes32("BTC"));
     }
 
     function test_fetchPrice_after_refreshing_with_newPrice() public setComponentPriceFeed {
@@ -222,8 +222,8 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         btcPriceFeed.refresh(newPriceBtc);
         ethPriceFeed.refresh(newPriceEth);
 
-        uint256 storedPriceBtc = icr.fetchPrice(btcAddress, "BTC");
-        uint256 storedPriceEth = icr.fetchPrice(ethAddress, "ETH");
+        uint256 storedPriceBtc = icr.fetchPrice(btcAddress, bytes32("BTC"));
+        uint256 storedPriceEth = icr.fetchPrice(ethAddress, bytes32("ETH"));
 
         assertEq(storedPriceBtc, uint256(newPriceBtc));
         assertEq(storedPriceEth, uint256(newPriceEth));
@@ -238,7 +238,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         btcPriceFeed.refresh(newPriceBtc);
 
         vm.expectRevert(abi.encodeWithSelector(IndexComponentRegistry__FeedFrozenError.selector, btcAddress));
-        icr.fetchPrice(btcAddress, "BTC");
+        icr.fetchPrice(btcAddress, bytes32("BTC"));
     }
 
     function test_fetchPrice_get_cached_price_change_above_maxDeviation() public setComponentPriceFeed {
@@ -250,32 +250,32 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         btcPriceFeed.refresh(newPriceBtc);
 
         // return with the previous price
-        uint256 storedPrice = icr.fetchPrice(btcAddress, "BTC");
+        uint256 storedPrice = icr.fetchPrice(btcAddress, bytes32("BTC"));
         assertEq(storedPrice, btcPrice);
     }
 
     function test_fetchPrice_feedWorkingStatusToggle() public setComponentPriceFeed {
-        IndexComponentRegistry.OracleRecord memory record = icr.getOracleRecord("BTC");
+        IndexComponentRegistry.OracleRecord memory record = icr.getOracleRecord(bytes32("BTC"));
         assertEq(record.isFeedWorking, true);
 
         vm.warp(block.timestamp + 1800);
         int256 badPrice = 20_000e18;
         btcPriceFeed.refresh(badPrice);
 
-        uint256 cachedPrice = icr.fetchPrice(btcAddress, "BTC");
+        uint256 cachedPrice = icr.fetchPrice(btcAddress, bytes32("BTC"));
         assertEq(cachedPrice, btcPrice);
 
-        record = icr.getOracleRecord("BTC");
+        record = icr.getOracleRecord(bytes32("BTC"));
         assertEq(record.isFeedWorking, false);
 
         vm.warp(block.timestamp + 1800);
         int256 recoveredPrice = 22_000e18;
         btcPriceFeed.refresh(recoveredPrice);
 
-        uint256 newPrice = icr.fetchPrice(btcAddress, "BTC");
+        uint256 newPrice = icr.fetchPrice(btcAddress, bytes32("BTC"));
         assertEq(newPrice, uint256(recoveredPrice));
 
-        record = icr.getOracleRecord("BTC");
+        record = icr.getOracleRecord(bytes32("BTC"));
         assertEq(record.isFeedWorking, true);
     }
 
@@ -288,22 +288,22 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         icr.unregisterComponents(symbol);
         vm.stopPrank();
 
-        assertEq(icr.isComponentRegistered("BTC"), false);
-        assertEq(icr.isComponentRegistered("ETH"), false);
+        assertEq(icr.isComponentRegistered(bytes32("BTC")), false);
+        assertEq(icr.isComponentRegistered(bytes32("ETH")), false);
 
         vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);
-        icr.getComponentAddress("BTC");
+        icr.getComponentAddress(bytes32("BTC"));
 
         vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);
-        icr.getComponentAddress("ETH");
+        icr.getComponentAddress(bytes32("ETH"));
 
         vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);
-        icr.getComponentSymbolToPriceFeedAddress("BTC");
+        icr.getComponentSymbolToPriceFeedAddress(bytes32("BTC"));
 
         vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);
-        icr.getComponentSymbolToPriceFeedAddress("ETH");
+        icr.getComponentSymbolToPriceFeedAddress(bytes32("ETH"));
 
-        IndexComponentRegistry.OracleRecord memory btcRecord = icr.getOracleRecord("BTC");
+        IndexComponentRegistry.OracleRecord memory btcRecord = icr.getOracleRecord(bytes32("BTC"));
         assertEq(btcRecord.price, 0);
         assertEq(btcRecord.timestamp, 0);
         assertEq(btcRecord.lastUpdated, 0);
@@ -318,8 +318,8 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
     }
 
     function test_unregisterComponent_revert_component_not_registered() public {
-        string[] memory unknownSymbol = new string[](1);
-        unknownSymbol[0] = "LINK";
+        bytes32[] memory unknownSymbol = new bytes32[](1);
+        unknownSymbol[0] = bytes32("LINK");
 
         vm.startPrank(owner);
         vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);

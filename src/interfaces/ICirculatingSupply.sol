@@ -10,14 +10,14 @@ pragma solidity ^0.8.31;
 
 ################################################################################*/
 
-/// @title IIndexCalculation
+/// @title ICirculatingSupply
 /// @author BLOK Capital DAO
-/// @notice Interface for pluggable index calculation strategies.
-/// @dev Implementers compute asset weights from component symbols using any weighting methodology
-///      (e.g., market-cap weighted, equal weighted).
-interface IIndexCalculation {
-    /// @notice Returns the normalized weights for assets
-    /// @param symbols Array of component symbols
-    /// @return weights Array of weights normalized to 1e18 (100%)
-    function getWeights(bytes32[] memory symbols) external returns (uint256[] memory weights);
+/// @notice Interface for circulating supply providers used by index calculation strategies.
+/// @dev Implemented by both `CirculatingSupply` (oracle-fed with staleness checks) and
+///      `HardcodedCirculatingSupply` (owner-set, no staleness checks, for testing).
+interface ICirculatingSupply {
+    /// @notice Returns the circulating supply for a token symbol in whole token units.
+    /// @param symbol Token symbol as bytes32 (e.g. bytes32("ETH"))
+    /// @return Circulating supply in whole token units
+    function getSupply(bytes32 symbol) external view returns (uint256);
 }

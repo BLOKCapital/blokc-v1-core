@@ -21,22 +21,16 @@ struct SwapStep {
     SwapInstruction instruction;
 }
 
-/// @notice Pending rebalance intent data
+/// @notice Pending rebalance intent data (slimmed for gas efficiency)
 /// @param active Whether there's an active pending intent
 /// @param totalValueUsd Total value of the garden in USD at the time of intent creation
-/// @param symbols Array of token symbols in the garden
-/// @param currentValues Array of current token values in the garden (same order as symbols)
+/// @param symbols Array of token symbols in the garden (bytes32 encoded)
 /// @param targetValues Array of target token values based on the index (same order as symbols)
-/// @param tokenAddresses Array of token contract addresses (same order as symbols)
-/// @param weights Array of target weights from the index (normalized to 1e18), used for fresh target recalculation
 struct PendingIntent {
     bool active;
     uint256 totalValueUsd;
-    string[] symbols;
-    uint256[] currentValues;
+    bytes32[] symbols;
     uint256[] targetValues;
-    address[] tokenAddresses;
-    uint256[] weights;
 }
 
 /// @title IIndex
@@ -60,14 +54,14 @@ interface IIndex {
     /// @notice Emitted when a rebalance intent is created
     /// @param garden The address of the garden creating the intent
     /// @param indexAddress The address of the connected index contract
-    /// @param symbols Array of token symbols included in the rebalance
+    /// @param symbols Array of token symbols included in the rebalance (bytes32 encoded)
     /// @param currentValues Array of current token values in USD (8 decimals)
     /// @param targetValues Array of target token values in USD (8 decimals)
     /// @param totalValueUsd Total portfolio value in USD (8 decimals)
     event RebalanceIntentCreated(
         address indexed garden,
         address indexed indexAddress,
-        string[] symbols,
+        bytes32[] symbols,
         uint256[] currentValues,
         uint256[] targetValues,
         uint256 totalValueUsd
@@ -123,8 +117,7 @@ interface IIndex {
         returns (
             bool active,
             uint256 totalValueUsd,
-            string[] memory symbols,
-            uint256[] memory currentValues,
+            bytes32[] memory symbols,
             uint256[] memory targetValues
         );
 }

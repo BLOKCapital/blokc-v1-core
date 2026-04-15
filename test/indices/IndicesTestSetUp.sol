@@ -30,7 +30,7 @@ contract IndicesTestSetUp is Test {
     address updater = makeAddr("Updater");
 
     IndexComponentRegistry.Component[] components;
-    string[] symbol;
+    bytes32[] symbol;
     uint256[] supply;
 
     function setUp() public virtual {
@@ -39,9 +39,9 @@ contract IndicesTestSetUp is Test {
         ethPriceFeed = new MockOracle("ETH", ethPrice);
 
         // store symbol in array
-        symbol.push("BTC");
+        symbol.push(bytes32("BTC"));
         supply.push(1);
-        symbol.push("ETH");
+        symbol.push(bytes32("ETH"));
         supply.push(2);
 
         // deploy componentRegistry
@@ -50,13 +50,13 @@ contract IndicesTestSetUp is Test {
         // component
         components.push(
             IndexComponentRegistry.Component({
-                symbol: "BTC", tokenAddress: btcAddress, priceFeedAddress: address(btcPriceFeed), heartbeat: 3600
+                symbol: bytes32("BTC"), tokenAddress: btcAddress, priceFeedAddress: address(btcPriceFeed), heartbeat: 3600
             })
         );
 
         components.push(
             IndexComponentRegistry.Component({
-                symbol: "ETH", tokenAddress: ethAddress, priceFeedAddress: address(ethPriceFeed), heartbeat: 3600
+                symbol: bytes32("ETH"), tokenAddress: ethAddress, priceFeedAddress: address(ethPriceFeed), heartbeat: 3600
             })
         );
         // register component

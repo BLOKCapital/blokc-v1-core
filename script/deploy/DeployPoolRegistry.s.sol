@@ -34,6 +34,9 @@ contract DeployLiquidityPoolRegistry is BaseScript {
         address rdnt = 0x3082CC23568eA640225c2467653dB90e9250AaA0;
         address magic = 0x539bdE0d7Dbd336b79148AA742883198BBF60342;
         address grail = 0x3d9907F9a368ad0a51Be60f7Da3b97cf940982D8;
+        address grt = 0x9623063377AD1B27544C965cCd7342f7EA7e88C7;
+        address crv = 0x11cDb42B0EB46D95f990BeDD4695A6e3fA034978;
+        address aave = 0xba5DdD1f9d7F570dc94a51479a000E3BCE967196;
 
         // =====================================================================
         // DEX Identifiers
@@ -258,6 +261,46 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 tokenB: usdc,
                 dexId: uniswapV3,
                 pairName: "WBTC/USDC"
+            })
+        );
+
+        liquidityPoolRegistry.addPool(
+            ILiquidityPoolRegistry.AddPoolParams({
+                poolAddress: 0xDD672b3B768A16b9BcB4eE1060d3e8221435BeAa,
+                tokenA: aave,
+                tokenB: weth,
+                dexId: uniswapV3,
+                pairName: "AAVE/WETH"
+            })
+        );
+
+        liquidityPoolRegistry.addPool(
+            ILiquidityPoolRegistry.AddPoolParams({
+                poolAddress: 0x74d0Ae8B8e1fCA6039707564704a25aD2ee036B0,
+                tokenA: grt,
+                tokenB: weth,
+                dexId: uniswapV3,
+                pairName: "GRT/WETH"
+            })
+        );
+
+        liquidityPoolRegistry.addPool(
+            ILiquidityPoolRegistry.AddPoolParams({
+                poolAddress: 0xa95b0F5a65a769d82AB4F3e82842E45B8bbAf101,
+                tokenA: crv,
+                tokenB: weth,
+                dexId: uniswapV3,
+                pairName: "CRV/WETH"
+            })
+        );
+
+        liquidityPoolRegistry.addPool(
+            ILiquidityPoolRegistry.AddPoolParams({
+                poolAddress: 0xA961F0473dA4864C5eD28e00FcC53a3AAb056c1b,
+                tokenA: dai,
+                tokenB: weth,
+                dexId: uniswapV3,
+                pairName: "DAI/WETH"
             })
         );
 
