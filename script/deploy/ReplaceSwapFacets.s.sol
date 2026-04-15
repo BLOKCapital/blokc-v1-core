@@ -3,8 +3,8 @@ pragma solidity >=0.8.31;
 
 import { BaseScript } from "script/Base.s.sol";
 import { console2 } from "forge-std/console2.sol";
-import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/uniswapV3Facet.sol";
-import { CamelotV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/camelotV3Facet.sol";
+import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3Facet.sol";
+import { CamelotV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/CamelotV3Facet.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 
