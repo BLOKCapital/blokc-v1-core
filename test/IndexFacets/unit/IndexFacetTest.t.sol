@@ -538,6 +538,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function _createIntent() internal {
             vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_EXPIRY + 1);
             h.rebalanceIntent();
+            vm.roll(block.number + 1); // advance past flash-loan protection block delay
         }
     }
 
