@@ -18,6 +18,7 @@ import { TickMath } from "src/garden/libraries/TickMath.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @notice Thrown when the factory poolByPair call returns an invalid pool address
 error CamelotV3Facet_InvalidPoolAddress();
@@ -256,6 +257,10 @@ abstract contract CamelotV3Base {
     // Quote Helpers
     // ========================================================================
 
+    /// @dev Uses two-step Math.mulDiv to avoid precision loss from intermediate truncation.
+    ///      price = sqrtPriceX96² / 2¹⁹²  (token1 per token0 in raw units)
+    ///      token0→token1: amountOut = amountIn × sqrtP² / 2¹⁹²
+    ///      token1→token0: amountOut = amountIn × 2¹⁹² / sqrtP²
     function _quotePool(
         address pool,
         uint256 amountIn,
@@ -275,13 +280,19 @@ abstract contract CamelotV3Base {
         (uint160 sqrtPriceX96,) = _camelotV3GetSqrtTwapX96(pool, twapInterval);
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
-        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        uint256 sqrtP = uint256(sqrtPriceX96);
+        uint256 Q96 = 1 << 96;
 
-        if (tokenIn == token0 && tokenOut == token1) return (amountIn * price) >> 96;
-        if (tokenIn == token1 && tokenOut == token0) return amountIn / price;
+        if (tokenIn == token0 && tokenOut == token1) {
+            return Math.mulDiv(Math.mulDiv(amountIn, sqrtP, Q96), sqrtP, Q96);
+        }
+        if (tokenIn == token1 && tokenOut == token0) {
+            return Math.mulDiv(Math.mulDiv(amountIn, Q96, sqrtP), Q96, sqrtP);
+        }
         revert CamelotV3Facet_InvalidPool();
     }
 
+    /// @dev Inverse of _quotePool. Rounds up so estimated input is sufficient.
     function _reverseQuotePool(
         address pool,
         uint256 amountOut,
@@ -301,10 +312,15 @@ abstract contract CamelotV3Base {
         (uint160 sqrtPriceX96,) = _camelotV3GetSqrtTwapX96(pool, twapInterval);
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
-        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        uint256 sqrtP = uint256(sqrtPriceX96);
+        uint256 Q96 = 1 << 96;
 
-        if (tokenIn == token0 && tokenOut == token1) return (amountOut << 96) / price;
-        if (tokenIn == token1 && tokenOut == token0) return amountOut * price;
+        if (tokenIn == token0 && tokenOut == token1) {
+            return Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
+        }
+        if (tokenIn == token1 && tokenOut == token0) {
+            return Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
+        }
         revert CamelotV3Facet_InvalidPool();
     }
 
