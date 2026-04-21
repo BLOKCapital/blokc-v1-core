@@ -157,7 +157,13 @@ contract IndexComponentRegistry is Ownable {
         }
     }
 
-    function fetchPrice(address _token, bytes32 _symbol) public returns (uint256 price) {
+    /// @notice Fetches and caches the latest oracle price for a registered component
+    /// @param _symbol Component symbol (registry key; token address is derived from `_components[_symbol]`)
+    /// @return price Latest or cached price (aggregator raw units; decimals in `getOracleRecord`)
+    function fetchPrice(bytes32 _symbol) public returns (uint256 price) {
+        address _token = _components[_symbol].tokenAddress;
+        if (_token == address(0)) revert IndexComponentRegistry_ComponentNotRegistered();
+
         OracleRecord memory oracleInfo = oracleRecords[_token];
         Component memory componentInfo = _components[_symbol];
 

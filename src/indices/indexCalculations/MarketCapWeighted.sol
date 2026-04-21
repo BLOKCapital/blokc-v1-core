@@ -124,8 +124,7 @@ contract MarketCapWeighted is IIndexCalculation {
         internal
         returns (uint256 componentPrice, uint8 componentPriceDecimals)
     {
-        address tokenAddress = INDEX_COMPONENT_REGISTRY.getComponentAddress(symbol);
-        componentPrice = INDEX_COMPONENT_REGISTRY.fetchPrice(tokenAddress, symbol);
+        componentPrice = INDEX_COMPONENT_REGISTRY.fetchPrice(symbol);
         componentPriceDecimals = INDEX_COMPONENT_REGISTRY.getOracleRecord(symbol).decimals;
     }
 
