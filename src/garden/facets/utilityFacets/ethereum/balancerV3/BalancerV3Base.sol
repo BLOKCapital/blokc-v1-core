@@ -163,8 +163,7 @@ abstract contract BalancerV3Base {
         pure
         returns (address pool, address tokenIn, address tokenOut)
     {
-        uint256 hops = inst.pools.length;
-        if (hops != 1) revert BalancerV3Facet_MultiHopUnsupported();
+        if (inst.pools.length != 1) revert BalancerV3Facet_MultiHopUnsupported();
         if (inst.tokens.length != 2) revert BalancerV3Facet_InvalidPath();
         pool = inst.pools[0];
         tokenIn = inst.tokens[0];
@@ -176,8 +175,7 @@ abstract contract BalancerV3Base {
         pure
         returns (address pool, address tokenIn, address tokenOut)
     {
-        uint256 hops = inst.pools.length;
-        if (hops != 1) revert BalancerV3Facet_MultiHopUnsupported();
+        if (inst.pools.length != 1) revert BalancerV3Facet_MultiHopUnsupported();
         if (inst.tokens.length != 2) revert BalancerV3Facet_InvalidPath();
         pool = inst.pools[0];
         tokenIn = inst.tokens[0];
@@ -260,14 +258,15 @@ abstract contract BalancerV3Base {
         view
         returns (uint256 balIn18, uint256 balOut18)
     {
-        IBalancerVault vault = IBalancerVault(BALANCER_V3_VAULT_ADDRESS);
-        IERC20[] memory tokens = vault.getPoolTokens(pool);
-        uint256[] memory balances = vault.getCurrentLiveBalances(pool);
+        // getPoolTokenInfo returns tokens and lastBalancesLiveScaled18 (18-decimal, rate-adjusted)
+        // in a single vault call, avoiding the need for a separate getCurrentLiveBalances call.
+        (IERC20[] memory tokens, , , uint256[] memory liveBalances) =
+            IBalancerVault(BALANCER_V3_VAULT_ADDRESS).getPoolTokenInfo(pool);
 
         for (uint256 i; i < tokens.length; i++) {
             address tokenAddr = address(tokens[i]);
-            if (tokenAddr == tokenIn) balIn18 = balances[i];
-            else if (tokenAddr == tokenOut) balOut18 = balances[i];
+            if (tokenAddr == tokenIn) balIn18 = liveBalances[i];
+            else if (tokenAddr == tokenOut) balOut18 = liveBalances[i];
         }
     }
 
