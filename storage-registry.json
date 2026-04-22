@@ -4,6 +4,9 @@
     "AAVE_V3": {
       "storage_libraries": []
     },
+    "BALANCER_V3": {
+      "storage_libraries": []
+    },
     "BASE": {
       "storage_libraries": [
         "DiamondCutStorage",
