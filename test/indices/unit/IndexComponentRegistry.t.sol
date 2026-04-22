@@ -18,8 +18,7 @@ import {
     IndexComponentRegistry_TotalComponentsAndPriceFeedsMismatch,
     IndexComponentRegistry_TotalComponentsAndSymbolsMismatch,
     IndexComponentRegistry__FeedFrozenError,
-    IndexComponentRegistry__InvalidFeedResponseError,
-    IndexComponentRegistry__UnknownFeedError
+    IndexComponentRegistry__InvalidFeedResponseError
 } from "../../../src/indices/IndexComponentRegistry.sol";
 
 contract IndexComponentRegistryTest is IndicesTestSetUp {
@@ -79,8 +78,8 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
 
         //fetch price
 
-        uint256 storedPriceBtc = icr.fetchPrice(btcAddress, bytes32("BTC"));
-        uint256 storedPriceEth = icr.fetchPrice(ethAddress, bytes32("ETH"));
+        uint256 storedPriceBtc = icr.fetchPrice(bytes32("BTC"));
+        uint256 storedPriceEth = icr.fetchPrice(bytes32("ETH"));
 
         assertEq(storedPriceBtc, btcPrice);
         assertEq(storedPriceEth, ethPrice);
@@ -186,22 +185,22 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
     }
 
     function test_fetchPrice() public setComponentPriceFeed {
-        uint256 storedPriceBtc = icr.fetchPrice(btcAddress, bytes32("BTC"));
-        uint256 storedPriceEth = icr.fetchPrice(ethAddress, bytes32("ETH"));
+        uint256 storedPriceBtc = icr.fetchPrice(bytes32("BTC"));
+        uint256 storedPriceEth = icr.fetchPrice(bytes32("ETH"));
 
         assertEq(storedPriceBtc, btcPrice);
         assertEq(storedPriceEth, ethPrice);
     }
 
-    function test_fetchPrice_revert_unknown_feed_error() public {
-        vm.expectRevert(abi.encodeWithSelector(IndexComponentRegistry__UnknownFeedError.selector, btcAddress));
-        icr.fetchPrice(btcAddress, bytes32("BTC"));
+    function test_fetchPrice_revert_component_not_registered() public {
+        vm.expectRevert(IndexComponentRegistry_ComponentNotRegistered.selector);
+        icr.fetchPrice(bytes32("BTC"));
     }
 
     function test_fetchPrice_notUpdated_returnsCachedPrice() public setComponentPriceFeed {
         vm.warp(block.timestamp + 1800); // 30 minutes < 1 hour heartbeat
 
-        uint256 price = icr.fetchPrice(btcAddress, bytes32("BTC"));
+        uint256 price = icr.fetchPrice(bytes32("BTC"));
         assertEq(price, btcPrice);
     }
 
@@ -209,7 +208,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.warp(block.timestamp + 3601);
 
         vm.expectRevert(abi.encodeWithSelector(IndexComponentRegistry__FeedFrozenError.selector, btcAddress));
-        icr.fetchPrice(btcAddress, bytes32("BTC"));
+        icr.fetchPrice(bytes32("BTC"));
     }
 
     function test_fetchPrice_after_refreshing_with_newPrice() public setComponentPriceFeed {
@@ -222,8 +221,8 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         btcPriceFeed.refresh(newPriceBtc);
         ethPriceFeed.refresh(newPriceEth);
 
-        uint256 storedPriceBtc = icr.fetchPrice(btcAddress, bytes32("BTC"));
-        uint256 storedPriceEth = icr.fetchPrice(ethAddress, bytes32("ETH"));
+        uint256 storedPriceBtc = icr.fetchPrice(bytes32("BTC"));
+        uint256 storedPriceEth = icr.fetchPrice(bytes32("ETH"));
 
         assertEq(storedPriceBtc, uint256(newPriceBtc));
         assertEq(storedPriceEth, uint256(newPriceEth));
@@ -238,7 +237,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         btcPriceFeed.refresh(newPriceBtc);
 
         vm.expectRevert(abi.encodeWithSelector(IndexComponentRegistry__FeedFrozenError.selector, btcAddress));
-        icr.fetchPrice(btcAddress, bytes32("BTC"));
+        icr.fetchPrice(bytes32("BTC"));
     }
 
     function test_fetchPrice_get_cached_price_change_above_maxDeviation() public setComponentPriceFeed {
@@ -250,7 +249,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         btcPriceFeed.refresh(newPriceBtc);
 
         // return with the previous price
-        uint256 storedPrice = icr.fetchPrice(btcAddress, bytes32("BTC"));
+        uint256 storedPrice = icr.fetchPrice(bytes32("BTC"));
         assertEq(storedPrice, btcPrice);
     }
 
@@ -262,7 +261,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         int256 badPrice = 20_000e18;
         btcPriceFeed.refresh(badPrice);
 
-        uint256 cachedPrice = icr.fetchPrice(btcAddress, bytes32("BTC"));
+        uint256 cachedPrice = icr.fetchPrice(bytes32("BTC"));
         assertEq(cachedPrice, btcPrice);
 
         record = icr.getOracleRecord(bytes32("BTC"));
@@ -272,7 +271,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         int256 recoveredPrice = 22_000e18;
         btcPriceFeed.refresh(recoveredPrice);
 
-        uint256 newPrice = icr.fetchPrice(btcAddress, bytes32("BTC"));
+        uint256 newPrice = icr.fetchPrice(bytes32("BTC"));
         assertEq(newPrice, uint256(recoveredPrice));
 
         record = icr.getOracleRecord(bytes32("BTC"));

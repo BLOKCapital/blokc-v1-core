@@ -314,7 +314,7 @@ abstract contract IndexBase {
             address token = componentRegistry.getComponentAddress(symbols[i]);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = componentRegistry.fetchPrice(token, symbols[i]);
+            uint256 price = componentRegistry.fetchPrice(symbols[i]);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             // Value in USD with 8 decimals (Chainlink standard)
@@ -351,7 +351,7 @@ abstract contract IndexBase {
             address token = componentRegistry.getComponentAddress(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = componentRegistry.fetchPrice(token, symbol);
+            uint256 price = componentRegistry.fetchPrice(symbol);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             uint256 currentValue = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
@@ -388,7 +388,7 @@ abstract contract IndexBase {
             address token = componentRegistry.getComponentAddress(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = componentRegistry.fetchPrice(token, symbol);
+            uint256 price = componentRegistry.fetchPrice(symbol);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             totalValueUsd += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
@@ -423,7 +423,7 @@ abstract contract IndexBase {
         // so an unregistered USDC doesn't brick the entire rebalance flow.
         if (!componentRegistry.isComponentRegistered(_USDC_SYMBOL)) return 0;
 
-        uint256 usdcPrice = componentRegistry.fetchPrice(IndexStorage.USDC_ADDRESS, _USDC_SYMBOL);
+        uint256 usdcPrice = componentRegistry.fetchPrice(_USDC_SYMBOL);
         uint8 usdcDecimals = IERC20Metadata(IndexStorage.USDC_ADDRESS).decimals();
 
         return Math.mulDiv(usdcBalance, usdcPrice, 10 ** usdcDecimals, Math.Rounding.Floor);

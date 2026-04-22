@@ -173,16 +173,9 @@ contract MockERC20 is IERC20, IERC20Metadata {
             return components[symbol];
         }
 
-        function fetchPrice(
-            address token,
-            bytes32 /*symbol*/
-        )
-            external
-            view
-            returns (uint256)
-        {
+        function fetchPrice(bytes32 symbol) external view returns (uint256) {
             if (revertOnFetchPrice) revert("MockComponentRegistry: fetchPrice failed");
-            return prices[token];
+            return prices[components[symbol]];
         }
 
         function isComponentRegistered(bytes32 symbol) external view returns (bool) {
@@ -473,9 +466,8 @@ contract MockERC20 is IERC20, IERC20Metadata {
             componentRegistry.setPrice(address(weth), WETH_PRICE);
             componentRegistry.setPrice(address(wbtc), WBTC_PRICE);
             componentRegistry.setPrice(address(usdc), USDC_PRICE);
-            // _getUsdcValueUsd calls fetchPrice(IndexStorage.USDC_ADDRESS, ...) — the
-            // hardcoded constant, not the deployed mock address. Register the price
-            // under the constant address too so the lookup returns the correct value.
+            // _getUsdcValueUsd calls fetchPrice(_USDC_SYMBOL); mock resolves symbol → token then prices[token].
+            // Register price under the constant USDC address too for any code paths that still key by token.
             componentRegistry.setPrice(IndexStorage.USDC_ADDRESS, USDC_PRICE);
 
             // Pre-fund the harness with tokens
