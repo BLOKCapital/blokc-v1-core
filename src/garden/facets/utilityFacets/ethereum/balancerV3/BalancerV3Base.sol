@@ -258,8 +258,10 @@ abstract contract BalancerV3Base {
         view
         returns (uint256 balIn18, uint256 balOut18)
     {
-        // getPoolTokenInfo returns tokens and lastBalancesLiveScaled18 (18-decimal, rate-adjusted)
-        // in a single vault call, avoiding the need for a separate getCurrentLiveBalances call.
+        // getPoolTokenInfo returns (tokens, tokenInfo, balancesRaw, lastBalancesLiveScaled18).
+        // We skip tokenInfo (per-token type/rate metadata) and balancesRaw (native-decimal amounts)
+        // and use lastBalancesLiveScaled18 directly — already 18-decimal and rate-adjusted —
+        // in a single vault call, avoiding a separate getCurrentLiveBalances call.
         (IERC20[] memory tokens, , , uint256[] memory liveBalances) =
             IBalancerVault(BALANCER_V3_VAULT_ADDRESS).getPoolTokenInfo(pool);
 
