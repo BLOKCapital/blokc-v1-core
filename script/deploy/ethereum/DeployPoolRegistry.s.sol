@@ -7,6 +7,7 @@ import { LiquidityPoolRegistry } from "src/liquidityPoolRegistry/LiquidityPoolRe
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { IUniswapV3 } from "src/garden/facets/utilityFacets/ethereum/uniswapV3/IUniswapV3.sol";
 import { IUniswapV2 } from "src/garden/facets/utilityFacets/ethereum/uniswapV2/IUniswapV2.sol";
+import { IBalancerV3 } from "src/garden/facets/utilityFacets/ethereum/balancerV3/IBalancerV3.sol";
 import { console2 } from "forge-std/console2.sol";
 
 contract DeployLiquidityPoolRegistry is BaseScript {
@@ -33,6 +34,7 @@ contract DeployLiquidityPoolRegistry is BaseScript {
         // =====================================================================
         bytes32 uniswapV3 = keccak256("UNISWAP_V3");
         bytes32 uniswapV2 = keccak256("UNISWAP_V2");
+        bytes32 balancerV3 = keccak256("BALANCER_V3");
 
         // =====================================================================
         //  REGISTER DEXes (must be done before adding pools)
@@ -43,6 +45,9 @@ contract DeployLiquidityPoolRegistry is BaseScript {
         );
         liquidityPoolRegistry.registerDex(
             uniswapV2, IUniswapV2.uniswapV2Swap.selector, IUniswapV2.uniswapV2Quote.selector
+        );
+        liquidityPoolRegistry.registerDex(
+            balancerV3, IBalancerV3.balancerV3Swap.selector, IBalancerV3.balancerV3Quote.selector
         );
 
         // =====================================================================
@@ -263,5 +268,14 @@ contract DeployLiquidityPoolRegistry is BaseScript {
                 pairName: "MKR/WETH"
             })
         );
+
+        // =====================================================================
+        //  BALANCER V3 POOLS
+        //  Dex is registered above so the dispatcher can discover the selectors,
+        //  but no pools are registered yet. Deactivate the dex to prevent the
+        //  dispatcher from routing to Balancer V3 until pools are onboarded —
+        //  otherwise any BALANCER_V3-routed swap would revert on pool-lookup.
+        // =====================================================================
+        liquidityPoolRegistry.setDexActive(balancerV3, false);
     }
 }
