@@ -21,7 +21,7 @@ contract SushiSwapV3Test is Test {
     address WBTC_WETH_POOL;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("ETH_RPC_URL"));
+        vm.createSelectFork("mainnet");
 
         sushiSwapV3Facet = new SushiSwapV3Facet();
 
