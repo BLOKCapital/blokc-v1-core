@@ -46,7 +46,7 @@ error IndexFactory_IndexCalculationAlreadyRegistered(address indexCalculationAdd
 
 /// @notice Thrown when component is not registered in IndexComponentRegistry
 /// @param symbol The unregistered component symbol
-error IndexFactory_ComponentNotRegistered(string symbol);
+error IndexFactory_ComponentNotRegistered(bytes32 symbol);
 
 /// @notice Thrown when IndexCalculationRegistry address is zero during construction
 /// @param indexCalculationRegistryAddress The invalid registry address
@@ -112,7 +112,7 @@ contract IndexFactory is Ownable {
     struct IndexInfo {
         string name;
         uint256 id;
-        string[] symbols;
+        bytes32[] symbols;
         address indexAddress;
         address indexCalculationAddress;
         uint256 createdAt;
@@ -189,13 +189,13 @@ contract IndexFactory is Ownable {
     /// @notice Validates that all components are registered
     /// @param symbols Array of component symbols to validate
     /// @dev Modifier checks each component against IndexComponentRegistry
-    modifier checkComponentsRegistered(string[] memory symbols) {
+    modifier checkComponentsRegistered(bytes32[] memory symbols) {
         _checkComponentsRegistered(symbols);
         _;
     }
 
     /// @dev Reverts if any component symbol is not registered in IndexComponentRegistry.
-    function _checkComponentsRegistered(string[] memory symbols) internal view {
+    function _checkComponentsRegistered(bytes32[] memory symbols) internal view {
         for (uint256 i = 0; i < symbols.length; i++) {
             if (!IndexComponentRegistry(COMPONENT_REGISTRY).isComponentRegistered(symbols[i])) {
                 revert IndexFactory_ComponentNotRegistered(symbols[i]);
@@ -213,7 +213,7 @@ contract IndexFactory is Ownable {
     function deployIndex(
         string calldata name,
         address indexCalculationAddress,
-        string[] memory symbols
+        bytes32[] memory symbols
     )
         external
         onlyOwner
@@ -292,7 +292,7 @@ contract IndexFactory is Ownable {
         address indexAddress,
         string calldata name,
         address indexCalculationAddress,
-        string[] memory symbols
+        bytes32[] memory symbols
     )
         internal
     {

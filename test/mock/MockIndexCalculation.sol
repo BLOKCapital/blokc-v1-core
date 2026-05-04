@@ -23,7 +23,7 @@ contract MockIndexCalculation is IIndexCalculation {
     }
 
     function getWeights(
-        string[] memory /* symbols */
+        bytes32[] memory /* symbols */
     )
         external
         view

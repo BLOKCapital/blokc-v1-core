@@ -55,11 +55,11 @@ contract IndexComponentRegistry is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Represents an index component with its symbol, token address, and price feed
-    /// @param symbol Ticker symbol of the component (e.g., "WETH", "USDC")
+    /// @param symbol Ticker symbol of the component encoded as bytes32 (e.g., bytes32("WETH"))
     /// @param tokenAddress ERC20 token contract address
     /// @param priceFeedAddress Chainlink AggregatorV3 price feed address
     struct Component {
-        string symbol;
+        bytes32 symbol;
         address tokenAddress;
         address priceFeedAddress;
         uint256 heartbeat;
@@ -73,34 +73,35 @@ contract IndexComponentRegistry is Ownable {
     }
 
     struct OracleRecord {
-        uint96 price;
-        uint32 timestamp;
-        uint32 lastUpdated;
-        uint80 roundId;
+        uint128 price;
+        uint48 timestamp;
+        uint48 lastUpdated;
         uint8 decimals;
         bool isFeedWorking;
+        // --- slot boundary (32 bytes above) ---
+        uint80 roundId;
     }
 
     /// @notice Emitted when a component is registered
     /// @param symbol Ticker symbol of the component
     /// @param tokenAddress ERC20 token contract address
     /// @param priceFeedAddress Chainlink AggregatorV3 price feed address
-    event ComponentRegistered(string indexed symbol, address indexed tokenAddress, address priceFeedAddress);
+    event ComponentRegistered(bytes32 indexed symbol, address indexed tokenAddress, address priceFeedAddress);
 
     /// @notice Emitted when a component is unregistered
     /// @param symbol Ticker symbol of the component
     /// @param tokenAddress ERC20 token contract address that was removed
-    event ComponentUnregistered(string indexed symbol, address indexed tokenAddress);
+    event ComponentUnregistered(bytes32 indexed symbol, address indexed tokenAddress);
 
     /// @notice Mapping from symbol to component data
-    mapping(string => Component) private _components;
+    mapping(bytes32 => Component) private _components;
     mapping(address => OracleRecord) private oracleRecords;
 
     /// @notice Set of all registered component token addresses
     /// @dev Provides efficient lookup and iteration
     EnumerableSet.AddressSet private _componentAddresses;
 
-    uint256 public constant MAX_PRICE_DEVIATION_FROM_PREVIOUS_ROUND = 5000; // 50%
+    uint256 public constant MAX_PRICE_DEVIATION_FROM_PREVIOUS_ROUND = 1500; // 15%
 
     /// @notice Constructs the IndexComponentRegistry
     /// @param initialOwner Address of the contract owner
@@ -141,10 +142,10 @@ contract IndexComponentRegistry is Ownable {
     /// @notice Unregisters multiple components from the registry
     /// @param symbols Array of component symbols to unregister
     /// @dev Only callable by owner. All components must be registered.
-    function unregisterComponents(string[] memory symbols) public onlyOwner {
+    function unregisterComponents(bytes32[] memory symbols) public onlyOwner {
         uint256 totalSymbols = symbols.length;
         for (uint256 i = 0; i < totalSymbols; i++) {
-            string memory symbol = symbols[i];
+            bytes32 symbol = symbols[i];
             address tokenAddress = _components[symbol].tokenAddress;
             if (tokenAddress == address(0)) {
                 revert IndexComponentRegistry_ComponentNotRegistered();
@@ -156,7 +157,13 @@ contract IndexComponentRegistry is Ownable {
         }
     }
 
-    function fetchPrice(address _token, string memory _symbol) public returns (uint256 price) {
+    /// @notice Fetches and caches the latest oracle price for a registered component
+    /// @param _symbol Component symbol (registry key; token address is derived from `_components[_symbol]`)
+    /// @return price Latest or cached price (aggregator raw units; decimals in `getOracleRecord`)
+    function fetchPrice(bytes32 _symbol) public returns (uint256 price) {
+        address _token = _components[_symbol].tokenAddress;
+        if (_token == address(0)) revert IndexComponentRegistry_ComponentNotRegistered();
+
         OracleRecord memory oracleInfo = oracleRecords[_token];
         Component memory componentInfo = _components[_symbol];
 
@@ -302,23 +309,23 @@ contract IndexComponentRegistry is Ownable {
 
     function _storePrice(address _token, uint256 _price, uint256 _timestamp, uint80 roundId) internal {
         OracleRecord storage record = oracleRecords[_token];
-        record.price = SafeCast.toUint96(_price);
-        record.timestamp = SafeCast.toUint32(_timestamp);
-        record.lastUpdated = SafeCast.toUint32(block.timestamp);
+        record.price = SafeCast.toUint128(_price);
+        record.timestamp = SafeCast.toUint48(_timestamp);
+        record.lastUpdated = SafeCast.toUint48(block.timestamp);
         record.roundId = roundId;
     }
 
     /// @notice Checks if a component is registered
     /// @param symbol Symbol to check
     /// @return True if the component is registered, false otherwise
-    function isComponentRegistered(string memory symbol) public view returns (bool) {
+    function isComponentRegistered(bytes32 symbol) public view returns (bool) {
         return _components[symbol].tokenAddress != address(0);
     }
 
     /// @notice Returns the price feed address for a specific component
     /// @param symbol The component symbol
     /// @return The Chainlink price feed address for the component
-    function getComponentSymbolToPriceFeedAddress(string memory symbol) public view returns (address) {
+    function getComponentSymbolToPriceFeedAddress(bytes32 symbol) public view returns (address) {
         if (_components[symbol].tokenAddress == address(0)) revert IndexComponentRegistry_ComponentNotRegistered();
         return _components[symbol].priceFeedAddress;
     }
@@ -327,7 +334,7 @@ contract IndexComponentRegistry is Ownable {
     /// @param symbols Array of component symbols
     /// @return priceFeedAddresses Array of corresponding Chainlink price feed addresses
     /// @dev All components must be registered. Returns parallel array to input.
-    function getPriceFeedAddresses(string[] memory symbols) public view returns (address[] memory) {
+    function getPriceFeedAddresses(bytes32[] memory symbols) public view returns (address[] memory) {
         uint256 totalSymbols = symbols.length;
         address[] memory priceFeedAddresses = new address[](totalSymbols);
         for (uint256 i = 0; i < totalSymbols; i++) {
@@ -345,7 +352,7 @@ contract IndexComponentRegistry is Ownable {
     /// @notice Returns the token address for a specific component
     /// @param symbol The component symbol
     /// @return The token address for the component
-    function getComponentAddress(string memory symbol) public view returns (address) {
+    function getComponentAddress(bytes32 symbol) public view returns (address) {
         address tokenAddress = _components[symbol].tokenAddress;
         if (tokenAddress == address(0)) revert IndexComponentRegistry_ComponentNotRegistered();
         return tokenAddress;
@@ -354,12 +361,12 @@ contract IndexComponentRegistry is Ownable {
     /// @notice Returns the heartbeat (staleness threshold) for a specific component
     /// @param symbol The component symbol
     /// @return The heartbeat in seconds
-    function getComponentHeartbeat(string memory symbol) public view returns (uint256) {
+    function getComponentHeartbeat(bytes32 symbol) public view returns (uint256) {
         if (_components[symbol].tokenAddress == address(0)) revert IndexComponentRegistry_ComponentNotRegistered();
         return _components[symbol].heartbeat;
     }
 
-    function getOracleRecord(string memory symbol) public view returns (OracleRecord memory) {
+    function getOracleRecord(bytes32 symbol) public view returns (OracleRecord memory) {
         address _token = _components[symbol].tokenAddress;
         return oracleRecords[_token];
     }

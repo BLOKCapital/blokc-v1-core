@@ -46,7 +46,7 @@ error IndexFacet_RebalanceIntervalNotPassed();
 error IndexFacet_NoPendingIntent();
 
 /// @notice Thrown when balance is outside threshold after rebalance
-error IndexFacet_BalanceOutsideThreshold(string symbol, uint256 current, uint256 target);
+error IndexFacet_BalanceOutsideThreshold(bytes32 symbol, uint256 current, uint256 target);
 
 /// @notice Thrown when a swap call fails
 error IndexFacet_SwapCallFailed(uint256 index, bytes reason);
@@ -76,6 +76,9 @@ error IndexFacet_RebalanceReentrancy();
 /// @notice Thrown when attempting to create a rebalance intent with zero total garden value
 error IndexFacet_ZeroTotalValue();
 
+/// @notice Thrown when rebalance is attempted in the same block as intent creation (flash loan protection)
+error IndexFacet_IntentBlockDelayNotPassed();
+
 /**
  * @title IndexBase
  * @author BLOK Capital DAO
@@ -94,6 +97,9 @@ error IndexFacet_ZeroTotalValue();
  *      garden are invisible to these calculations and will NOT be protected by the MAX_VALUE_LOSS_BPS check.
  */
 abstract contract IndexBase {
+    /// @dev Cached bytes32 symbol for USDC — used for gas-efficient comparison.
+    bytes32 private constant _USDC_SYMBOL = bytes32("USDC");
+
     /// @notice Connects the garden to an index for automated rebalancing.
     /// @param indexAddress The address of the index contract to connect to.
     function _connectToIndex(address indexAddress) internal {
@@ -144,27 +150,24 @@ abstract contract IndexBase {
             revert IndexFacet_RebalanceIntervalNotPassed();
         }
 
-        // Get target weights from index
-        (string[] memory symbols, uint256[] memory weights) = Index(s.indexAddress).getWeights();
+        IndexComponentRegistry componentRegistry =
+            IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
-        (
-            uint256[] memory currentValues,
-            uint256[] memory targetValues,
-            address[] memory tokenAddresses,
-            uint256 totalValueUsd
-        ) = _calculateRebalanceValues(symbols, weights);
+        // Get target weights from index
+        (bytes32[] memory symbols, uint256[] memory weights) = Index(s.indexAddress).getWeights();
+
+        (uint256[] memory currentValues, uint256[] memory targetValues, uint256 totalValueUsd) =
+            _calculateRebalanceValues(componentRegistry, symbols, weights);
 
         if (totalValueUsd == 0) revert IndexFacet_ZeroTotalValue();
 
-        // Store pending intent
+        // Store pending intent (slimmed: only symbols + targetValues stored)
         s.pendingIntent.active = true;
         s.pendingIntent.totalValueUsd = totalValueUsd;
         s.pendingIntent.symbols = symbols;
-        s.pendingIntent.currentValues = currentValues;
         s.pendingIntent.targetValues = targetValues;
-        s.pendingIntent.tokenAddresses = tokenAddresses;
-        s.pendingIntent.weights = weights;
         s.lastIntentTimestamp = block.timestamp;
+        s.lastIntentBlock = block.number;
 
         emit IIndex.RebalanceIntentCreated(
             address(this), s.indexAddress, symbols, currentValues, targetValues, totalValueUsd
@@ -193,6 +196,11 @@ abstract contract IndexBase {
             revert IndexFacet_NoPendingIntent();
         }
 
+        // Flash loan protection: intent and rebalance must be in different blocks
+        if (block.number <= s.lastIntentBlock) {
+            revert IndexFacet_IntentBlockDelayNotPassed();
+        }
+
         // Check rebalance interval
         if (block.timestamp < s.lastRebalanceTimestamp + IndexStorage.REBALANCE_INTERVAL) {
             revert IndexFacet_RebalanceIntervalNotPassed();
@@ -203,15 +211,17 @@ abstract contract IndexBase {
             revert IndexFacet_IntentExpired();
         }
 
-        uint256 valueBefore = _calculateTotalValue();
+        IndexComponentRegistry componentRegistry =
+            IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
+
+        uint256 valueBefore = _calculateTotalValue(componentRegistry);
 
         // Execute each swap step on the Diamond's DEX facets
         _executeSwapSteps(steps);
 
-        // Verify final balances match targets within threshold (uses fresh prices + stored weights)
-        _verifyBalancesMatchTargets();
+        // Verify final balances match targets within threshold and get post-swap total value
+        uint256 valueAfter = _verifyBalancesMatchTargets(componentRegistry);
 
-        uint256 valueAfter = _calculateTotalValue();
         uint256 minAcceptableValue =
             Math.mulDiv(valueBefore, 10_000 - IndexStorage.MAX_VALUE_LOSS_BPS, 10_000, Math.Rounding.Floor);
 
@@ -281,38 +291,30 @@ abstract contract IndexBase {
     // ========================================================================
 
     /// @dev Calculates current token values and target values for each component in the index.
-    /// @param symbols Array of component symbols to evaluate.
+    /// @param componentRegistry The IndexComponentRegistry instance (passed to avoid redundant instantiation).
+    /// @param symbols Array of component symbols to evaluate (bytes32 encoded).
     /// @param weights Array of target weights (normalized to 1e18) corresponding to each symbol.
     /// @return currentValues Current USD values per component (8 decimals).
     /// @return targetValues Target USD values per component (8 decimals).
-    /// @return tokenAddresses Token contract addresses corresponding to each symbol.
     /// @return totalValueUsd Total portfolio value in USD (8 decimals).
     function _calculateRebalanceValues(
-        string[] memory symbols,
+        IndexComponentRegistry componentRegistry,
+        bytes32[] memory symbols,
         uint256[] memory weights
     )
         internal
-        returns (
-            uint256[] memory currentValues,
-            uint256[] memory targetValues,
-            address[] memory tokenAddresses,
-            uint256 totalValueUsd
-        )
+        returns (uint256[] memory currentValues, uint256[] memory targetValues, uint256 totalValueUsd)
     {
-        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
-
         currentValues = new uint256[](symbols.length);
         targetValues = new uint256[](symbols.length);
-        tokenAddresses = new address[](symbols.length);
         totalValueUsd = 0;
 
         // Calculate current values
         for (uint256 i = 0; i < symbols.length; i++) {
             address token = componentRegistry.getComponentAddress(symbols[i]);
-            tokenAddresses[i] = token;
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = componentRegistry.fetchPrice(token, symbols[i]);
+            uint256 price = componentRegistry.fetchPrice(symbols[i]);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             // Value in USD with 8 decimals (Chainlink standard)
@@ -329,68 +331,64 @@ abstract contract IndexBase {
         }
     }
 
-    /// @dev Verifies that post-rebalance balances match target values within the allowed threshold.
-    /// @dev Uses fresh prices and stored weights to recalculate targets, avoiding price mismatch
-    ///      between intent creation and verification.
-    /// @dev Reverts with `IndexFacet_BalanceOutsideThreshold` if any component exceeds the threshold.
-    function _verifyBalancesMatchTargets() internal {
+    /// @dev Verifies that post-rebalance balances match stored target values within the allowed threshold.
+    ///      Uses stored targetValues from the pending intent to prevent target drift from oracle manipulation.
+    ///      Also computes and returns the fresh total portfolio value (combining verify + value calculation
+    ///      into a single loop for gas efficiency).
+    /// @param componentRegistry The IndexComponentRegistry instance.
+    /// @return freshTotalValueUsd The fresh total portfolio value in USD (8 decimals).
+    function _verifyBalancesMatchTargets(IndexComponentRegistry componentRegistry)
+        internal
+        returns (uint256 freshTotalValueUsd)
+    {
         IndexStorage.Layout storage s = IndexStorage.layout();
-        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
         uint256 len = s.pendingIntent.symbols.length;
-
-        // First pass: calculate fresh total value with current prices
-        uint256 freshTotalValueUsd = 0;
-        uint256[] memory currentValues = new uint256[](len);
+        freshTotalValueUsd = 0;
 
         for (uint256 i = 0; i < len; i++) {
-            string memory symbol = s.pendingIntent.symbols[i];
+            bytes32 symbol = s.pendingIntent.symbols[i];
             address token = componentRegistry.getComponentAddress(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = componentRegistry.fetchPrice(token, symbol);
+            uint256 price = componentRegistry.fetchPrice(symbol);
             uint8 decimals = IERC20Metadata(token).decimals();
 
-            currentValues[i] = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
-            freshTotalValueUsd += currentValues[i];
+            uint256 currentValue = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
+            freshTotalValueUsd += currentValue;
+
+            // Use STORED targetValues from intent creation (prevents target drift)
+            uint256 targetValue = s.pendingIntent.targetValues[i];
+
+            // Calculate threshold
+            uint256 threshold =
+                Math.mulDiv(targetValue, IndexStorage.BALANCE_THRESHOLD_BPS, 10_000, Math.Rounding.Ceil);
+
+            // Verify within threshold (use abs diff to avoid underflow)
+            uint256 diff = currentValue > targetValue ? currentValue - targetValue : targetValue - currentValue;
+            if (diff > threshold) {
+                revert IndexFacet_BalanceOutsideThreshold(symbol, currentValue, targetValue);
+            }
         }
 
         // Add USDC deposit token value to fresh total
         freshTotalValueUsd += _getUsdcValueUsd(componentRegistry, s.pendingIntent.symbols);
-
-        // Second pass: recalculate targets from stored weights and fresh total value, then verify
-        for (uint256 i = 0; i < len; i++) {
-            uint256 freshTargetValue = Math.mulDiv(
-                freshTotalValueUsd, s.pendingIntent.weights[i], IndexStorage.PRECISION, Math.Rounding.Floor
-            );
-
-            // Calculate threshold
-            uint256 threshold =
-                Math.mulDiv(freshTargetValue, IndexStorage.BALANCE_THRESHOLD_BPS, 10_000, Math.Rounding.Ceil);
-
-            // Verify within threshold (use abs diff to avoid underflow)
-            uint256 diff = currentValues[i] > freshTargetValue
-                ? currentValues[i] - freshTargetValue
-                : freshTargetValue - currentValues[i];
-            if (diff > threshold) {
-                revert IndexFacet_BalanceOutsideThreshold(
-                    s.pendingIntent.symbols[i], currentValues[i], freshTargetValue
-                );
-            }
-        }
     }
 
     /// @notice Calculate total garden value in USD using the IndexComponentRegistry oracle
-    function _calculateTotalValue() internal returns (uint256 totalValueUsd) {
+    /// @param componentRegistry The IndexComponentRegistry instance.
+    function _calculateTotalValue(IndexComponentRegistry componentRegistry)
+        internal
+        returns (uint256 totalValueUsd)
+    {
         IndexStorage.Layout storage s = IndexStorage.layout();
-        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
         for (uint256 i = 0; i < s.pendingIntent.symbols.length; i++) {
-            string memory symbol = s.pendingIntent.symbols[i];
+            bytes32 symbol = s.pendingIntent.symbols[i];
             address token = componentRegistry.getComponentAddress(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = componentRegistry.fetchPrice(token, symbol);
+            uint256 price = componentRegistry.fetchPrice(symbol);
             uint8 decimals = IERC20Metadata(token).decimals();
 
             totalValueUsd += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
@@ -400,23 +398,20 @@ abstract contract IndexBase {
         totalValueUsd += _getUsdcValueUsd(componentRegistry, s.pendingIntent.symbols);
     }
 
-    /// @dev Cached keccak256 hash of "USDC" symbol for gas-efficient comparison.
-    bytes32 private constant _USDC_SYMBOL_HASH = keccak256("USDC");
-
     /// @dev Returns the USD value of USDC held by the garden (8 decimals).
     ///      Uses the Chainlink oracle via IndexComponentRegistry for accurate pricing.
     ///      Returns 0 if the garden holds no USDC, if USDC is already an index component
     ///      (to avoid double-counting), or if USDC is not registered in the ComponentRegistry.
     function _getUsdcValueUsd(
         IndexComponentRegistry componentRegistry,
-        string[] memory symbols
+        bytes32[] memory symbols
     )
         internal
         returns (uint256)
     {
-        // Skip if USDC is already counted as an index component
+        // Skip if USDC is already counted as an index component (simple bytes32 comparison)
         for (uint256 i = 0; i < symbols.length; i++) {
-            if (keccak256(abi.encodePacked(symbols[i])) == _USDC_SYMBOL_HASH) {
+            if (symbols[i] == _USDC_SYMBOL) {
                 return 0;
             }
         }
@@ -426,9 +421,9 @@ abstract contract IndexBase {
 
         // Gracefully return 0 if USDC is not registered in the ComponentRegistry,
         // so an unregistered USDC doesn't brick the entire rebalance flow.
-        if (!componentRegistry.isComponentRegistered("USDC")) return 0;
+        if (!componentRegistry.isComponentRegistered(_USDC_SYMBOL)) return 0;
 
-        uint256 usdcPrice = componentRegistry.fetchPrice(IndexStorage.USDC_ADDRESS, "USDC");
+        uint256 usdcPrice = componentRegistry.fetchPrice(_USDC_SYMBOL);
         uint8 usdcDecimals = IERC20Metadata(IndexStorage.USDC_ADDRESS).decimals();
 
         return Math.mulDiv(usdcBalance, usdcPrice, 10 ** usdcDecimals, Math.Rounding.Floor);
@@ -459,8 +454,7 @@ abstract contract IndexBase {
     /// @dev Returns the current pending rebalance intent details.
     /// @return active Whether a pending intent is active.
     /// @return totalValueUsd Total portfolio value in USD at intent creation.
-    /// @return symbols Array of component symbols.
-    /// @return currentValues Array of current USD values per component.
+    /// @return symbols Array of component symbols (bytes32 encoded).
     /// @return targetValues Array of target USD values per component.
     function _getPendingIntent()
         internal
@@ -468,8 +462,7 @@ abstract contract IndexBase {
         returns (
             bool active,
             uint256 totalValueUsd,
-            string[] memory symbols,
-            uint256[] memory currentValues,
+            bytes32[] memory symbols,
             uint256[] memory targetValues
         )
     {
@@ -478,7 +471,6 @@ abstract contract IndexBase {
             s.pendingIntent.active,
             s.pendingIntent.totalValueUsd,
             s.pendingIntent.symbols,
-            s.pendingIntent.currentValues,
             s.pendingIntent.targetValues
         );
     }

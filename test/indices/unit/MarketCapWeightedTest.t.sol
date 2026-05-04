@@ -69,8 +69,8 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
         /**
          * Single component - weight must be exactly 1e18 (100%)
          */
-        string[] memory singleSymbol = new string[](1);
-        singleSymbol[0] = "BTC";
+        bytes32[] memory singleSymbol = new bytes32[](1);
+        singleSymbol[0] = bytes32("BTC");
 
         uint256[] memory weights = marketCapWeighted.getWeights(singleSymbol);
 
@@ -92,23 +92,23 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
 
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](3);
         comps[0] = IndexComponentRegistry.Component({
-            symbol: "TOKEN1", tokenAddress: makeAddr("T1"), priceFeedAddress: address(oracle1), heartbeat: 3600
+            symbol: bytes32("TOKEN1"), tokenAddress: makeAddr("T1"), priceFeedAddress: address(oracle1), heartbeat: 3600
         });
         comps[1] = IndexComponentRegistry.Component({
-            symbol: "TOKEN2", tokenAddress: makeAddr("T2"), priceFeedAddress: address(oracle2), heartbeat: 3600
+            symbol: bytes32("TOKEN2"), tokenAddress: makeAddr("T2"), priceFeedAddress: address(oracle2), heartbeat: 3600
         });
         comps[2] = IndexComponentRegistry.Component({
-            symbol: "TOKEN3", tokenAddress: makeAddr("T3"), priceFeedAddress: address(oracle3), heartbeat: 3600
+            symbol: bytes32("TOKEN3"), tokenAddress: makeAddr("T3"), priceFeedAddress: address(oracle3), heartbeat: 3600
         });
 
         vm.startPrank(owner);
         icr.registerComponents(comps);
         vm.stopPrank();
 
-        string[] memory syms = new string[](3);
-        syms[0] = "TOKEN1";
-        syms[1] = "TOKEN2";
-        syms[2] = "TOKEN3";
+        bytes32[] memory syms = new bytes32[](3);
+        syms[0] = bytes32("TOKEN1");
+        syms[1] = bytes32("TOKEN2");
+        syms[2] = bytes32("TOKEN3");
 
         uint256[] memory supplies = new uint256[](3);
         supplies[0] = 1;
@@ -141,20 +141,20 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
     function test_getWeights_largeComponent() public {
         uint256 count = 10;
 
-        string[10] memory tokenNames = ["TKN1", "TKN2", "TKN3", "TKN4", "TKN5", "TKN6", "TKN7", "TKN8", "TKN9", "TKN10"];
+        bytes32[10] memory tokenNames = [bytes32("TKN1"), bytes32("TKN2"), bytes32("TKN3"), bytes32("TKN4"), bytes32("TKN5"), bytes32("TKN6"), bytes32("TKN7"), bytes32("TKN8"), bytes32("TKN9"), bytes32("TKN10")];
 
-        string[] memory syms = new string[](count);
+        bytes32[] memory syms = new bytes32[](count);
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](count);
         uint256[] memory supplies = new uint256[](count);
 
         for (uint256 i = 0; i < count; i++) {
-            string memory sym = tokenNames[i];
+            bytes32 sym = tokenNames[i];
             uint256 price = (i + 1) * 1000e18;
-            MockOracle oracle = new MockOracle(sym, price);
+            MockOracle oracle = new MockOracle(string(abi.encodePacked(sym)), price);
 
             syms[i] = sym;
             comps[i] = IndexComponentRegistry.Component({
-                symbol: sym, tokenAddress: makeAddr(sym), priceFeedAddress: address(oracle), heartbeat: 3600
+                symbol: sym, tokenAddress: makeAddr(string(abi.encodePacked(sym))), priceFeedAddress: address(oracle), heartbeat: 3600
             });
             supplies[i] = i + 1;
         }
@@ -186,10 +186,10 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
         MockOracle oracle1 = new MockOracle("TOKEN1", 1e18);
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](1);
         comps[0] = IndexComponentRegistry.Component({
-            symbol: "TOKEN1", tokenAddress: makeAddr("T1"), priceFeedAddress: address(oracle1), heartbeat: 3600
+            symbol: bytes32("TOKEN1"), tokenAddress: makeAddr("T1"), priceFeedAddress: address(oracle1), heartbeat: 3600
         });
-        string[] memory syms = new string[](1);
-        syms[0] = "TOKEN1";
+        bytes32[] memory syms = new bytes32[](1);
+        syms[0] = bytes32("TOKEN1");
 
         uint256[] memory supplies = new uint256[](1);
         supplies[0] = 1e31;
@@ -212,19 +212,19 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
 
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](2);
         comps[0] = IndexComponentRegistry.Component({
-            symbol: "TOKEN1", tokenAddress: makeAddr("T1"), priceFeedAddress: address(oracleTiny), heartbeat: 3600
+            symbol: bytes32("TOKEN1"), tokenAddress: makeAddr("T1"), priceFeedAddress: address(oracleTiny), heartbeat: 3600
         });
         comps[1] = IndexComponentRegistry.Component({
-            symbol: "TOKEN2", tokenAddress: makeAddr("T2"), priceFeedAddress: address(oracleBig), heartbeat: 3600
+            symbol: bytes32("TOKEN2"), tokenAddress: makeAddr("T2"), priceFeedAddress: address(oracleBig), heartbeat: 3600
         });
 
         vm.startPrank(owner);
         icr.registerComponents(comps);
         vm.stopPrank();
 
-        string[] memory syms = new string[](2);
-        syms[0] = "TOKEN1";
-        syms[1] = "TOKEN2";
+        bytes32[] memory syms = new bytes32[](2);
+        syms[0] = bytes32("TOKEN1");
+        syms[1] = bytes32("TOKEN2");
 
         uint256[] memory supplies = new uint256[](2);
         supplies[0] = 1; //  tiny market cap
@@ -239,7 +239,7 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
     }
 
     function test_getWeights_emptyArray() public {
-        string[] memory emptySymbols = new string[](0);
+        bytes32[] memory emptySymbols = new bytes32[](0);
 
         vm.expectRevert(MarketCapWeighted_InvalidTotalMarketCap.selector);
         marketCapWeighted.getWeights(emptySymbols);

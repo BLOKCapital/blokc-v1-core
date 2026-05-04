@@ -294,6 +294,9 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         view
         returns (address[] memory pools)
     {
+        
+        if (!_dexExists[dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(dexId);
+
         return _getPoolsForPairOnDex(tokenA, tokenB, dexId);
     }
 

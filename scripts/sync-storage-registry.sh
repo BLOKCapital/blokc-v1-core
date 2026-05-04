@@ -31,6 +31,7 @@ declare -A MODULE_DIRS=(
     ["PENDLE_V2"]="src/garden/facets/utilityFacets/arbitrumOne/pendleV2/"
     ["CCTP"]="src/garden/facets/utilityFacets/arbitrumOne/cctp/"
     ["WITHDRAW"]="src/garden/facets/utilityFacets/arbitrumOne/withdraw/"
+    ["BALANCER_V3"]="src/garden/facets/utilityFacets/ethereum/balancerV3/"
 )
 
 # ═══════════════════════════════════════════════════════════════════════

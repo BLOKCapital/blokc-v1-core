@@ -14,13 +14,13 @@ import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
 import { IndexMath } from "src/indices/libraries/IndexMath.sol";
-import { CirculatingSupply } from "src/indices/CirculatingSupply.sol";
+import { ICirculatingSupply } from "src/interfaces/ICirculatingSupply.sol";
 
 // ============================================================================
 // Errors
 // ============================================================================
 
-/// @notice Thrown when IndexComponentRegistry address or CirculatingSupply addressis zero during construction
+/// @notice Thrown when IndexComponentRegistry address or CirculatingSupply address is zero during construction
 error MarketCapWeighted_ZeroAddress();
 
 /// @notice Thrown when total market cap is zero (cannot calculate weights)
@@ -47,9 +47,9 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @dev Immutable for consistent pricing sources
     IndexComponentRegistry private immutable INDEX_COMPONENT_REGISTRY;
 
-    /// @notice Reference to the CirculatingSupply contract for supply data
-    /// @dev Immutable for consistent supply data sources
-    CirculatingSupply private immutable CIRCULATING_SUPPLY;
+    /// @notice Reference to the circulating supply provider for supply data
+    /// @dev Immutable. Accepts any ICirculatingSupply implementation (oracle-fed or hardcoded).
+    ICirculatingSupply private immutable CIRCULATING_SUPPLY;
 
     /// @notice Sanity bound for individual component market cap to catch supply unit errors
     /// @dev Set to 1e30 (~$1 quadrillion) — any market cap above this indicates wrong supply units
@@ -57,18 +57,18 @@ contract MarketCapWeighted is IIndexCalculation {
 
     /// @notice Constructs the MarketCapWeighted calculation strategy
     /// @param _indexComponentRegistryAddress Address of the IndexComponentRegistry
-    /// @param _circulatingSupplyAddress Address of the CirculatingSupply contract
-    /// @dev Validates registry address is not zero
+    /// @param _circulatingSupplyAddress Address of the ICirculatingSupply implementation
+    /// @dev Validates both addresses are not zero
     constructor(address _indexComponentRegistryAddress, address _circulatingSupplyAddress) {
         if (_indexComponentRegistryAddress == address(0) || _circulatingSupplyAddress == address(0)) {
             revert MarketCapWeighted_ZeroAddress();
         }
         INDEX_COMPONENT_REGISTRY = IndexComponentRegistry(_indexComponentRegistryAddress);
-        CIRCULATING_SUPPLY = CirculatingSupply(_circulatingSupplyAddress);
+        CIRCULATING_SUPPLY = ICirculatingSupply(_circulatingSupplyAddress);
     }
 
     /// @notice Calculates market cap weighted allocations for components
-    /// @param symbols Array of component symbols
+    /// @param symbols Array of component symbols as bytes32
     /// @return weights Array of weights scaled to 1e18 (100% = 1e18)
     /// @dev For each component: weight = (component market cap) / (total market cap)
     ///      Uses Chainlink price feeds and circulating supply data.
@@ -79,7 +79,7 @@ contract MarketCapWeighted is IIndexCalculation {
     ///      E.g., ETH supply = 120000000, NOT 120000000 * 10^18.
     ///      Mixing conventions across tokens produces incorrect weights.
     ///      A sanity bound (MAX_COMPONENT_MARKET_CAP) catches grossly wrong supply values.
-    function getWeights(string[] memory symbols) external override returns (uint256[] memory weights) {
+    function getWeights(bytes32[] memory symbols) external override returns (uint256[] memory weights) {
         uint256 len = symbols.length;
         weights = new uint256[](len);
         uint256[] memory marketCaps = new uint256[](len);
@@ -105,13 +105,13 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @notice Calculates market cap for a single component
     /// @param symbol Component symbol
     /// @return componentMarketCap Market cap = (circulating supply) * (price)
-    /// @dev Uses Chainlink price feed and CirculatingSupply contract.
+    /// @dev Uses Chainlink price feed and ICirculatingSupply contract.
     ///      Validates result against MAX_COMPONENT_MARKET_CAP to catch supply unit errors.
-    function _getComponentMarketCap(string memory symbol) internal returns (uint256 componentMarketCap) {
+    function _getComponentMarketCap(bytes32 symbol) internal returns (uint256 componentMarketCap) {
         (uint256 componentPrice, uint8 componentPriceDecimals) = _getComponentPrice(symbol);
-        uint256 componentCirculatingSupply = CIRCULATING_SUPPLY.getSupply(symbol);
+        uint256 circulatingSupply = CIRCULATING_SUPPLY.getSupply(symbol);
         componentMarketCap = Math.mulDiv(
-            componentCirculatingSupply, componentPrice, 10 ** uint256(componentPriceDecimals), Math.Rounding.Floor
+            circulatingSupply, componentPrice, 10 ** uint256(componentPriceDecimals), Math.Rounding.Floor
         );
         if (componentMarketCap > MAX_COMPONENT_MARKET_CAP) revert MarketCapWeighted_MarketCapExceedsSanityBound();
     }
@@ -120,12 +120,11 @@ contract MarketCapWeighted is IIndexCalculation {
     /// @param symbol Component symbol
     /// @return componentPrice Current price from oracle
     /// @return componentPriceDecimals Decimal precision of the price
-    function _getComponentPrice(string memory symbol)
+    function _getComponentPrice(bytes32 symbol)
         internal
         returns (uint256 componentPrice, uint8 componentPriceDecimals)
     {
-        address tokenAddress = INDEX_COMPONENT_REGISTRY.getComponentAddress(symbol);
-        componentPrice = INDEX_COMPONENT_REGISTRY.fetchPrice(tokenAddress, symbol);
+        componentPrice = INDEX_COMPONENT_REGISTRY.fetchPrice(symbol);
         componentPriceDecimals = INDEX_COMPONENT_REGISTRY.getOracleRecord(symbol).decimals;
     }
 
