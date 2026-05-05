@@ -9,6 +9,7 @@ import { console2 } from "forge-std/console2.sol";
 import { WithdrawFacet } from "src/garden/facets/utilityFacets/ethereum/withdraw/WithdrawFacet.sol";
 import { UniswapV2Facet } from "src/garden/facets/utilityFacets/ethereum/uniswapV2/UniswapV2Facet.sol";
 import { UniswapV3Facet } from "src/garden/facets/utilityFacets/ethereum/uniswapV3/UniswapV3Facet.sol";
+import { SushiSwapV3Facet } from "src/garden/facets/utilityFacets/ethereum/sushiSwapV3/SushiSwapV3Facet.sol";
 import { BalancerV3Facet } from "src/garden/facets/utilityFacets/ethereum/balancerV3/BalancerV3Facet.sol";
 import { IBalancerV3 } from "src/garden/facets/utilityFacets/ethereum/balancerV3/IBalancerV3.sol";
 
@@ -78,6 +79,16 @@ contract RegisterUtilityFacets is BaseScript {
         uniswapV3Selectors[3] = uniswapV3Facet.uniswapV3Quote.selector;
         console2.log("UniswapV3Facet deployed at:", address(uniswapV3Facet));
 
+        // SushiSwap V3
+        SushiSwapV3Facet sushiSwapV3Facet = new SushiSwapV3Facet();
+        bytes4[] memory sushiSwapV3Selectors = new bytes4[](5);
+        sushiSwapV3Selectors[0] = sushiSwapV3Facet.sushiSwapV3Swap.selector;
+        sushiSwapV3Selectors[1] = sushiSwapV3Facet.sushiSwapV3Quote.selector;
+        sushiSwapV3Selectors[2] = sushiSwapV3Facet.getSushiSqrtTwapX96.selector;
+        sushiSwapV3Selectors[3] = sushiSwapV3Facet.getSushiCombinedTwapX96.selector;
+        // this is important because sushiswap's pools call this callback during swaps, and it needs to be registered to route correctly through the diamond proxy
+        sushiSwapV3Selectors[4] = sushiSwapV3Facet.uniswapV3SwapCallback.selector;
+        console2.log("SushiSwapV3Facet deployed at:", address(sushiSwapV3Facet));
         // Balancer V3
         BalancerV3Facet balancerV3Facet = new BalancerV3Facet();
         bytes4[] memory balancerV3Selectors = new bytes4[](2);
@@ -85,7 +96,7 @@ contract RegisterUtilityFacets is BaseScript {
         balancerV3Selectors[1] = IBalancerV3.balancerV3Quote.selector;
         console2.log("BalancerV3Facet deployed at:", address(balancerV3Facet));
 
-        IDiamondCut.FacetCut[] memory dexCuts = new IDiamondCut.FacetCut[](3);
+        IDiamondCut.FacetCut[] memory dexCuts = new IDiamondCut.FacetCut[](4);
         dexCuts[0] = IDiamondCut.FacetCut({
             facetAddress: address(uniswapV2Facet),
             action: IDiamondCut.FacetCutAction.Add,
@@ -97,6 +108,12 @@ contract RegisterUtilityFacets is BaseScript {
             functionSelectors: uniswapV3Selectors
         });
         dexCuts[2] = IDiamondCut.FacetCut({
+            facetAddress: address(sushiSwapV3Facet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: sushiSwapV3Selectors
+        });
+        
+        dexCuts[3] = IDiamondCut.FacetCut({
             facetAddress: address(balancerV3Facet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: balancerV3Selectors
