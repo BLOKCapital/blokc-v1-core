@@ -330,14 +330,17 @@ abstract contract SushiSwapV3Base {
         address token1 = IUniswapV3Pool(pool).token1();
 
         uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        uint24 fee = IUniswapV3Pool(pool).fee();
 
         if (tokenIn == token0 && tokenOut == token1) {
-            return (amountIn * price) >> 96;
+            amountOut = (amountIn * price) >> 96;
+        } else if (tokenIn == token1 && tokenOut == token0) {
+            amountOut = amountIn / price;
+        } else {
+            revert SushiSwapV3Facet_InvalidPath();
         }
-        if (tokenIn == token1 && tokenOut == token0) {
-            return amountIn / price;
-        }
-        revert SushiSwapV3Facet_InvalidPath();
+        // Deduct the pool's swap fee from the quoted output
+        amountOut = amountOut * (1_000_000 - fee) / 1_000_000;
     }
 
     function _reverseQuotePool(
@@ -361,14 +364,17 @@ abstract contract SushiSwapV3Base {
         address token1 = IUniswapV3Pool(pool).token1();
 
         uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        uint24 fee = IUniswapV3Pool(pool).fee();
 
         if (tokenIn == token0 && tokenOut == token1) {
-            return (amountOut << 96) / price;
+            amountIn = (amountOut << 96) / price;
+        } else if (tokenIn == token1 && tokenOut == token0) {
+            amountIn = amountOut * price;
+        } else {
+            revert SushiSwapV3Facet_InvalidPath();
         }
-        if (tokenIn == token1 && tokenOut == token0) {
-            return amountOut * price;
-        }
-        revert SushiSwapV3Facet_InvalidPath();
+        // Account for pool swap fee: need more input to cover the fee deduction (ceil division)
+        amountIn = (amountIn * 1_000_000 + (1_000_000 - fee) - 1) / (1_000_000 - fee);
     }
 
     // ========================================================================

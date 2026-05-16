@@ -358,16 +358,19 @@ abstract contract UniswapV3Base {
 
         uint256 sqrtP = uint256(sqrtPriceX96);
         uint256 Q96 = 1 << 96;
+        uint24 fee = IUniswapV3Pool(pool).fee();
 
         if (tokenIn == token0 && tokenOut == token1) {
             // amountOut = amountIn * sqrtP² / 2^192  (split into two mulDivs)
-            return Math.mulDiv(Math.mulDiv(amountIn, sqrtP, Q96), sqrtP, Q96);
-        }
-        if (tokenIn == token1 && tokenOut == token0) {
+            amountOut = Math.mulDiv(Math.mulDiv(amountIn, sqrtP, Q96), sqrtP, Q96);
+        } else if (tokenIn == token1 && tokenOut == token0) {
             // amountOut = amountIn * 2^192 / sqrtP²  (split into two mulDivs)
-            return Math.mulDiv(Math.mulDiv(amountIn, Q96, sqrtP), Q96, sqrtP);
+            amountOut = Math.mulDiv(Math.mulDiv(amountIn, Q96, sqrtP), Q96, sqrtP);
+        } else {
+            revert UniswapV3Facet_InvalidPath();
         }
-        revert UniswapV3Facet_InvalidPath();
+        // Deduct the pool's swap fee from the quoted output
+        amountOut = Math.mulDiv(amountOut, 1_000_000 - fee, 1_000_000);
     }
 
     /// @notice Reverse-quotes: given a desired output amount, estimates the input needed
@@ -395,17 +398,20 @@ abstract contract UniswapV3Base {
 
         uint256 sqrtP = uint256(sqrtPriceX96);
         uint256 Q96 = 1 << 96;
+        uint24 fee = IUniswapV3Pool(pool).fee();
 
         // Reverse of _quotePool: invert the direction
         if (tokenIn == token0 && tokenOut == token1) {
             // Forward: out = in * sqrtP² / 2^192  →  Reverse: in = out * 2^192 / sqrtP²
-            return Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
-        }
-        if (tokenIn == token1 && tokenOut == token0) {
+            amountIn = Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
+        } else if (tokenIn == token1 && tokenOut == token0) {
             // Forward: out = in * 2^192 / sqrtP²  →  Reverse: in = out * sqrtP² / 2^192
-            return Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
+            amountIn = Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
+        } else {
+            revert UniswapV3Facet_InvalidPath();
         }
-        revert UniswapV3Facet_InvalidPath();
+        // Account for pool swap fee: need more input to cover the fee deduction
+        amountIn = Math.mulDiv(amountIn, 1_000_000, 1_000_000 - fee, Math.Rounding.Ceil);
     }
 
     /// @notice Gets the TWAP sqrt price for a single Uniswap V3 pool

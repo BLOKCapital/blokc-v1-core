@@ -282,14 +282,18 @@ abstract contract CamelotV3Base {
         address token1 = IUniswapV3Pool(pool).token1();
         uint256 sqrtP = uint256(sqrtPriceX96);
         uint256 Q96 = 1 << 96;
+        uint24 fee = IUniswapV3Pool(pool).fee();
 
+        uint256 rawAmountOut;
         if (tokenIn == token0 && tokenOut == token1) {
-            return Math.mulDiv(Math.mulDiv(amountIn, sqrtP, Q96), sqrtP, Q96);
+            rawAmountOut = Math.mulDiv(Math.mulDiv(amountIn, sqrtP, Q96), sqrtP, Q96);
+        } else if (tokenIn == token1 && tokenOut == token0) {
+            rawAmountOut = Math.mulDiv(Math.mulDiv(amountIn, Q96, sqrtP), Q96, sqrtP);
+        } else {
+            revert CamelotV3Facet_InvalidPool();
         }
-        if (tokenIn == token1 && tokenOut == token0) {
-            return Math.mulDiv(Math.mulDiv(amountIn, Q96, sqrtP), Q96, sqrtP);
-        }
-        revert CamelotV3Facet_InvalidPool();
+        // Deduct the pool's swap fee from the quoted output
+        return Math.mulDiv(rawAmountOut, 1_000_000 - fee, 1_000_000);
     }
 
     /// @dev Inverse of _quotePool. Rounds up so estimated input is sufficient.
@@ -314,14 +318,18 @@ abstract contract CamelotV3Base {
         address token1 = IUniswapV3Pool(pool).token1();
         uint256 sqrtP = uint256(sqrtPriceX96);
         uint256 Q96 = 1 << 96;
+        uint24 fee = IUniswapV3Pool(pool).fee();
 
+        uint256 rawAmountIn;
         if (tokenIn == token0 && tokenOut == token1) {
-            return Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
+            rawAmountIn = Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
+        } else if (tokenIn == token1 && tokenOut == token0) {
+            rawAmountIn = Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
+        } else {
+            revert CamelotV3Facet_InvalidPool();
         }
-        if (tokenIn == token1 && tokenOut == token0) {
-            return Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
-        }
-        revert CamelotV3Facet_InvalidPool();
+        // Account for pool swap fee: need more input to cover the fee deduction
+        return Math.mulDiv(rawAmountIn, 1_000_000, 1_000_000 - fee, Math.Rounding.Ceil);
     }
 
     // ========================================================================
