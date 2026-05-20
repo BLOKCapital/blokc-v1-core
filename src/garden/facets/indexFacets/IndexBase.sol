@@ -196,8 +196,8 @@ abstract contract IndexBase {
             revert IndexFacet_NoPendingIntent();
         }
 
-        // Flash loan protection: intent and rebalance must be in different blocks
-        if (block.number <= s.lastIntentBlock) {
+        // Flash loan protection: intent and rebalance must be in different blocks - separated by MIN_INTENT_DELAY blocks
+        if (block.number < s.lastIntentBlock + IndexStorage.MIN_INTENT_DELAY) {
             revert IndexFacet_IntentBlockDelayNotPassed();
         }
 
