@@ -17,12 +17,11 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 // Uniswap V3 Contracts
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-
 // Local Interfaces
 import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/IUniswapV3.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
+import { DexPoolValidator } from "src/garden/libraries/DexPoolValidator.sol";
 
 // Local Libraries
 import { TickMath } from "src/garden/libraries/TickMath.sol";
@@ -476,31 +475,18 @@ abstract contract UniswapV3Base {
         deadline = block.timestamp + 300;
     }
 
-    /// @notice Validates a single pool: registered in PoolRegistry AND canonical in Uniswap factory
-    /// @param pool The pool address from SwapInstruction.pools[]
-    /// @param tokenIn The input token for this hop
-    /// @param tokenOut The output token for this hop
+    /// @notice Validates a single V3 pool through the shared DexPoolValidator library
     function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
-        if (pool == address(0)) revert UniswapV3Facet_InvalidPoolAddress();
-        if (tokenIn == address(0) || tokenOut == address(0)) revert UniswapV3Facet_InvalidTokenAddress();
-
-        // 1. Pool must be registered in our PoolRegistry
-        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
-            revert UniswapV3Facet_UnregisteredPool();
-        }
-
-        // 2. Pool must be the canonical Uniswap V3 factory pool for this pair + fee
-        uint24 fee = IUniswapV3Pool(pool).fee();
-        address canonical = IUniswapV3Factory(UNISWAP_FACTORY_ADDRESS).getPool(tokenIn, tokenOut, fee);
-        if (canonical != pool) revert UniswapV3Facet_UnregisteredPool();
+        DexPoolValidator.validateV3Pool(
+            POOL_REGISTRY_ADDRESS, UNISWAP_FACTORY_ADDRESS, pool, tokenIn, tokenOut
+        );
     }
 
-    /// @notice Validates all pools in a SwapInstruction upfront before execution
-    /// @param instruction The swap instruction to validate
+    /// @notice Validates all pools in a SwapInstruction through DexPoolValidator
     function _validateSwapPools(SwapInstruction calldata instruction) internal view {
-        for (uint256 i; i < instruction.pools.length; i++) {
-            _validatePool(instruction.pools[i], instruction.tokens[i], instruction.tokens[i + 1]);
-        }
+        DexPoolValidator.validateSwapPools(
+            POOL_REGISTRY_ADDRESS, UNISWAP_FACTORY_ADDRESS, instruction, true
+        );
     }
 
     /// @notice Encodes a multi-hop path for Uniswap V3 router

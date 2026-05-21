@@ -16,6 +16,7 @@ import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.so
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
+import { DexPoolValidator } from "src/garden/libraries/DexPoolValidator.sol";
 
 interface ICamelotV2PairLike {
     function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
@@ -133,30 +134,18 @@ abstract contract CamelotV2Base {
     // Validation
     // ========================================================================
 
-    /// @notice Validates a single pool: registered in PoolRegistry AND canonical in Camelot factory
+    /// @notice Validates a single V2 pool through the shared DexPoolValidator library
     function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
-        if (pool == address(0)) revert CamelotV2Facet_InvalidPoolAddress();
-
-        // 1. Pool must be registered in our PoolRegistry
-        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
-            revert CamelotV2Facet_UnregisteredPool();
-        }
-
-        // 2. Pool must be the canonical Camelot factory pool for this pair
-        (bool ok, bytes memory data) = CAMELOT_V2_FACTORY_ADDRESS.staticcall(
-            abi.encodeWithSignature("getPair(address,address)", tokenIn, tokenOut)
+        DexPoolValidator.validateV2Pool(
+            POOL_REGISTRY_ADDRESS, CAMELOT_V2_FACTORY_ADDRESS, pool, tokenIn, tokenOut
         );
-        if (!ok) revert CamelotV2Facet_GetPairFailed();
-
-        address canonical = abi.decode(data, (address));
-        if (canonical != pool) revert CamelotV2Facet_UnregisteredPool();
     }
 
-    /// @notice Validates all pools in a SwapInstruction upfront
+    /// @notice Validates all pools in a SwapInstruction through DexPoolValidator
     function _validateSwapPools(SwapInstruction calldata instruction) internal view {
-        for (uint256 i; i < instruction.pools.length; i++) {
-            _validatePool(instruction.pools[i], instruction.tokens[i], instruction.tokens[i + 1]);
-        }
+        DexPoolValidator.validateSwapPools(
+            POOL_REGISTRY_ADDRESS, CAMELOT_V2_FACTORY_ADDRESS, instruction, false
+        );
     }
 
     // ========================================================================
