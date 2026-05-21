@@ -52,12 +52,19 @@ contract ArbitrumForkTest is Test {
     // ========================================================================
     // Test state
     // ========================================================================
+    bool internal forkActive;
+
     Rebalancer internal rebalancer;
     MockIndex internal mockIndex;
 
     address internal garden1 = makeAddr("garden1");
     address internal garden2 = makeAddr("garden2");
     address internal keeper = makeAddr("keeper");
+
+    modifier skipIfNoFork() {
+        if (!forkActive) return;
+        _;
+    }
 
     // ========================================================================
     // Setup
@@ -66,7 +73,12 @@ contract ArbitrumForkTest is Test {
     function setUp() public {
         // Fork Arbitrum One. Requires ARBITRUM_RPC_URL to be set.
         // Run with: ARBITRUM_RPC_URL=<url> forge test --match-contract ArbitrumForkTest -vvv
-        string memory rpcUrl = vm.envString("ARBITRUM_RPC_URL");
+        string memory rpcUrl = vm.envOr("ARBITRUM_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            forkActive = false;
+            return;
+        }
+        forkActive = true;
         vm.createSelectFork(rpcUrl);
 
         // -- Deploy mock index --
@@ -163,7 +175,7 @@ contract ArbitrumForkTest is Test {
     // Tests
     // ========================================================================
 
-    function test_fork_cumulativeRebalanceExecutesSwap() public {
+    function test_fork_cumulativeRebalanceExecutesSwap() public skipIfNoFork {
         uint256 wethBefore = IERC20(WETH).balanceOf(garden1) + IERC20(WETH).balanceOf(garden2);
         uint256 wbtcBefore = IERC20(WBTC).balanceOf(garden1) + IERC20(WBTC).balanceOf(garden2);
 
@@ -188,14 +200,14 @@ contract ArbitrumForkTest is Test {
         assertGt(IERC20(WBTC).balanceOf(garden2), 0, "garden2 WBTC");
     }
 
-    function test_fork_gardensBalanceToTarget() public {
+    function test_fork_gardensBalanceToTarget() public skipIfNoFork {
         rebalancer.cumulativeRebalance(keccak256("BLOKC2"));
 
         _assertBalanced(garden1, "garden1");
         _assertBalanced(garden2, "garden2");
     }
 
-    function test_fork_valueIsPreserved() public {
+    function test_fork_valueIsPreserved() public skipIfNoFork {
         uint256 garden1WethBefore = IERC20(WETH).balanceOf(garden1);
         uint256 garden1WbtcBefore = IERC20(WBTC).balanceOf(garden1);
         uint256 garden2WethBefore = IERC20(WETH).balanceOf(garden2);
