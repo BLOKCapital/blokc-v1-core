@@ -289,6 +289,176 @@ contract MockIndex {
     }
 }
 
+// =============================================================================
+// Scale Test: 50 gardens on BLOKC10
+// =============================================================================
+
+contract ArbitrumForkScaleTest is Test {
+    address internal constant WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
+    address internal constant WBTC = 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f;
+    address internal constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+
+    address internal constant POOL_REGISTRY = 0xA3178280c191dD46c551b91c651F337E47594d85;
+    address internal constant FACET_REGISTRY = 0xcD06FE7cdCacAed1806E2c29E411d4bD05A51Ef3;
+    address internal constant DEX_FACET = 0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B;
+    address internal constant UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    address internal constant CAMELOT_V2_ROUTER = 0xc873fEcbd354f5A56E00E710B90EF4201db2448d;
+
+    // BLOKC10 tokens (Arbitrum One)
+    bytes32 internal constant BTC = bytes32("BTC");
+    bytes32 internal constant ETH = bytes32("ETH");
+    bytes32 internal constant LINK = bytes32("LINK");
+    bytes32 internal constant UNI = bytes32("UNI");
+    bytes32 internal constant ARB = bytes32("ARB");
+    bytes32 internal constant AAVE = bytes32("AAVE");
+    bytes32 internal constant GMX = bytes32("GMX");
+    bytes32 internal constant PENDLE = bytes32("PENDLE");
+    bytes32 internal constant GRT = bytes32("GRT");
+    bytes32 internal constant CRV = bytes32("CRV");
+
+    uint256 internal constant GARDEN_COUNT = 50;
+    uint256 internal constant TOKEN_COUNT = 10;
+
+    bool internal forkActive;
+
+    modifier skipIfNoFork() {
+        if (!forkActive) return;
+        _;
+    }
+
+    function setUp() public {
+        string memory rpcUrl = vm.envOr("ARBITRUM_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            forkActive = false;
+            return;
+        }
+        forkActive = true;
+        vm.createSelectFork(rpcUrl);
+    }
+
+    function test_scale_50gardens_blokc10() public skipIfNoFork {
+        // -- Build token arrays --
+        bytes32[] memory symbols = new bytes32[](TOKEN_COUNT);
+        symbols[0] = BTC;
+        symbols[1] = ETH;
+        symbols[2] = LINK;
+        symbols[3] = UNI;
+        symbols[4] = ARB;
+        symbols[5] = AAVE;
+        symbols[6] = GMX;
+        symbols[7] = PENDLE;
+        symbols[8] = GRT;
+        symbols[9] = CRV;
+
+        address[] memory tokens = new address[](TOKEN_COUNT);
+        tokens[0] = WBTC;
+        tokens[1] = WETH;
+        tokens[2] = 0xf97f4df75117a78c1A5a0DBb814Af92458539FB4; // LINK
+        tokens[3] = 0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0; // UNI
+        tokens[4] = 0x912CE59144191C1204E64559FE8253a0e49E6548; // ARB
+        tokens[5] = 0xba5DdD1f9d7F570dc94a51479a000E3BCE967196; // AAVE
+        tokens[6] = 0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a; // GMX
+        tokens[7] = 0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8; // PENDLE
+        tokens[8] = 0x9623063377AD1B27544C965cCd7342f7EA7e88C7; // GRT
+        tokens[9] = 0x11cDb42B0EB46D95f990BeDD4695A6e3fA034978; // CRV
+
+        uint256[] memory prices = new uint256[](TOKEN_COUNT);
+        prices[0] = 60000e8;
+        prices[1] = 3000e8;
+        prices[2] = 15e8;
+        prices[3] = 8e8;
+        prices[4] = 1e8;
+        prices[5] = 150e8;
+        prices[6] = 25e8;
+        prices[7] = 5e8;
+        prices[8] = 0.15e8;
+        prices[9] = 0.5e8;
+
+        uint256[] memory weights = new uint256[](TOKEN_COUNT);
+        for (uint256 i = 0; i < TOKEN_COUNT; i++) {
+            weights[i] = 0.1e18; // 10% each
+        }
+
+        // -- Build garden array --
+        address[] memory gardens = new address[](GARDEN_COUNT);
+        for (uint256 i = 0; i < GARDEN_COUNT; i++) {
+            gardens[i] = makeAddr(string(abi.encodePacked("garden", i)));
+        }
+
+        // -- Deploy mocks --
+        MockComponentRegistry mockComp = new MockComponentRegistry();
+        for (uint256 i = 0; i < TOKEN_COUNT; i++) {
+            mockComp.setComponent(symbols[i], tokens[i]);
+            mockComp.setPrice(tokens[i], prices[i]);
+        }
+        mockComp.setComponent(bytes32("USDC"), USDC);
+        mockComp.setPrice(USDC, 1e8);
+        mockComp.setRegistered(bytes32("USDC"), true);
+
+        MockIndex mockIndex = new MockIndex();
+        mockIndex.setWeights(symbols, weights);
+        mockIndex.setGardens(gardens);
+
+        MockIndexFactory mockFactory = new MockIndexFactory();
+        mockFactory.setRegistered(address(mockIndex), true);
+
+        // -- Deploy Rebalancer --
+        Rebalancer rebalancer = new Rebalancer(
+            address(this), address(mockFactory), address(mockComp),
+            POOL_REGISTRY, FACET_REGISTRY, USDC
+        );
+        rebalancer.setDexConfig(
+            keccak256("CAMELOT_V2"), CAMELOT_V2_ROUTER, DEX_FACET,
+            Rebalancer.DexType.V2_CONSTANT_PRODUCT
+        );
+        rebalancer.setDexConfig(
+            keccak256("UNISWAP_V3"), UNISWAP_V3_ROUTER, DEX_FACET,
+            Rebalancer.DexType.V3_CONCENTRATED
+        );
+        rebalancer.addIndexToType(keccak256("BLOKC10"), address(mockIndex));
+
+        // -- Fund gardens (small amounts of ETH + BTC only; rest zero for gas efficiency) --
+        // Each garden: 0.01 ETH ($30) + 0.0005 BTC ($30) = $60, 10% each token
+        // Only fund ETH and BTC — price lookups still happen for all 10 tokens
+        for (uint256 i = 0; i < GARDEN_COUNT; i++) {
+            deal(WETH, gardens[i], 0.01e18);
+            deal(WBTC, gardens[i], 0.0005e8);
+
+            vm.prank(gardens[i]);
+            IERC20(WETH).approve(address(rebalancer), type(uint256).max);
+            vm.prank(gardens[i]);
+            IERC20(WBTC).approve(address(rebalancer), type(uint256).max);
+            vm.prank(gardens[i]);
+            IERC20(USDC).approve(address(rebalancer), type(uint256).max);
+        }
+
+        // -- Warp past cooldown --
+        vm.warp(block.timestamp + 24 hours + 1);
+
+        // -- Execute --
+        uint256 gasBefore = gasleft();
+        rebalancer.cumulativeRebalance(keccak256("BLOKC10"));
+        uint256 gasUsed = gasBefore - gasleft();
+
+        console2.log("Gas used for %d gardens x %d tokens:", GARDEN_COUNT, TOKEN_COUNT);
+        console2.log("  Total gas: %d", gasUsed);
+        console2.log("  Gas per garden: %d", gasUsed / GARDEN_COUNT);
+
+        // -- Verify --
+        assertEq(rebalancer.lastRebalanceTimestamp(keccak256("BLOKC10")), block.timestamp);
+        uint256 dust = IERC20(WETH).balanceOf(address(rebalancer))
+            + IERC20(WBTC).balanceOf(address(rebalancer));
+        assertLe(dust, GARDEN_COUNT * 1e12, "Excessive dust");
+
+        // Each garden should have received tokens back
+        for (uint256 i = 0; i < GARDEN_COUNT; i++) {
+            uint256 wethBal = IERC20(WETH).balanceOf(gardens[i]);
+            uint256 wbtcBal = IERC20(WBTC).balanceOf(gardens[i]);
+            assertGt(wethBal + wbtcBal, 0, "Garden should have tokens");
+        }
+    }
+}
+
 contract MockComponentRegistry {
     mapping(bytes32 => address) public components;
     mapping(address => uint256) public prices;
