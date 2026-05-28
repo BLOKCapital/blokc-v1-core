@@ -118,14 +118,17 @@ contract DeployAndTestFork is Script {
         // =====================================================================
         rebalancer.setDexConfig(
             keccak256("CAMELOT_V2"), CAMELOT_V2_ROUTER, DEX_FACET,
+            bytes4(keccak256("swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)")),
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         rebalancer.setDexConfig(
             keccak256("UNISWAP_V3"), UNISWAP_V3_ROUTER, DEX_FACET,
+            bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
         rebalancer.setDexConfig(
             keccak256("CAMELOT_V3"), CAMELOT_V3_ROUTER, DEX_FACET,
+            bytes4(keccak256("exactInputSingle((address,address,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
         console2.log("All DEXs configured");
@@ -189,7 +192,7 @@ contract DeployAndTestFork is Script {
         console2.log("garden2 WBTC:", IERC20(WBTC).balanceOf(garden2));
 
         vm.startBroadcast(deployer);
-        rebalancer.cumulativeRebalance(keccak256("BLOKC2"));
+        rebalancer.cumulativeRebalance(keccak256("BLOKC2"), block.timestamp + 300);
         vm.stopBroadcast();
 
         console2.log("");

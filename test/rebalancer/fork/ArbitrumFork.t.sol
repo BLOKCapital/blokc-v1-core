@@ -126,14 +126,17 @@ contract ArbitrumForkTest is Test {
         // -- Configure DEXs using the real DexFacet for quoting --
         rebalancer.setDexConfig(
             DEX_CAMELOT_V2, CAMELOT_V2_ROUTER, dexFacet,
+            bytes4(keccak256("swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)")),
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         rebalancer.setDexConfig(
             DEX_UNISWAP_V3, UNISWAP_V3_ROUTER, dexFacet,
+            bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
         rebalancer.setDexConfig(
             keccak256("CAMELOT_V3"), CAMELOT_V3_ROUTER, dexFacet,
+            bytes4(keccak256("exactInputSingle((address,address,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
 
@@ -179,7 +182,7 @@ contract ArbitrumForkTest is Test {
         uint256 wethBefore = IERC20(WETH).balanceOf(garden1) + IERC20(WETH).balanceOf(garden2);
         uint256 wbtcBefore = IERC20(WBTC).balanceOf(garden1) + IERC20(WBTC).balanceOf(garden2);
 
-        rebalancer.cumulativeRebalance(keccak256("BLOKC2"));
+        rebalancer.cumulativeRebalance(keccak256("BLOKC2"), block.timestamp + 300);
 
         uint256 wethAfter = IERC20(WETH).balanceOf(garden1) + IERC20(WETH).balanceOf(garden2);
         uint256 wbtcAfter = IERC20(WBTC).balanceOf(garden1) + IERC20(WBTC).balanceOf(garden2);
@@ -201,7 +204,7 @@ contract ArbitrumForkTest is Test {
     }
 
     function test_fork_gardensBalanceToTarget() public skipIfNoFork {
-        rebalancer.cumulativeRebalance(keccak256("BLOKC2"));
+        rebalancer.cumulativeRebalance(keccak256("BLOKC2"), block.timestamp + 300);
 
         _assertBalanced(garden1, "garden1");
         _assertBalanced(garden2, "garden2");
@@ -213,7 +216,7 @@ contract ArbitrumForkTest is Test {
         uint256 garden2WethBefore = IERC20(WETH).balanceOf(garden2);
         uint256 garden2WbtcBefore = IERC20(WBTC).balanceOf(garden2);
 
-        rebalancer.cumulativeRebalance(keccak256("BLOKC2"));
+        rebalancer.cumulativeRebalance(keccak256("BLOKC2"), block.timestamp + 300);
 
         // Values at approximate market prices (from fork block)
         // WETH ~$3000, WBTC ~$60000
@@ -409,10 +412,12 @@ contract ArbitrumForkScaleTest is Test {
         );
         rebalancer.setDexConfig(
             keccak256("CAMELOT_V2"), CAMELOT_V2_ROUTER, DEX_FACET,
+            bytes4(keccak256("swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)")),
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         rebalancer.setDexConfig(
             keccak256("UNISWAP_V3"), UNISWAP_V3_ROUTER, DEX_FACET,
+            bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
         rebalancer.addIndexToType(keccak256("BLOKC10"), address(mockIndex));
@@ -437,7 +442,7 @@ contract ArbitrumForkScaleTest is Test {
 
         // -- Execute --
         uint256 gasBefore = gasleft();
-        rebalancer.cumulativeRebalance(keccak256("BLOKC10"));
+        rebalancer.cumulativeRebalance(keccak256("BLOKC10"), block.timestamp + 300);
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for %d gardens x %d tokens:", GARDEN_COUNT, TOKEN_COUNT);

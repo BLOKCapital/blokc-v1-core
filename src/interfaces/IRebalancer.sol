@@ -20,6 +20,6 @@ interface IRebalancer {
     function removeIndexFromType(bytes32 indexTypeId, address indexAddress) external;
     function getIndicesForType(bytes32 indexTypeId) external view returns (address[] memory);
     function getIndexCountForType(bytes32 indexTypeId) external view returns (uint256);
-    function cumulativeRebalance(bytes32 indexTypeId) external;
+    function cumulativeRebalance(bytes32 indexTypeId, uint256 deadline) external;
     function lastRebalanceTimestamp(bytes32 indexTypeId) external view returns (uint256);
 }

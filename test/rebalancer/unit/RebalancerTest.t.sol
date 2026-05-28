@@ -468,10 +468,12 @@ abstract contract RebalancerTestBase is Test {
         vm.startPrank(owner);
         rebalancer.setDexConfig(
             DEX_CAMELOT_V2, address(router), address(router),
+            router.swapExactTokensForTokensSupportingFeeOnTransferTokens.selector,
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         rebalancer.setDexConfig(
             DEX_UNISWAP_V2, address(router), address(router),
+            router.swapExactTokensForTokens.selector,
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         vm.stopPrank();
@@ -598,7 +600,7 @@ contract GuardTest is RebalancerTestBase {
 
         _warpPastInterval();
         vm.expectRevert(abi.encodeWithSelector(Rebalancer_NoIndicesRegistered.selector, INDEX_TYPE));
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_rebalance_revertsIfNoGardensFound() public {
@@ -607,7 +609,7 @@ contract GuardTest is RebalancerTestBase {
 
         _warpPastInterval();
         vm.expectRevert(abi.encodeWithSelector(Rebalancer_NoGardensFound.selector, INDEX_TYPE));
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_rebalance_revertsIfIntervalNotPassed() public {
@@ -619,7 +621,7 @@ contract GuardTest is RebalancerTestBase {
                 24 hours // next allowed
             )
         );
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_rebalance_revertsIfReentrancy() public {
@@ -633,7 +635,7 @@ contract GuardTest is RebalancerTestBase {
         _fundGarden(bob, 0.5e18, 5_000_000, 500e6);
 
         // First rebalance should succeed
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // Second rebalance within the same interval should revert
         vm.expectRevert(
@@ -644,14 +646,14 @@ contract GuardTest is RebalancerTestBase {
                 block.timestamp + 24 hours
             )
         );
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_rebalance_revertsIfZeroTotalValue() public {
         // Gardens exist but have zero balance
         _warpPastInterval();
         vm.expectRevert(abi.encodeWithSelector(Rebalancer_ZeroTotalValue.selector, INDEX_TYPE));
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_rebalance_succeedsAfterInterval() public {
@@ -659,7 +661,7 @@ contract GuardTest is RebalancerTestBase {
         _fundGarden(bob, 0.5e18, 5_000_000, 0);
 
         _warpPastInterval();
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
     }
@@ -694,7 +696,7 @@ contract CumulativeRebalanceTest is RebalancerTestBase {
         emit Rebalancer.CumulativeRebalanceCompleted(
             INDEX_TYPE, 2, block.timestamp, block.timestamp + 24 hours
         );
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // Gardens should have received tokens back (proportional redistribution)
         // Alice contributed $9000 / $13500 = 66.67% of total value
@@ -741,7 +743,7 @@ contract CumulativeRebalanceTest is RebalancerTestBase {
         usdc.mint(bob, 1000e6);
 
         _warpPastInterval();
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // USDC should have been returned proportionally (or swapped into components)
         // Since USDC is not a component, it's fully swapped into WETH/WBTC
@@ -759,7 +761,7 @@ contract CumulativeRebalanceTest is RebalancerTestBase {
     function test_rebalance_emitsStartAndCompletedEvents() public {
         // Record all emitted logs and verify they include expected events
         vm.recordLogs();
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         bool foundStart = false;
@@ -778,7 +780,7 @@ contract CumulativeRebalanceTest is RebalancerTestBase {
 
     function test_rebalance_emitsSwapAndRedistributionEvents() public {
         vm.recordLogs();
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         bool foundSwap = false;
@@ -798,7 +800,7 @@ contract CumulativeRebalanceTest is RebalancerTestBase {
     function test_rebalance_anyoneCanCall() public {
         // keeper (not owner) calls rebalance and it succeeds
         vm.prank(keeper);
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
         assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
     }
 }
@@ -824,7 +826,7 @@ contract TokenPullTest is RebalancerTestBase {
 
         // The transferFrom for alice should revert since she didn't approve
         vm.expectRevert();
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_pull_partialApproval_reverts() public {
@@ -838,7 +840,7 @@ contract TokenPullTest is RebalancerTestBase {
         _fundGarden(bob, 0.5e18, 5_000_000, 0);
 
         vm.expectRevert();
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_pull_insufficientApproval_reverts() public {
@@ -854,7 +856,7 @@ contract TokenPullTest is RebalancerTestBase {
 
         // The transferFrom for WETH should revert (trying to pull 1e18 with 0.5e18 allowance)
         vm.expectRevert();
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_pull_zeroBalanceGardens_succeeds() public {
@@ -874,7 +876,7 @@ contract TokenPullTest is RebalancerTestBase {
         wbtc.approve(address(rebalancer), type(uint256).max);
 
         // Should succeed — transferFrom with 0 amount just returns success
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_pull_singleGarden_succeeds() public {
@@ -891,7 +893,7 @@ contract TokenPullTest is RebalancerTestBase {
         // Target: $4500 WETH, $4500 WBTC
         // Current: $3000 WETH (deficit), $6000 WBTC (excess)
         // Need to swap WBTC → WETH
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // Alice should get tokens back
         assertGt(weth.balanceOf(alice), 0);
@@ -914,7 +916,7 @@ contract RedistributionTest is RebalancerTestBase {
         _fundGarden(alice, 1e18, 10_000_000, 0);
         _fundGarden(bob, 0.5e18, 5_000_000, 0);
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         uint256 aliceWeth = weth.balanceOf(alice);
         uint256 bobWeth = weth.balanceOf(bob);
@@ -947,7 +949,7 @@ contract RedistributionTest is RebalancerTestBase {
 
         _fundGarden(alice, 1e18, 10_000_000, 0);
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // Alice should get back all tokens (proportion = 100%)
         uint256 aliceWeth = weth.balanceOf(alice);
@@ -965,7 +967,7 @@ contract RedistributionTest is RebalancerTestBase {
         _fundGarden(alice, 1e18, 10_000_000, 0);
         _fundGarden(bob, 1e18, 10_000_000, 0);
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         uint256 aliceWeth = weth.balanceOf(alice);
         uint256 bobWeth = weth.balanceOf(bob);
@@ -982,7 +984,7 @@ contract RedistributionTest is RebalancerTestBase {
         _fundGarden(alice, 1e18, 10_000_000, 0);
         _fundGarden(bob, 1, 1, 0); // Dust amounts
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // Bob should still get some tokens back
         assertGe(weth.balanceOf(bob), 0);
@@ -1006,7 +1008,7 @@ contract SwapTest is RebalancerTestBase {
 
         // Swap should emit event from the router
         // The exact amounts depend on the pools and quotes
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // Verify WETH balance increased (we swapped WBTC→USDC→WETH)
         uint256 totalWethAfter = weth.balanceOf(alice) + weth.balanceOf(bob);
@@ -1024,7 +1026,7 @@ contract SwapTest is RebalancerTestBase {
         // The findBestSwapRoute tries direct first, then via USDC.
         // Let's just test with what we have — the swap should work via USDC routing.
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
         // Just verify it doesn't revert
     }
 
@@ -1037,7 +1039,7 @@ contract SwapTest is RebalancerTestBase {
 
         // The rebalancer should still work (using other DEXs if available,
         // or simply skipping swaps and redistributing)
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 }
 
@@ -1057,7 +1059,7 @@ contract ValueLossTest is RebalancerTestBase {
 
         // With normal rates, the value loss should be well within 0.5%
         // (no excessive value loss revert)
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
     function test_valueLoss_rebalancePreservesMostValue() public {
@@ -1070,7 +1072,7 @@ contract ValueLossTest is RebalancerTestBase {
             + _usdValue(5_000_000, WBTC_DECIMALS, WBTC_PRICE);
         uint256 totalValueBefore = aliceValueBefore + bobValueBefore;
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // Compute total value after
         uint256 aliceValueAfter = _usdValue(weth.balanceOf(alice), WETH_DECIMALS, WETH_PRICE)
@@ -1121,7 +1123,7 @@ contract EdgeCaseTest is RebalancerTestBase {
         _fundGarden(charlie, 0.3e18, 3_000_000, 0);
 
         _warpPastInterval();
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // All three gardens should receive tokens
         assertGt(weth.balanceOf(alice), 0);
@@ -1152,7 +1154,7 @@ contract EdgeCaseTest is RebalancerTestBase {
         blokc2Index.setGardens(singleGarden);
 
         _warpPastInterval();
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // Alice should get back approximately the same amounts
         // (within BALANCE_THRESHOLD_BPS = 2%)
@@ -1212,7 +1214,7 @@ contract EndToEndTargetWeightTest is RebalancerTestBase {
         singleGarden[0] = alice;
         blokc2Index.setGardens(singleGarden);
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         _assertBalancedToTarget(alice, "single garden");
 
@@ -1228,7 +1230,7 @@ contract EndToEndTargetWeightTest is RebalancerTestBase {
         _fundGarden(alice, 1e18, 10_000_000, 0);
         _fundGarden(bob, 0.5e18, 5_000_000, 0);
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         _assertBalancedToTarget(alice, "alice");
         _assertBalancedToTarget(bob, "bob");
@@ -1250,7 +1252,7 @@ contract EndToEndTargetWeightTest is RebalancerTestBase {
         _fundGarden(alice, 2e18, 5_000_000, 0);
         _fundGarden(bob, 0.5e18, 10_000_000, 0);
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         _assertBalancedToTarget(alice, "alice (asymmetric)");
         _assertBalancedToTarget(bob, "bob (asymmetric)");
@@ -1268,7 +1270,7 @@ contract EndToEndTargetWeightTest is RebalancerTestBase {
         allGardens[2] = charlie;
         blokc2Index.setGardens(allGardens);
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         _assertBalancedToTarget(alice, "alice (3 gardens)");
         _assertBalancedToTarget(bob, "bob (3 gardens)");
@@ -1284,7 +1286,7 @@ contract EndToEndTargetWeightTest is RebalancerTestBase {
         _fundGarden(alice, 1e18, 5_000_000, 3000e6);
         _fundGarden(bob, 0.5e18, 10_000_000, 1500e6);
 
-        rebalancer.cumulativeRebalance(INDEX_TYPE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         _assertBalancedToTarget(alice, "alice (with USDC)");
         _assertBalancedToTarget(bob, "bob (with USDC)");

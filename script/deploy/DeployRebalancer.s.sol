@@ -57,6 +57,7 @@ contract DeployRebalancer is BaseScript {
             keccak256("UNISWAP_V3"),
             0xE592427A0AEce92De3Edee1F18E0157C05861564, // router
             0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B, // DEX facet (for quoting)
+            bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
         console2.log("Configured Uniswap V3");
@@ -66,6 +67,7 @@ contract DeployRebalancer is BaseScript {
             keccak256("CAMELOT_V2"),
             0xc873fEcbd354f5A56E00E710B90EF4201db2448d, // router
             0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B, // DEX facet (for quoting)
+            bytes4(keccak256("swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)")),
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         console2.log("Configured Camelot V2");
@@ -75,6 +77,7 @@ contract DeployRebalancer is BaseScript {
             keccak256("CAMELOT_V3"),
             0x1F721E2E82F6676FCE4eA07A5958cF098D339e18, // router
             0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B, // DEX facet (for quoting)
+            bytes4(keccak256("exactInputSingle((address,address,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
         console2.log("Configured Camelot V3");
@@ -84,6 +87,7 @@ contract DeployRebalancer is BaseScript {
             keccak256("UNISWAP_V2"),
             0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24, // router
             0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B, // DEX facet (for quoting)
+            bytes4(keccak256("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)")),
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         console2.log("Configured Uniswap V2");

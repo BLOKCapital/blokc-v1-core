@@ -87,9 +87,10 @@ contract Rebalancer is Ownable {
 
     /// @notice Per-DEX configuration set by the DAO. No DEX-specific code lives in this contract.
     struct DexConfig {
-        address router; // DEX router address for swap execution
-        address quoteFacet; // DEX facet address for generic quoting (via quoteSelector)
-        DexType dexType; // How to encode the swap call
+        address router;          // DEX router address for swap execution
+        address quoteFacet;      // DEX facet address for generic quoting (via quoteSelector)
+        bytes4 routerSwapSelector; // Router's own swap function selector (e.g. swapExactTokensForTokens.selector)
+        DexType dexType;         // How to encode the calldata (V2 vs V3 parameter layout)
     }
 
     // ========================================================================
@@ -115,8 +116,8 @@ contract Rebalancer is Ownable {
     /// @notice Timestamp of the last cumulative rebalance per index type
     mapping(bytes32 indexTypeId => uint256 timestamp) public lastRebalanceTimestamp;
 
-    /// @notice Per-type reentrancy guard
-    mapping(bytes32 indexTypeId => bool active) private _rebalancing;
+    /// @notice Global reentrancy guard — prevents cross-type reentrancy via DEX router callbacks
+    bool private _locked;
 
     // ========================================================================
     // Events
@@ -178,20 +179,26 @@ contract Rebalancer is Ownable {
      * @param dexId DEX identifier from LiquidityPoolRegistry (e.g. keccak256("UNISWAP_V3"))
      * @param router DEX router contract address (executes swaps)
      * @param quoteFacet DEX facet contract address (provides generic QuoteInstruction-based quoting)
+     * @param routerSwapSelector The router's own swap function selector (e.g. swapExactTokensForTokens.selector)
      * @param dexType Router interface type (V2_CONSTANT_PRODUCT or V3_CONCENTRATED)
      */
-    function setDexConfig(bytes32 dexId, address router, address quoteFacet, DexType dexType)
+    function setDexConfig(
+        bytes32 dexId, address router, address quoteFacet, bytes4 routerSwapSelector, DexType dexType
+    )
         external
         onlyOwner
     {
-        if (router == address(0) || quoteFacet == address(0)) {
+        if (router == address(0) || quoteFacet == address(0) || routerSwapSelector == bytes4(0)) {
             revert Rebalancer_InvalidConfig();
         }
         if (!POOL_REGISTRY.isDexRegistered(dexId)) {
             revert Rebalancer_DexNotConfigured(dexId);
         }
 
-        dexConfigs[dexId] = DexConfig({ router: router, quoteFacet: quoteFacet, dexType: dexType });
+        dexConfigs[dexId] = DexConfig({
+            router: router, quoteFacet: quoteFacet,
+            routerSwapSelector: routerSwapSelector, dexType: dexType
+        });
         emit DexConfigSet(dexId, router, dexType);
     }
 
@@ -228,7 +235,14 @@ contract Rebalancer is Ownable {
     // Core: Cumulative Rebalance (permissionless, time-gated)
     // ========================================================================
 
-    function cumulativeRebalance(bytes32 indexTypeId) external {
+    /**
+     * @notice Executes a cumulative rebalance. Permissionless — anyone can call after cooldown.
+     * @param indexTypeId The index type to rebalance (e.g. keccak256("BLOKC2"))
+     * @param deadline Unix timestamp after which swaps will revert. Set to block.timestamp + 60s
+     *        to limit MEV exposure. The tx reverts if any swap's deadline has passed.
+     */
+    function cumulativeRebalance(bytes32 indexTypeId, uint256 deadline) external {
+        if (deadline < block.timestamp) revert Rebalancer_RebalanceIntervalNotPassed(indexTypeId, 0, deadline);
         // -- Pre-validate --
         if (_indexTypeIndices[indexTypeId].length() == 0) {
             revert Rebalancer_NoIndicesRegistered(indexTypeId);
@@ -238,10 +252,10 @@ contract Rebalancer is Ownable {
         if (block.timestamp < nextAllowed) {
             revert Rebalancer_RebalanceIntervalNotPassed(indexTypeId, lastRebalance, nextAllowed);
         }
-        if (_rebalancing[indexTypeId]) {
+        if (_locked) {
             revert Rebalancer_RebalanceReentrancy(indexTypeId);
         }
-        _rebalancing[indexTypeId] = true;
+        _locked = true;
 
         address[] memory gardens = _collectGardens(indexTypeId);
         if (gardens.length == 0) {
@@ -277,9 +291,9 @@ contract Rebalancer is Ownable {
 
         if (deficit.length > 0) {
             if (excess.length > 0) {
-                _executeSwaps(excess, deficit);
+                _executeSwaps(excess, deficit, deadline);
             } else {
-                _sweepUsdcToDeficits(deficit);
+                _sweepUsdcToDeficits(deficit, deadline);
             }
         }
 
@@ -291,7 +305,7 @@ contract Rebalancer is Ownable {
 
         _redistribute(gardens, allSymbols, contributions, totalValueUsd);
 
-        _rebalancing[indexTypeId] = false;
+        _locked = false;
         lastRebalanceTimestamp[indexTypeId] = block.timestamp;
         uint256 nextRebalanceTimestamp = block.timestamp + REBALANCE_INTERVAL;
 
@@ -503,7 +517,7 @@ contract Rebalancer is Ownable {
         uint256 expectedOut;
     }
 
-    function _executeSwaps(TokenExcess[] memory excess, TokenDeficit[] memory deficit) private {
+    function _executeSwaps(TokenExcess[] memory excess, TokenDeficit[] memory deficit, uint256 deadline) private {
         for (uint256 ei = 0; ei < excess.length; ei++) {
             uint256 remainingSellAmount = excess[ei].sellAmount;
             uint256 remainingSellValue = excess[ei].sellValueUsd;
@@ -525,7 +539,7 @@ contract Rebalancer is Ownable {
                 if (route.pool == address(0)) continue;
 
                 uint256 minOut = Math.mulDiv(route.expectedOut, 95, 100);
-                uint256 actualAmountOut = _executeSwapRoute(route, minOut);
+                uint256 actualAmountOut = _executeSwapRoute(route, minOut, deadline);
 
                 remainingSellAmount -= route.amountIn;
                 remainingSellValue -= Math.mulDiv(route.amountIn, sellPrice, 10 ** sellDecimals, Math.Rounding.Floor);
@@ -540,10 +554,10 @@ contract Rebalancer is Ownable {
                 }
             }
         }
-        _sweepUsdcToDeficits(deficit);
+        _sweepUsdcToDeficits(deficit, deadline);
     }
 
-    function _sweepUsdcToDeficits(TokenDeficit[] memory deficit) private {
+    function _sweepUsdcToDeficits(TokenDeficit[] memory deficit, uint256 deadline) private {
         uint256 usdcBalance = IERC20(USDC).balanceOf(address(this));
         if (usdcBalance == 0) return;
 
@@ -559,7 +573,7 @@ contract Rebalancer is Ownable {
             if (route.pool == address(0)) continue;
 
             uint256 minOut = Math.mulDiv(route.expectedOut, 95, 100);
-            uint256 actualAmountOut = _executeSwapRoute(route, minOut);
+            uint256 actualAmountOut = _executeSwapRoute(route, minOut, deadline);
 
             uint256 buyPrice = COMPONENT_REGISTRY.fetchPrice(deficit[di].symbol);
             uint8 buyDecimals = IERC20Metadata(deficit[di].token).decimals();
@@ -654,7 +668,10 @@ contract Rebalancer is Ownable {
     // Internal: Swap Execution (DexType-driven, no DEX-specific code)
     // ========================================================================
 
-    function _executeSwapRoute(SwapRoute memory route, uint256 minOut) private returns (uint256 amountOut) {
+    function _executeSwapRoute(SwapRoute memory route, uint256 minOut, uint256 deadline)
+        private
+        returns (uint256 amountOut)
+    {
         DexConfig memory cfg = dexConfigs[route.dexId];
         if (cfg.router == address(0)) {
             revert Rebalancer_DexNotConfigured(route.dexId);
@@ -663,9 +680,9 @@ contract Rebalancer is Ownable {
         IERC20(route.tokenIn).forceApprove(cfg.router, route.amountIn);
 
         if (cfg.dexType == DexType.V2_CONSTANT_PRODUCT) {
-            amountOut = _swapV2Style(cfg.router, route, minOut);
+            amountOut = _swapV2Style(cfg.router, cfg.routerSwapSelector, route, minOut, deadline);
         } else if (cfg.dexType == DexType.V3_CONCENTRATED) {
-            amountOut = _swapV3Style(cfg.router, route, minOut);
+            amountOut = _swapV3Style(cfg.router, cfg.routerSwapSelector, route, minOut, deadline);
         } else {
             revert Rebalancer_DexTypeNotSupported(uint8(cfg.dexType));
         }
@@ -680,11 +697,15 @@ contract Rebalancer is Ownable {
     }
 
     /**
-     * @dev V2-style swap: calls the router with
-     *      swapExactTokensForTokensSupportingFeeOnTransferTokens(amountIn, minOut, path, to, referrer, deadline).
-     *      Works for both Camelot V2 and Uniswap V2 (the extra referrer param is ignored by Uniswap V2).
+     * @dev V2-style swap: calls the router using the configured selector.
+     *      Encodes as swapExactTokensForTokensSupportingFeeOnTransferTokens-style
+     *      (amountIn, minOut, [tokenIn, tokenOut], to, address(0), deadline).
+     *      Works for Camelot V2, and with Uniswap V2's swapExactTokensForTokens selector
+     *      (the trailing address(0) is harmless extra calldata that the router ignores).
      */
-    function _swapV2Style(address router, SwapRoute memory route, uint256 minOut)
+    function _swapV2Style(
+        address router, bytes4 selector, SwapRoute memory route, uint256 minOut, uint256 deadline
+    )
         private
         returns (uint256 amountOut)
     {
@@ -695,9 +716,8 @@ contract Rebalancer is Ownable {
         uint256 balanceBefore = IERC20(route.tokenOut).balanceOf(address(this));
 
         (bool success, bytes memory ret) = router.call(
-            abi.encodeWithSignature(
-                "swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)",
-                route.amountIn, minOut, path, address(this), address(0), block.timestamp
+            abi.encodeWithSelector(
+                selector, route.amountIn, minOut, path, address(this), address(0), deadline
             )
         );
         if (!success) {
@@ -709,15 +729,17 @@ contract Rebalancer is Ownable {
     }
 
     /**
-     * @dev V3-style swap: calls the router with exactInputSingle(params).
-     *      Works for Uniswap V3, Camelot V3, SushiSwap V3, and any DEX
-     *      that follows the same exactInputSingle struct convention.
-     *
-     *      NOTE: This uses Uniswap V3's ISwapRouter.ExactInputSingleParams struct
-     *      which is ABI-compatible with Camelot V3 and SushiSwap V3 routers.
-     *      The fee tier is read from the pool on-chain.
+     * @dev V3-style swap: calls the router using the configured selector.
+     *      Encodes as exactInputSingle(tokenIn, tokenOut, fee, recipient, deadline,
+     *      amountIn, minOut, sqrtPriceLimitX96). Fee is read from the pool on-chain.
+     *      Works for any DEX that follows Uniswap V3's exactInputSingle struct layout
+     *      (8 params with uint24 fee). For DEXs with a different struct (e.g. Camelot V3's
+     *      7-param variant), the DAO should configure a V2_CONSTANT_PRODUCT type and provide
+     *      the correct selector + encoding via routerSwapSelector.
      */
-    function _swapV3Style(address router, SwapRoute memory route, uint256 minOut)
+    function _swapV3Style(
+        address router, bytes4 selector, SwapRoute memory route, uint256 minOut, uint256 deadline
+    )
         private
         returns (uint256 amountOut)
     {
@@ -731,9 +753,9 @@ contract Rebalancer is Ownable {
         }
 
         (bool success, bytes memory ret) = router.call(
-            abi.encodeWithSignature(
-                "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))",
-                route.tokenIn, route.tokenOut, fee, address(this), block.timestamp,
+            abi.encodeWithSelector(
+                selector,
+                route.tokenIn, route.tokenOut, fee, address(this), deadline,
                 route.amountIn, minOut, uint160(0)
             )
         );
