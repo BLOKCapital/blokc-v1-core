@@ -17,12 +17,13 @@ import { console2 } from "forge-std/console2.sol";
 
 /**
  * @title DeployAndTestFork
- * @notice Deploys the Rebalancer to a local Anvil fork of Arbitrum One and runs an
- *         end-to-end test through real DEX pools.
+ * @notice Deploys the Rebalancer to a local Anvil fork of Arbitrum One using the
+ *         real protocol contracts (IndexFactory, GardenFactory, registries) and
+ *         prints instructions for manual testing via cast.
  *
  *         Prerequisites:
  *           1. Start Anvil forked from Arbitrum:
- *              anvil --fork-url $ARBITRUM_RPC_URL --fork-block-number 286500000
+ *              anvil --fork-url $ARBITRUM_RPC_URL
  *
  *           2. Run this script against the local Anvil:
  *              forge script script/deploy/DeployAndTestFork.s.sol \
@@ -31,15 +32,13 @@ import { console2 } from "forge-std/console2.sol";
  *                  -vvvv
  *
  *         What's real:
- *           - PoolRegistry, FacetRegistry, DexFacet (live Arbitrum contracts)
- *           - DEX routers (Uniswap V3, Camelot V2/V3)
- *           - All liquidity pools
+ *           - IndexFactory, GardenFactory (deploy real Index + diamond gardens)
+ *           - ComponentRegistry, PoolRegistry, FacetRegistry
+ *           - DexFacet, DEX routers, all liquidity pools
  *           - WETH, WBTC, USDC tokens
  *
  *         What's deployed fresh:
  *           - Rebalancer contract
- *           - Mock index + index factory
- *           - Mock component registry (avoids Chainlink fork oracle issues)
  */
 contract DeployAndTestFork is Script {
     // Arbitrum One mainnet addresses
@@ -47,74 +46,128 @@ contract DeployAndTestFork is Script {
     address internal constant WBTC = 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f;
     address internal constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
+    address internal constant INDEX_FACTORY = 0x91da26BF1a4adDa42355B80502785d3F026d7074;
+    address internal constant COMPONENT_REGISTRY = 0x3F8291D2Fb3f5C4391DDbc36C4Ee0B1F48274977;
     address internal constant POOL_REGISTRY = 0xA3178280c191dD46c551b91c651F337E47594d85;
-    address internal constant FACET_REGISTRY = 0xcD06FE7cdCacAed1806E2c29E411d4bD05A51Ef3;
+    address internal constant FACET_REGISTRY = 0x1e237507bb8520a253300b9e22bFccCd396E45cF;
+    address internal constant GARDEN_FACTORY = 0xA6c558f50c435896aEDe997091bD06ef6cAd3603;
     address internal constant DEX_FACET = 0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B;
+    address internal constant DAO = 0xC20fc692710AE3da739d1A10560be6C72A84857F;
 
     address internal constant UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
     address internal constant CAMELOT_V2_ROUTER = 0xc873fEcbd354f5A56E00E710B90EF4201db2448d;
-    address internal constant CAMELOT_V3_ROUTER = 0x1F721E2E82F6676FCE4eA07A5958cF098D339e18;
+
+    bytes32 internal constant INDEX_GARDEN_TYPE = keccak256("INDEX");
+    address internal constant MARKET_CAP_WEIGHTED = 0xaE505b029C9BC7d415Ed38b420585A02363D5d03;
 
     function run() external {
-        // -- Fork must already be active (Anvil running in another terminal) --
-        //    If fork isn't running, this will just use whatever RPC is configured.
-
         address deployer = msg.sender;
+        address user1 = makeAddr("user1");
+        address user2 = makeAddr("user2");
 
         // =====================================================================
-        // 1. Deploy mock registry + index
+        // 1. Deploy a real Index through the real IndexFactory
+        //    Must impersonate the DAO — deployIndex is onlyOwner.
         // =====================================================================
         vm.startBroadcast(deployer);
-
-        MockIndexFactory mockFactory = new MockIndexFactory();
-        MockIndex mockIndex = new MockIndex();
-
+        vm.prank(DAO);
         bytes32[] memory symbols = new bytes32[](2);
-        symbols[0] = bytes32("ETH");
-        symbols[1] = bytes32("BTC");
-        uint256[] memory weights = new uint256[](2);
-        weights[0] = 0.5e18;
-        weights[1] = 0.5e18;
-        mockIndex.setWeights(symbols, weights);
-
-        address garden1 = 0x0000000000000000000000000000000000000001;
-        address garden2 = 0x0000000000000000000000000000000000000002;
-        address[] memory gardens = new address[](2);
-        gardens[0] = garden1;
-        gardens[1] = garden2;
-        mockIndex.setGardens(gardens);
-
-        mockFactory.setRegistered(address(mockIndex), true);
-
-        console2.log("MockIndex deployed at:", address(mockIndex));
+        symbols[0] = bytes32("BTC");
+        symbols[1] = bytes32("ETH");
+        address testIndex =
+            IIndexFactory(INDEX_FACTORY).deployIndex("BLOKC2-FORK-SCRIPT", MARKET_CAP_WEIGHTED, symbols);
+        console2.log("Index deployed at:", testIndex);
+        vm.stopBroadcast();
 
         // =====================================================================
-        // 2. Deploy mock component registry
+        // 2. Deploy real Garden diamond proxies via GardenFactory
+        //    Each user deploys their own garden.
         // =====================================================================
-        MockComponentRegistry mockComp = new MockComponentRegistry();
-        mockComp.setComponent(bytes32("ETH"), WETH);
-        mockComp.setPrice(WETH, 3000e8);
-        mockComp.setComponent(bytes32("BTC"), WBTC);
-        mockComp.setPrice(WBTC, 60000e8);
-        mockComp.setComponent(bytes32("USDC"), USDC);
-        mockComp.setPrice(USDC, 1e8);
-        mockComp.setRegistered(bytes32("USDC"), true);
+        vm.startBroadcast(deployer);
+        vm.prank(user1);
+        address garden1 = IGardenFactory(GARDEN_FACTORY).createGarden(1, INDEX_GARDEN_TYPE);
+        vm.prank(user2);
+        address garden2 = IGardenFactory(GARDEN_FACTORY).createGarden(2, INDEX_GARDEN_TYPE);
+        console2.log("Garden1 deployed at:", garden1);
+        console2.log("Garden2 deployed at:", garden2);
 
         // =====================================================================
-        // 3. Deploy Rebalancer
+        // 3. Install INDEX module on each garden via the two-step upgrade flow
+        //    upgradeDetails() reads FacetRegistry for pending module cuts.
+        //    upgrade(hash) applies the diamond cut.
         // =====================================================================
+        vm.prank(user1);
+        (, bytes32 hash1) = IUpgrade(garden1).upgradeDetails();
+        vm.prank(user1);
+        IUpgrade(garden1).upgrade(hash1);
+        console2.log("INDEX module installed on garden1");
+
+        vm.prank(user2);
+        (, bytes32 hash2) = IUpgrade(garden2).upgradeDetails();
+        vm.prank(user2);
+        IUpgrade(garden2).upgrade(hash2);
+        console2.log("INDEX module installed on garden2");
+
+        // =====================================================================
+        // 4. Connect gardens to the Index
+        // =====================================================================
+        vm.prank(user1);
+        IIndexFacet(garden1).connectToIndex(testIndex);
+        vm.prank(user2);
+        IIndexFacet(garden2).connectToIndex(testIndex);
+        console2.log("Gardens connected to Index");
+
+        vm.stopBroadcast();
+
+        // =====================================================================
+        // 5. Override Index weights → 50/50 (MarketCapWeighted produces ~85/15)
+        // =====================================================================
+        bytes32[] memory overrideSymbols = new bytes32[](2);
+        overrideSymbols[0] = bytes32("BTC");
+        overrideSymbols[1] = bytes32("ETH");
+        uint256[] memory overrideWeights = new uint256[](2);
+        overrideWeights[0] = 0.5e18;
+        overrideWeights[1] = 0.5e18;
+        vm.mockCall(
+            testIndex,
+            abi.encodeWithSignature("getWeights()"),
+            abi.encode(overrideSymbols, overrideWeights)
+        );
+        console2.log("Index weights overridden to 50/50");
+
+        // =====================================================================
+        // 6. Override ComponentRegistry.fetchPrice → stable prices
+        //    (Chainlink oracle records have stale state on forks)
+        // =====================================================================
+        vm.mockCall(
+            COMPONENT_REGISTRY,
+            abi.encodeWithSignature("fetchPrice(bytes32)", bytes32("BTC")),
+            abi.encode(uint256(60000e8))
+        );
+        vm.mockCall(
+            COMPONENT_REGISTRY,
+            abi.encodeWithSignature("fetchPrice(bytes32)", bytes32("ETH")),
+            abi.encode(uint256(3000e8))
+        );
+        vm.mockCall(
+            COMPONENT_REGISTRY,
+            abi.encodeWithSignature("fetchPrice(bytes32)", bytes32("USDC")),
+            abi.encode(uint256(1e8))
+        );
+        console2.log("fetchPrice overrides set");
+
+        // =====================================================================
+        // 7. Deploy Rebalancer — ALL constructor args are real
+        // =====================================================================
+        vm.startBroadcast(deployer);
         Rebalancer rebalancer = new Rebalancer(
-            deployer,
-            address(mockFactory),
-            address(mockComp),
-            POOL_REGISTRY,
-            FACET_REGISTRY,
-            USDC
+            deployer, INDEX_FACTORY, COMPONENT_REGISTRY,
+            POOL_REGISTRY, FACET_REGISTRY, USDC
         );
         console2.log("Rebalancer deployed at:", address(rebalancer));
 
         // =====================================================================
-        // 4. Configure DEXs
+        // 8. Configure DEXs
         // =====================================================================
         rebalancer.setDexConfig(
             keccak256("CAMELOT_V2"), CAMELOT_V2_ROUTER, DEX_FACET,
@@ -126,125 +179,61 @@ contract DeployAndTestFork is Script {
             bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
-        rebalancer.setDexConfig(
-            keccak256("CAMELOT_V3"), CAMELOT_V3_ROUTER, DEX_FACET,
-            bytes4(keccak256("exactInputSingle((address,address,address,uint256,uint256,uint256,uint160))")),
-            Rebalancer.DexType.V3_CONCENTRATED
-        );
-        console2.log("All DEXs configured");
+        console2.log("DEXs configured");
 
         // =====================================================================
-        // 5. Register index type
+        // 9. Register index type
         // =====================================================================
-        rebalancer.addIndexToType(keccak256("BLOKC2"), address(mockIndex));
+        rebalancer.addIndexToType(keccak256("BLOKC2"), testIndex);
         console2.log("BLOKC2 index registered");
-
-        // =====================================================================
-        // 6. Fund gardens from Arbitrum whale accounts (impersonation)
-        // =====================================================================
-        // WETH whale on Arbitrum: Binance hot wallet
-        address wethWhale = 0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D;
-        // WBTC whale on Arbitrum
-        address wbtcWhale = 0x489ee077994B6658eAfA855C308275EAd8097C4A;
-
-        vm.prank(wethWhale);
-        IERC20(WETH).transfer(garden1, 0.1e18);
-        vm.prank(wethWhale);
-        IERC20(WETH).transfer(garden2, 0.1e18);
-
-        vm.prank(wbtcWhale);
-        IERC20(WBTC).transfer(garden1, 0.01e8);
-        vm.prank(wbtcWhale);
-        IERC20(WBTC).transfer(garden2, 0.01e8);
-
-        // =====================================================================
-        // 7. Gardens approve the Rebalancer
-        // =====================================================================
-        vm.prank(garden1);
-        IERC20(WETH).approve(address(rebalancer), type(uint256).max);
-        vm.prank(garden1);
-        IERC20(WBTC).approve(address(rebalancer), type(uint256).max);
-        vm.prank(garden1);
-        IERC20(USDC).approve(address(rebalancer), type(uint256).max);
-
-        vm.prank(garden2);
-        IERC20(WETH).approve(address(rebalancer), type(uint256).max);
-        vm.prank(garden2);
-        IERC20(WBTC).approve(address(rebalancer), type(uint256).max);
-        vm.prank(garden2);
-        IERC20(USDC).approve(address(rebalancer), type(uint256).max);
-
         vm.stopBroadcast();
 
         // =====================================================================
-        // 8. Warp past 24h cooldown
-        // =====================================================================
-        vm.warp(block.timestamp + 24 hours + 1);
-
-        // =====================================================================
-        // 9. Execute cumulative rebalance (permissionless — anyone can call)
+        // Done. Print instructions for manual testing via cast.
         // =====================================================================
         console2.log("");
-        console2.log("=== BEFORE REBALANCE ===");
-        console2.log("garden1 WETH:", IERC20(WETH).balanceOf(garden1));
-        console2.log("garden1 WBTC:", IERC20(WBTC).balanceOf(garden1));
-        console2.log("garden2 WETH:", IERC20(WETH).balanceOf(garden2));
-        console2.log("garden2 WBTC:", IERC20(WBTC).balanceOf(garden2));
-
-        vm.startBroadcast(deployer);
-        rebalancer.cumulativeRebalance(keccak256("BLOKC2"), block.timestamp + 300);
-        vm.stopBroadcast();
-
+        console2.log("================================================================");
+        console2.log("  Protocol deployed. Run these commands to test:");
+        console2.log("================================================================");
         console2.log("");
-        console2.log("=== AFTER REBALANCE ===");
-        console2.log("garden1 WETH:", IERC20(WETH).balanceOf(garden1));
-        console2.log("garden1 WBTC:", IERC20(WBTC).balanceOf(garden1));
-        console2.log("garden2 WETH:", IERC20(WETH).balanceOf(garden2));
-        console2.log("garden2 WBTC:", IERC20(WBTC).balanceOf(garden2));
-        console2.log("rebalancer WETH dust:", IERC20(WETH).balanceOf(address(rebalancer)));
-        console2.log("rebalancer WBTC dust:", IERC20(WBTC).balanceOf(address(rebalancer)));
-
-        uint256 totalWethAfter = IERC20(WETH).balanceOf(garden1) + IERC20(WETH).balanceOf(garden2);
-        uint256 totalWbtcAfter = IERC20(WBTC).balanceOf(garden1) + IERC20(WBTC).balanceOf(garden2);
+        console2.log("  # Fund gardens (wrap ETH to WETH, then transfer):");
+        console2.log("  cast send <weth> --value 1ether --private-key <key>");
+        console2.log("  cast send <weth> \"transfer(address,uint256)\" <g1> 0.1ether");
         console2.log("");
-        console2.log("Total WETH after:", totalWethAfter);
-        console2.log("Total WBTC after:", totalWbtcAfter);
-        console2.log("WETH should be > 0.2 (if swap executed):", totalWethAfter > 0.2e18);
+        console2.log("  # Approve Rebalancer:");
+        console2.log("  cast send <weth> \"approve(address,uint256)\" <reb> max");
+        console2.log("");
+        console2.log("  # Warp time via Anvil RPC:");
+        console2.log("  curl -X POST ... -d '{\"method\":\"evm_increaseTime\",...}'");
+        console2.log("");
+        console2.log("  # Execute rebalance:");
+        console2.log("  cast send <reb> \"cumulativeRebalance(bytes32,uint256)\" ...");
+        console2.log("");
+        console2.log("Deployed addresses:");
+        console2.log("  Index:     ", testIndex);
+        console2.log("  Garden1:   ", garden1);
+        console2.log("  Garden2:   ", garden2);
+        console2.log("  Rebalancer:", address(rebalancer));
     }
 }
 
 // =============================================================================
-// Minimal mocks (only Index — everything else is real)
+// Minimal interfaces for on-chain protocol contracts
 // =============================================================================
 
-contract MockIndexFactory {
-    mapping(address => bool) public registered;
-    function setRegistered(address idx, bool val) external { registered[idx] = val; }
-    function isIndexRegistered(address idx) external view returns (bool) { return registered[idx]; }
+interface IGardenFactory {
+    function createGarden(uint256 index, bytes32 gardenType) external returns (address);
 }
 
-contract MockIndex {
-    bytes32[] private _symbols;
-    uint256[] private _weights;
-    address[] private _gardens;
-
-    function setWeights(bytes32[] memory s, uint256[] memory w) external { _symbols = s; _weights = w; }
-    function setGardens(address[] memory g) external { _gardens = g; }
-    function getWeights() external view returns (bytes32[] memory, uint256[] memory) {
-        return (_symbols, _weights);
-    }
-    function getConnectedGardens() external view returns (address[] memory) { return _gardens; }
+interface IIndexFactory {
+    function deployIndex(string calldata name, address calc, bytes32[] memory syms) external returns (address);
 }
 
-contract MockComponentRegistry {
-    mapping(bytes32 => address) public components;
-    mapping(address => uint256) public prices;
-    mapping(bytes32 => bool) public registered;
+interface IUpgrade {
+    function upgradeDetails() external view returns (bytes memory, bytes32);
+    function upgrade(bytes32 hashData) external;
+}
 
-    function setComponent(bytes32 s, address t) external { components[s] = t; registered[s] = true; }
-    function setPrice(address t, uint256 p) external { prices[t] = p; }
-    function setRegistered(bytes32 s, bool v) external { registered[s] = v; }
-    function getComponentAddress(bytes32 s) external view returns (address) { return components[s]; }
-    function fetchPrice(bytes32 s) external view returns (uint256) { return prices[components[s]]; }
-    function isComponentRegistered(bytes32 s) external view returns (bool) { return registered[s]; }
+interface IIndexFacet {
+    function connectToIndex(address indexAddress) external;
 }
