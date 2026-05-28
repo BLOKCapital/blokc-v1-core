@@ -88,7 +88,7 @@ contract DeployRebalancer is BaseScript {
             0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24, // router
             0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B, // DEX facet (for quoting)
             bytes4(keccak256("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)")),
-            Rebalancer.DexType.V2_CONSTANT_PRODUCT
+            Rebalancer.DexType.V2_STANDARD
         );
         console2.log("Configured Uniswap V2");
 

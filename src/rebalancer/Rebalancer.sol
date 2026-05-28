@@ -44,6 +44,7 @@ error Rebalancer_InsufficientSwapOutput(address tokenOut, uint256 received, uint
 error Rebalancer_DexNotConfigured(bytes32 dexId);
 error Rebalancer_DexTypeNotSupported(uint8 dexType);
 error Rebalancer_InvalidConfig();
+error Rebalancer_DeadlineExpired(uint256 deadline, uint256 blockTimestamp);
 
 /**
  * @title Rebalancer
@@ -78,9 +79,11 @@ contract Rebalancer is Ownable {
     // ========================================================================
 
     /// @notice DEX category determining the router's swap interface.
-    ///         V2_CONSTANT_PRODUCT: swapExactTokensForTokensSupportingFeeOnTransferTokens-style
-    ///         V3_CONCENTRATED:    exactInputSingle-style (Uniswap V3 / Camelot V3 / SushiSwap V3)
+    ///         V2_STANDARD:         swapExactTokensForTokens (5-param; Uniswap V2, SushiSwap V2)
+    ///         V2_CONSTANT_PRODUCT: swapExactTokensForTokensSupportingFeeOnTransferTokens (6-param; Camelot V2)
+    ///         V3_CONCENTRATED:     exactInputSingle (Uniswap V3, Camelot V3, SushiSwap V3)
     enum DexType {
+        V2_STANDARD,
         V2_CONSTANT_PRODUCT,
         V3_CONCENTRATED
     }
@@ -195,6 +198,9 @@ contract Rebalancer is Ownable {
             revert Rebalancer_DexNotConfigured(dexId);
         }
 
+        // Validate the router address has code (is a contract, not an EOA)
+        if (router.code.length == 0 || quoteFacet.code.length == 0) revert Rebalancer_InvalidConfig();
+
         dexConfigs[dexId] = DexConfig({
             router: router, quoteFacet: quoteFacet,
             routerSwapSelector: routerSwapSelector, dexType: dexType
@@ -242,7 +248,7 @@ contract Rebalancer is Ownable {
      *        to limit MEV exposure. The tx reverts if any swap's deadline has passed.
      */
     function cumulativeRebalance(bytes32 indexTypeId, uint256 deadline) external {
-        if (deadline < block.timestamp) revert Rebalancer_RebalanceIntervalNotPassed(indexTypeId, 0, deadline);
+        if (deadline < block.timestamp) revert Rebalancer_DeadlineExpired(deadline, block.timestamp);
         // -- Pre-validate --
         if (_indexTypeIndices[indexTypeId].length() == 0) {
             revert Rebalancer_NoIndicesRegistered(indexTypeId);
@@ -679,7 +685,9 @@ contract Rebalancer is Ownable {
 
         IERC20(route.tokenIn).forceApprove(cfg.router, route.amountIn);
 
-        if (cfg.dexType == DexType.V2_CONSTANT_PRODUCT) {
+        if (cfg.dexType == DexType.V2_STANDARD) {
+            amountOut = _swapV2Standard(cfg.router, cfg.routerSwapSelector, route, minOut, deadline);
+        } else if (cfg.dexType == DexType.V2_CONSTANT_PRODUCT) {
             amountOut = _swapV2Style(cfg.router, cfg.routerSwapSelector, route, minOut, deadline);
         } else if (cfg.dexType == DexType.V3_CONCENTRATED) {
             amountOut = _swapV3Style(cfg.router, cfg.routerSwapSelector, route, minOut, deadline);
@@ -697,11 +705,35 @@ contract Rebalancer is Ownable {
     }
 
     /**
-     * @dev V2-style swap: calls the router using the configured selector.
-     *      Encodes as swapExactTokensForTokensSupportingFeeOnTransferTokens-style
-     *      (amountIn, minOut, [tokenIn, tokenOut], to, address(0), deadline).
-     *      Works for Camelot V2, and with Uniswap V2's swapExactTokensForTokens selector
-     *      (the trailing address(0) is harmless extra calldata that the router ignores).
+     * @dev V2-standard swap (5-param): swapExactTokensForTokens(amountIn, minOut, path, to, deadline).
+     *      Works for Uniswap V2, SushiSwap V2, and any DEX following the standard Uniswap V2 interface.
+     */
+    function _swapV2Standard(
+        address router, bytes4 selector, SwapRoute memory route, uint256 minOut, uint256 deadline
+    )
+        private
+        returns (uint256 amountOut)
+    {
+        address[] memory path = new address[](2);
+        path[0] = route.tokenIn;
+        path[1] = route.tokenOut;
+
+        uint256 balanceBefore = IERC20(route.tokenOut).balanceOf(address(this));
+
+        (bool success, bytes memory ret) = router.call(
+            abi.encodeWithSelector(selector, route.amountIn, minOut, path, address(this), deadline)
+        );
+        if (!success) {
+            bytes memory reason = ret.length > 0 ? ret : bytes("V2 swap failed");
+            revert Rebalancer_SwapFailed(route.tokenIn, route.tokenOut, reason);
+        }
+
+        amountOut = IERC20(route.tokenOut).balanceOf(address(this)) - balanceBefore;
+    }
+
+    /**
+     * @dev V2-style swap (6-param): swapExactTokensForTokensSupportingFeeOnTransferTokens.
+     *      Used for Camelot V2. The extra referrer param is included in the encoding.
      */
     function _swapV2Style(
         address router, bytes4 selector, SwapRoute memory route, uint256 minOut, uint256 deadline
@@ -743,7 +775,7 @@ contract Rebalancer is Ownable {
         private
         returns (uint256 amountOut)
     {
-        // Read fee tier from the pool on-chain (works for V3-style pools)
+        // Read fee tier from the pool on-chain (works for V3-style pools; defaults to 0)
         uint24 fee;
         (bool feeOk, bytes memory feeData) = route.pool.staticcall(
             abi.encodeWithSignature("fee()")
@@ -751,6 +783,8 @@ contract Rebalancer is Ownable {
         if (feeOk && feeData.length >= 32) {
             fee = abi.decode(feeData, (uint24));
         }
+
+        uint256 balanceBefore = IERC20(route.tokenOut).balanceOf(address(this));
 
         (bool success, bytes memory ret) = router.call(
             abi.encodeWithSelector(
@@ -764,7 +798,7 @@ contract Rebalancer is Ownable {
             revert Rebalancer_SwapFailed(route.tokenIn, route.tokenOut, reason);
         }
 
-        amountOut = abi.decode(ret, (uint256));
+        amountOut = IERC20(route.tokenOut).balanceOf(address(this)) - balanceBefore;
     }
 
     // ========================================================================

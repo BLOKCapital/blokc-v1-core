@@ -474,7 +474,7 @@ abstract contract RebalancerTestBase is Test {
         rebalancer.setDexConfig(
             DEX_UNISWAP_V2, address(router), address(router),
             router.swapExactTokensForTokens.selector,
-            Rebalancer.DexType.V2_CONSTANT_PRODUCT
+            Rebalancer.DexType.V2_STANDARD
         );
         vm.stopPrank();
 

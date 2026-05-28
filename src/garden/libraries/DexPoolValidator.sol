@@ -34,6 +34,12 @@ error DexPoolValidator_NotCanonicalPool(address pool, address canonical);
 /// @notice Thrown when a factory getPair/getPool call fails (V2-style)
 error DexPoolValidator_FactoryCallFailed();
 
+/// @notice Thrown when tokenA and tokenB are the same address (cannot form a valid pair)
+error DexPoolValidator_IdenticalTokens();
+
+/// @notice Thrown when a SwapInstruction has mismatched tokens/pools array lengths
+error DexPoolValidator_InvalidPath();
+
 /**
  * @title DexPoolValidator
  * @author BLOK Capital DAO
@@ -71,6 +77,8 @@ library DexPoolValidator {
         view
     {
         if (pool == address(0)) revert DexPoolValidator_InvalidPoolAddress();
+        if (tokenA == address(0) || tokenB == address(0)) revert DexPoolValidator_InvalidTokenAddress();
+        if (tokenA == tokenB) revert DexPoolValidator_IdenticalTokens();
 
         // 1. Pool must be registered in the LiquidityPoolRegistry
         if (!ILiquidityPoolRegistry(poolRegistry).isPoolRegistered(pool)) {
@@ -81,7 +89,7 @@ library DexPoolValidator {
         (bool ok, bytes memory data) = factory.staticcall(
             abi.encodeWithSignature("getPair(address,address)", tokenA, tokenB)
         );
-        if (!ok) revert DexPoolValidator_FactoryCallFailed();
+        if (!ok || data.length < 32) revert DexPoolValidator_FactoryCallFailed();
 
         address canonical = abi.decode(data, (address));
         if (canonical != pool) revert DexPoolValidator_NotCanonicalPool(pool, canonical);
@@ -112,6 +120,7 @@ library DexPoolValidator {
     {
         if (pool == address(0)) revert DexPoolValidator_InvalidPoolAddress();
         if (tokenA == address(0) || tokenB == address(0)) revert DexPoolValidator_InvalidTokenAddress();
+        if (tokenA == tokenB) revert DexPoolValidator_IdenticalTokens();
 
         // 1. Pool must be registered in the LiquidityPoolRegistry
         if (!ILiquidityPoolRegistry(poolRegistry).isPoolRegistered(pool)) {
@@ -150,6 +159,8 @@ library DexPoolValidator {
         view
     {
         if (pool == address(0)) revert DexPoolValidator_InvalidPoolAddress();
+        if (tokenA == address(0) || tokenB == address(0)) revert DexPoolValidator_InvalidTokenAddress();
+        if (tokenA == tokenB) revert DexPoolValidator_IdenticalTokens();
 
         // 1. Pool must be registered in the LiquidityPoolRegistry
         if (!ILiquidityPoolRegistry(poolRegistry).isPoolRegistered(pool)) {
@@ -160,7 +171,7 @@ library DexPoolValidator {
         (bool ok, bytes memory data) = factory.staticcall(
             abi.encodeWithSignature("poolByPair(address,address)", tokenA, tokenB)
         );
-        if (!ok) revert DexPoolValidator_FactoryCallFailed();
+        if (!ok || data.length < 32) revert DexPoolValidator_FactoryCallFailed();
 
         address canonical = abi.decode(data, (address));
         if (canonical != pool) revert DexPoolValidator_NotCanonicalPool(pool, canonical);
@@ -191,6 +202,8 @@ library DexPoolValidator {
         internal
         view
     {
+        if (instruction.tokens.length != instruction.pools.length + 1) revert DexPoolValidator_InvalidPath();
+
         for (uint256 i = 0; i < instruction.pools.length; i++) {
             if (isV3) {
                 validateV3Pool(

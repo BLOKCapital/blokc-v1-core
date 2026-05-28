@@ -55,9 +55,6 @@ error UniswapV3Facet_PathMustHaveAtLeastTwoPools();
 /// @notice Thrown when router address is zero
 error UniswapV3Facet_InvalidRouterAddress();
 
-/// @notice Thrown when token address is zero
-error UniswapV3Facet_InvalidTokenAddress();
-
 /// @notice Thrown when pool address is zero
 error UniswapV3Facet_InvalidPoolAddress();
 

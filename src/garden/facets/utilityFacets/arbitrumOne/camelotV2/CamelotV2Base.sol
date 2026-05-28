@@ -24,9 +24,6 @@ interface ICamelotV2PairLike {
     function token1() external view returns (address);
 }
 
-/// @notice Thrown when the factory getPair call fails
-error CamelotV2Facet_GetPairFailed();
-
 /// @notice Thrown when the resolved pool address is the zero address
 error CamelotV2Facet_InvalidPoolAddress();
 
