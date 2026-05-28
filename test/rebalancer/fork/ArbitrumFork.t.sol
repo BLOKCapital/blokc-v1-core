@@ -46,7 +46,7 @@ contract ArbitrumForkTest is Test {
     address internal constant INDEX_FACTORY = 0x91da26BF1a4adDa42355B80502785d3F026d7074;
     address internal constant COMPONENT_REGISTRY = 0x3F8291D2Fb3f5C4391DDbc36C4Ee0B1F48274977;
     address internal constant POOL_REGISTRY = 0xA3178280c191dD46c551b91c651F337E47594d85;
-    address internal constant FACET_REGISTRY = 0xcD06FE7cdCacAed1806E2c29E411d4bD05A51Ef3;
+    address internal constant FACET_REGISTRY = 0x1e237507bb8520a253300b9e22bFccCd396E45cF;
     address internal constant GARDEN_FACTORY = 0xA6c558f50c435896aEDe997091bD06ef6cAd3603;
     address internal constant DEX_FACET = 0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B;
 
@@ -102,27 +102,37 @@ contract ArbitrumForkTest is Test {
         testIndex = IIndexFactory(INDEX_FACTORY).deployIndex("BLOKC2-FORK-TEST", marketCapWeighted, symbols);
 
         // =====================================================================
-        // 2. Connect test addresses as "gardens" to the real Index
-        //    Mock GardenFactory.getGardenType() so the Index's validation passes.
-        //    The Rebalancer uses transferFrom() which works identically on EOAs
-        //    and diamond proxies — the self-custody guarantee is via token
-        //    approvals, not the proxy type.
+        // 2. Deploy real Garden diamond proxies through the real GardenFactory.
+        //    Each garden is a full EIP-2535 diamond with BASE facets installed.
+        //    We then install the INDEX module (IndexFacet) via the UpgradeFacet
+        //    so the garden can connect to the Index.
         // =====================================================================
-        vm.mockCall(
-            GARDEN_FACTORY,
-            abi.encodeWithSelector(IGardenFactory.getGardenType.selector, garden1),
-            abi.encode(INDEX_GARDEN_TYPE)
-        );
-        vm.mockCall(
-            GARDEN_FACTORY,
-            abi.encodeWithSelector(IGardenFactory.getGardenType.selector, garden2),
-            abi.encode(INDEX_GARDEN_TYPE)
-        );
+        vm.prank(user1);
+        garden1 = IGardenFactory(GARDEN_FACTORY).createGarden(1, INDEX_GARDEN_TYPE);
+        vm.prank(user2);
+        garden2 = IGardenFactory(GARDEN_FACTORY).createGarden(2, INDEX_GARDEN_TYPE);
 
-        vm.prank(garden1);
-        IIndex(testIndex).connectGardenToIndex();
-        vm.prank(garden2);
-        IIndex(testIndex).connectGardenToIndex();
+        // Install the INDEX module on each garden via the two-step upgrade flow:
+        //   1. upgradeDetails() → reads FacetRegistry for modules not yet installed
+        //   2. upgrade(hash)    → applies the facet cuts
+        // The INDEX module is registered in FacetRegistry but not yet installed in
+        // freshly deployed gardens. upgradeDetails() detects this and returns the
+        // IndexFacet cuts with their hash.
+        vm.prank(user1);
+        (, bytes32 hash1) = IUpgrade(garden1).upgradeDetails();
+        vm.prank(user1);
+        IUpgrade(garden1).upgrade(hash1);
+
+        vm.prank(user2);
+        (, bytes32 hash2) = IUpgrade(garden2).upgradeDetails();
+        vm.prank(user2);
+        IUpgrade(garden2).upgrade(hash2);
+
+        // Connect gardens to the Index
+        vm.prank(user1);
+        IIndexFacet(garden1).connectToIndex(testIndex);
+        vm.prank(user2);
+        IIndexFacet(garden2).connectToIndex(testIndex);
 
         // Verify connection
         address[] memory connected = IIndex(testIndex).getConnectedGardens();
@@ -283,8 +293,35 @@ contract ArbitrumForkTest is Test {
 // Minimal interfaces for on-chain protocol contracts
 // =============================================================================
 
+interface IDiamondCut {
+    enum FacetCutAction { Add, Replace, Remove }
+    struct FacetCut {
+        address facetAddress;
+        FacetCutAction action;
+        bytes4[] functionSelectors;
+    }
+}
+
 interface IGardenFactory {
+    function createGarden(uint256 index, bytes32 gardenType) external returns (address);
     function getGardenType(address garden) external view returns (bytes32);
+}
+
+interface IUpgrade {
+    function upgradeDetails() external view returns (IDiamondCut.FacetCut[] memory cuts, bytes32 hashData);
+    function upgrade(bytes32 hashData) external;
+}
+
+interface IIndexFacet {
+    function connectToIndex(address indexAddress) external;
+}
+
+interface IFacetRegistry {
+    struct Facet {
+        address facetAddress;
+        bytes4[] functionSelectors;
+    }
+    function getModuleFacets(bytes32 moduleId) external view returns (Facet[] memory);
 }
 
 interface IIndexFactory {
@@ -307,7 +344,7 @@ contract ArbitrumForkScaleTest is Test {
     address internal constant WBTC = 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f;
     address internal constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address internal constant POOL_REGISTRY = 0xA3178280c191dD46c551b91c651F337E47594d85;
-    address internal constant FACET_REGISTRY = 0xcD06FE7cdCacAed1806E2c29E411d4bD05A51Ef3;
+    address internal constant FACET_REGISTRY = 0x1e237507bb8520a253300b9e22bFccCd396E45cF;
     address internal constant DEX_FACET = 0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B;
     address internal constant CAMELOT_V2_ROUTER = 0xc873fEcbd354f5A56E00E710B90EF4201db2448d;
     address internal constant UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
