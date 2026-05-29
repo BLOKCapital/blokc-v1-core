@@ -12,8 +12,9 @@ import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstructi
 interface IBalancerV3 {
     /// @notice Execute a single-pool Balancer V3 swap.
     /// @dev For `exactOutput == false`: `amountIn` is the exact spend, `amountOut` is the minimum accepted output.
-    ///      For `exactOutput == true`:  `amountIn` is the maximum accepted spend, `amountOut` is the exact desired output.
-    ///      Only single-hop paths are accepted: `instruction.pools.length == 1` and `instruction.tokens.length == 2`.
+    ///      For `exactOutput == true`:  `amountIn` is the maximum accepted spend, `amountOut` is the exact desired
+    /// output. Only single-hop paths are accepted: `instruction.pools.length == 1` and `instruction.tokens.length ==
+    /// 2`.
     /// @param instruction The standardised swap instruction.
     function balancerV3Swap(SwapInstruction calldata instruction) external;
 

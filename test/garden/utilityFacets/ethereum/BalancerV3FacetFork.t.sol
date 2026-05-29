@@ -126,13 +126,8 @@ contract BalancerV3FacetForkTest is Test {
         pools[0] = BALANCER_POOL;
         pools[1] = address(0xbeef);
 
-        SwapInstruction memory inst = SwapInstruction({
-            amountIn: 1_000_000,
-            amountOut: 1,
-            tokens: tokens,
-            pools: pools,
-            exactOutput: false
-        });
+        SwapInstruction memory inst =
+            SwapInstruction({ amountIn: 1_000_000, amountOut: 1, tokens: tokens, pools: pools, exactOutput: false });
 
         vm.expectRevert(BalancerV3Facet_MultiHopUnsupported.selector);
         this.callSwap(inst);
@@ -147,13 +142,8 @@ contract BalancerV3FacetForkTest is Test {
         address[] memory pools = new address[](1);
         pools[0] = BALANCER_POOL;
 
-        SwapInstruction memory inst = SwapInstruction({
-            amountIn: 1_000_000,
-            amountOut: 1,
-            tokens: tokens,
-            pools: pools,
-            exactOutput: false
-        });
+        SwapInstruction memory inst =
+            SwapInstruction({ amountIn: 1_000_000, amountOut: 1, tokens: tokens, pools: pools, exactOutput: false });
 
         vm.expectRevert(BalancerV3Facet_InvalidPath.selector);
         this.callSwap(inst);
@@ -208,12 +198,8 @@ contract BalancerV3FacetForkTest is Test {
         pools[0] = BALANCER_POOL;
         pools[1] = address(0xbeef);
 
-        QuoteInstruction memory inst = QuoteInstruction({
-            amount: 1_000_000,
-            tokens: tokens,
-            pools: pools,
-            exactOutput: false
-        });
+        QuoteInstruction memory inst =
+            QuoteInstruction({ amount: 1_000_000, tokens: tokens, pools: pools, exactOutput: false });
 
         vm.expectRevert(BalancerV3Facet_MultiHopUnsupported.selector);
         this.callQuote(inst);
@@ -257,15 +243,14 @@ contract BalancerV3FacetForkTest is Test {
         pools[0] = BALANCER_POOL;
 
         instruction = SwapInstruction({
-            amountIn: amountIn,
-            amountOut: amountOut,
-            tokens: tokens,
-            pools: pools,
-            exactOutput: exactOutput
+            amountIn: amountIn, amountOut: amountOut, tokens: tokens, pools: pools, exactOutput: exactOutput
         });
     }
 
-    function _singleHopQuote(uint256 amount, bool exactOutput)
+    function _singleHopQuote(
+        uint256 amount,
+        bool exactOutput
+    )
         internal
         pure
         returns (QuoteInstruction memory instruction)
@@ -290,21 +275,21 @@ contract BalancerV3FacetForkTest is Test {
     }
 
     function _registerBalancerDex() internal {
-        LiquidityPoolRegistry(POOL_REGISTRY).registerDex(
-            BALANCER_V3, IBalancerV3.balancerV3Swap.selector, IBalancerV3.balancerV3Quote.selector
-        );
+        LiquidityPoolRegistry(POOL_REGISTRY)
+            .registerDex(BALANCER_V3, IBalancerV3.balancerV3Swap.selector, IBalancerV3.balancerV3Quote.selector);
     }
 
     function _registerBalancerPool() internal {
-        LiquidityPoolRegistry(POOL_REGISTRY).addPool(
-            ILiquidityPoolRegistry.AddPoolParams({
-                poolAddress: BALANCER_POOL,
-                tokenA: TOKEN_IN,
-                tokenB: TOKEN_OUT,
-                dexId: BALANCER_V3,
-                pairName: "msUSD/USDC"
-            })
-        );
+        LiquidityPoolRegistry(POOL_REGISTRY)
+            .addPool(
+                ILiquidityPoolRegistry.AddPoolParams({
+                    poolAddress: BALANCER_POOL,
+                    tokenA: TOKEN_IN,
+                    tokenB: TOKEN_OUT,
+                    dexId: BALANCER_V3,
+                    pairName: "msUSD/USDC"
+                })
+            );
     }
 
     function _mainnetRpcUrl() internal view returns (string memory rpcUrl) {

@@ -403,10 +403,12 @@ abstract contract UniswapV3Base {
         // Reverse of _quotePool: invert the direction
         if (tokenIn == token0 && tokenOut == token1) {
             // Forward: out = in * sqrtP² / 2^192  →  Reverse: in = out * 2^192 / sqrtP²
-            amountIn = Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
+            amountIn =
+                Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
         } else if (tokenIn == token1 && tokenOut == token0) {
             // Forward: out = in * 2^192 / sqrtP²  →  Reverse: in = out * sqrtP² / 2^192
-            amountIn = Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
+            amountIn =
+                Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
         } else {
             revert UniswapV3Facet_InvalidPath();
         }

@@ -86,7 +86,8 @@ contract RegisterUtilityFacets is BaseScript {
         sushiSwapV3Selectors[1] = sushiSwapV3Facet.sushiSwapV3Quote.selector;
         sushiSwapV3Selectors[2] = sushiSwapV3Facet.getSushiSqrtTwapX96.selector;
         sushiSwapV3Selectors[3] = sushiSwapV3Facet.getSushiCombinedTwapX96.selector;
-        // this is important because sushiswap's pools call this callback during swaps, and it needs to be registered to route correctly through the diamond proxy
+        // this is important because sushiswap's pools call this callback during swaps, and it needs to be registered to
+        // route correctly through the diamond proxy
         sushiSwapV3Selectors[4] = sushiSwapV3Facet.uniswapV3SwapCallback.selector;
         console2.log("SushiSwapV3Facet deployed at:", address(sushiSwapV3Facet));
         // Balancer V3
@@ -112,7 +113,7 @@ contract RegisterUtilityFacets is BaseScript {
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: sushiSwapV3Selectors
         });
-        
+
         dexCuts[3] = IDiamondCut.FacetCut({
             facetAddress: address(balancerV3Facet),
             action: IDiamondCut.FacetCutAction.Add,

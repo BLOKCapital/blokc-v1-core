@@ -163,11 +163,7 @@ abstract contract DexFacetTestBase is DiamondTestBase {
     {
         poolRegistry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
-                poolAddress: poolAddress,
-                tokenA: tokenA,
-                tokenB: tokenB,
-                dexId: dexId,
-                pairName: pairName
+                poolAddress: poolAddress, tokenA: tokenA, tokenB: tokenB, dexId: dexId, pairName: pairName
             })
         );
     }

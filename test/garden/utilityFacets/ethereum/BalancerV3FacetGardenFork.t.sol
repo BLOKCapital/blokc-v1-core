@@ -138,11 +138,7 @@ contract BalancerV3FacetGardenForkTest is Test {
         pools[0] = BALANCER_POOL;
 
         instruction = SwapInstruction({
-            amountIn: amountIn,
-            amountOut: amountOut,
-            tokens: tokens,
-            pools: pools,
-            exactOutput: exactOutput
+            amountIn: amountIn, amountOut: amountOut, tokens: tokens, pools: pools, exactOutput: exactOutput
         });
     }
 
@@ -162,21 +158,21 @@ contract BalancerV3FacetGardenForkTest is Test {
     }
 
     function _registerBalancerDex() internal {
-        LiquidityPoolRegistry(POOL_REGISTRY).registerDex(
-            BALANCER_V3, IBalancerV3.balancerV3Swap.selector, IBalancerV3.balancerV3Quote.selector
-        );
+        LiquidityPoolRegistry(POOL_REGISTRY)
+            .registerDex(BALANCER_V3, IBalancerV3.balancerV3Swap.selector, IBalancerV3.balancerV3Quote.selector);
     }
 
     function _registerBalancerPool() internal {
-        LiquidityPoolRegistry(POOL_REGISTRY).addPool(
-            ILiquidityPoolRegistry.AddPoolParams({
-                poolAddress: BALANCER_POOL,
-                tokenA: TOKEN_IN,
-                tokenB: TOKEN_OUT,
-                dexId: BALANCER_V3,
-                pairName: "msUSD/USDC"
-            })
-        );
+        LiquidityPoolRegistry(POOL_REGISTRY)
+            .addPool(
+                ILiquidityPoolRegistry.AddPoolParams({
+                    poolAddress: BALANCER_POOL,
+                    tokenA: TOKEN_IN,
+                    tokenB: TOKEN_OUT,
+                    dexId: BALANCER_V3,
+                    pairName: "msUSD/USDC"
+                })
+            );
     }
 
     function _deployFacetRegistry() internal returns (FacetRegistry deployedRegistry) {
@@ -216,9 +212,8 @@ contract BalancerV3FacetGardenForkTest is Test {
         string[] memory emptyNames = new string[](0);
         uint256[] memory emptyExpiries = new uint256[](0);
 
-        deployedProtocolStatus = new ProtocolStatus(
-            address(this), makeAddr("ensRegistry"), emptyNamehashes, emptyNames, emptyExpiries
-        );
+        deployedProtocolStatus =
+            new ProtocolStatus(address(this), makeAddr("ensRegistry"), emptyNamehashes, emptyNames, emptyExpiries);
         deployedProtocolStatus.activateProtocol();
     }
 
@@ -229,9 +224,7 @@ contract BalancerV3FacetGardenForkTest is Test {
 
         cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: facetAddress,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: selectors
+            facetAddress: facetAddress, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
         });
     }
 

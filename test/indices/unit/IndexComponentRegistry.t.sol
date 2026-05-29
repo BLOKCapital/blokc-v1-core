@@ -95,7 +95,10 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.expectRevert(IndexComponentRegistry_InvalidComponentAddress.selector);
         components.push(
             IndexComponentRegistry.Component({
-                symbol: bytes32("LINK"), tokenAddress: address(0), priceFeedAddress: address(btcPriceFeed), heartbeat: 3600
+                symbol: bytes32("LINK"),
+                tokenAddress: address(0),
+                priceFeedAddress: address(btcPriceFeed),
+                heartbeat: 3600
             })
         );
         icr.registerComponents(components);
@@ -107,7 +110,10 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.expectRevert(IndexComponentRegistry_InvalidPriceFeedAddress.selector);
         components.push(
             IndexComponentRegistry.Component({
-                symbol: bytes32("LINK"), tokenAddress: makeAddr("newToken"), priceFeedAddress: address(0), heartbeat: 3600
+                symbol: bytes32("LINK"),
+                tokenAddress: makeAddr("newToken"),
+                priceFeedAddress: address(0),
+                heartbeat: 3600
             })
         );
         icr.registerComponents(components);
@@ -118,7 +124,10 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.expectRevert(IndexComponentRegistry_ComponentAlreadyRegistered.selector);
         components.push(
             IndexComponentRegistry.Component({
-                symbol: bytes32("ETH"), tokenAddress: ethAddress, priceFeedAddress: address(ethPriceFeed), heartbeat: 3600
+                symbol: bytes32("ETH"),
+                tokenAddress: ethAddress,
+                priceFeedAddress: address(ethPriceFeed),
+                heartbeat: 3600
             })
         );
         icr.registerComponents(components);

@@ -69,12 +69,7 @@ contract IndexFacet is IIndex, IndexBase, Facet {
     function getPendingIntent()
         external
         view
-        returns (
-            bool active,
-            uint256 totalValueUsd,
-            bytes32[] memory symbols,
-            uint256[] memory targetValues
-        )
+        returns (bool active, uint256 totalValueUsd, bytes32[] memory symbols, uint256[] memory targetValues)
     {
         return _getPendingIntent();
     }

@@ -55,11 +55,7 @@ abstract contract BalancerV3Base {
     // ========================================================================
 
     event BalancerV3FacetTokensSwapped(
-        address indexed pool,
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256 amountIn,
-        uint256 amountOut
+        address indexed pool, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
     );
 
     // ========================================================================
@@ -97,9 +93,10 @@ abstract contract BalancerV3Base {
     {
         _approvePermit2Spending(tokenIn, amountIn);
 
-        uint256 amountOut = IBalancerRouter(BALANCER_V3_ROUTER_ADDRESS).swapSingleTokenExactIn(
-            pool, IERC20(tokenIn), IERC20(tokenOut), amountIn, amountOutMinimum, block.timestamp, false, ""
-        );
+        uint256 amountOut = IBalancerRouter(BALANCER_V3_ROUTER_ADDRESS)
+            .swapSingleTokenExactIn(
+                pool, IERC20(tokenIn), IERC20(tokenOut), amountIn, amountOutMinimum, block.timestamp, false, ""
+            );
 
         _clearApprovals(tokenIn);
         emit BalancerV3FacetTokensSwapped(pool, tokenIn, tokenOut, amountIn, amountOut);
@@ -116,9 +113,10 @@ abstract contract BalancerV3Base {
     {
         _approvePermit2Spending(tokenIn, amountInMaximum);
 
-        uint256 amountIn = IBalancerRouter(BALANCER_V3_ROUTER_ADDRESS).swapSingleTokenExactOut(
-            pool, IERC20(tokenIn), IERC20(tokenOut), amountOut, amountInMaximum, block.timestamp, false, ""
-        );
+        uint256 amountIn = IBalancerRouter(BALANCER_V3_ROUTER_ADDRESS)
+            .swapSingleTokenExactOut(
+                pool, IERC20(tokenIn), IERC20(tokenOut), amountOut, amountInMaximum, block.timestamp, false, ""
+            );
 
         _clearApprovals(tokenIn);
         emit BalancerV3FacetTokensSwapped(pool, tokenIn, tokenOut, amountIn, amountOut);
@@ -228,16 +226,15 @@ abstract contract BalancerV3Base {
     function _approvePermit2Spending(address token, uint256 amount) internal {
         if (amount > type(uint160).max) revert BalancerV3Facet_Permit2AmountTooLarge(amount);
         IERC20(token).forceApprove(BALANCER_V3_PERMIT2_ADDRESS, amount);
-        IPermit2AllowanceTransfer(BALANCER_V3_PERMIT2_ADDRESS).approve(
-            token, BALANCER_V3_ROUTER_ADDRESS, uint160(amount), uint48(block.timestamp + PERMIT2_APPROVAL_WINDOW)
-        );
+        IPermit2AllowanceTransfer(BALANCER_V3_PERMIT2_ADDRESS)
+            .approve(
+                token, BALANCER_V3_ROUTER_ADDRESS, uint160(amount), uint48(block.timestamp + PERMIT2_APPROVAL_WINDOW)
+            );
     }
 
     /// @notice Revokes Permit2 + ERC20 allowances so no residual authority survives the swap.
     function _clearApprovals(address token) internal {
-        IPermit2AllowanceTransfer(BALANCER_V3_PERMIT2_ADDRESS).approve(
-            token, BALANCER_V3_ROUTER_ADDRESS, 0, 0
-        );
+        IPermit2AllowanceTransfer(BALANCER_V3_PERMIT2_ADDRESS).approve(token, BALANCER_V3_ROUTER_ADDRESS, 0, 0);
         IERC20(token).forceApprove(BALANCER_V3_PERMIT2_ADDRESS, 0);
     }
 
@@ -262,7 +259,7 @@ abstract contract BalancerV3Base {
         // We skip tokenInfo (per-token type/rate metadata) and balancesRaw (native-decimal amounts)
         // and use lastBalancesLiveScaled18 directly — already 18-decimal and rate-adjusted —
         // in a single vault call, avoiding a separate getCurrentLiveBalances call.
-        (IERC20[] memory tokens, , , uint256[] memory liveBalances) =
+        (IERC20[] memory tokens,,, uint256[] memory liveBalances) =
             IBalancerVault(BALANCER_V3_VAULT_ADDRESS).getPoolTokenInfo(pool);
 
         for (uint256 i; i < tokens.length; i++) {
