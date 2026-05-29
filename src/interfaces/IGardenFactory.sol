@@ -21,14 +21,10 @@ interface IGardenFactory {
     ///      Each user can deploy up to 10 gardens (indices 1-10). The garden is initialized with facets
     ///      for the specified garden type (BASE module + allowed modules) from the facet registry.
     /// @param index The per-user garden index (must be between 1 and 10, inclusive)
-    // /// @param collection The SBT collection address to mint from
-    // /// @param tokenId The token ID of the SBT to mint
     /// @param gardenType The type of garden to create (determines which modules/facets are included)
     /// @return gardenAddress The address of the newly deployed garden contract
     function createGarden(
         uint256 index,
-        // address collection,
-        // uint256 tokenId,
         bytes32 gardenType
     )
         external
@@ -86,10 +82,6 @@ interface IGardenFactory {
     /// @notice Returns the protocol status address used by this factory
     /// @return The protocol status contract address
     function getProtocolStatus() external view returns (address);
-
-    // /// @notice Returns the SBT registry address used by this factory
-    // /// @return The SBT registry contract address
-    // function getSBTRegistry() external view returns (address);
 
     /// @notice Checks whether a specific index is available for a user
     /// @param user The address of the user

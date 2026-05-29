@@ -12,7 +12,6 @@ import { FacetRegistry } from "src/facetRegistry/FacetRegistry.sol";
 import { IERC165 } from "src/interfaces/IERC165.sol";
 import { ProtocolStatus } from "src/protocolStatus/ProtocolStatus.sol";
 import { GardenFactory } from "src/factory/GardenFactory.sol";
-import { SBTRegistry } from "src/GardenSBT/CollectionRegistry/SBTRegistry.sol";
 
 contract Deploy is BaseScript {
     FacetRegistry internal facetRegistry;
@@ -92,13 +91,10 @@ contract Deploy is BaseScript {
         protocolStatus.activateProtocol();
         console2.log("ProtocolStatus activated");
 
-        // SBTRegistry sbtRegistry = new SBTRegistry(deployer);
-        // console2.log("SBTRegistry deployed at:", address(sbtRegistry));
-
         gardenFactory = new GardenFactory{ salt: salt }(
             deployer,
             address(facetRegistry),
-            address(protocolStatus) /* address(sbtRegistry) */
+            address(protocolStatus)
         );
         console2.log("GardenFactory deployed at:", address(gardenFactory));
     }

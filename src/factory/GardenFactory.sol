@@ -20,7 +20,6 @@ import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
-import { ISBTRegistry } from "src/interfaces/ISBTRegistry.sol";
 
 // Local Contracts
 import { Garden } from "src/garden/Garden.sol";
@@ -50,9 +49,6 @@ error GardenFactory_ProtocolStatusNotSet();
 /// @notice Thrown when the protocol is inactive
 error GardenFactory_ProtocolIsInactive();
 
-/// @notice Thrown when the sbt registry is not set
-error GardenFactory_SBTRegistryNotSet();
-
 /// @notice Thrown when the garden type is not registered
 /// @param gardenType The unregistered garden type
 error GardenFactory_GardenTypeNotRegistered(bytes32 gardenType);
@@ -77,9 +73,6 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
 
     /// @notice The address of the protocol status contract
     address private _protocolStatus;
-
-    /// @notice The address of the SBT registry
-    // ISBTRegistry private _sbtRegistry;
 
     /// @notice The set of all gardens created by this factory
     EnumerableSet.AddressSet private _gardens;
@@ -125,18 +118,15 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     /// @param initialOwner The initial owner of the factory
     /// @param facetRegistry The address of the facet registry contract
     /// @param protocolStatus The address of the protocol status contract
-    // /// @param sbtRegistry The address of the SBT registry contract
     constructor(
         address initialOwner,
         address facetRegistry,
         address protocolStatus
-        // address sbtRegistry
     )
         Ownable(initialOwner)
     {
         _facetRegistry = facetRegistry;
         _protocolStatus = protocolStatus;
-        // _sbtRegistry = ISBTRegistry(sbtRegistry);
 
         if (_facetRegistry == address(0)) {
             revert GardenFactory_FacetRegistryNotSet();
@@ -144,9 +134,6 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         if (_protocolStatus == address(0)) {
             revert GardenFactory_ProtocolStatusNotSet();
         }
-        // if (sbtRegistry == address(0)) {
-        //     revert GardenFactory_SBTRegistryNotSet();
-        // }
     }
 
     // ========================================================================
@@ -156,8 +143,6 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     /// @inheritdoc IGardenFactory
     function createGarden(
         uint256 index,
-        // address collection,
-        // uint256 tokenId,
         bytes32 gardenType
     )
         external
@@ -208,11 +193,6 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         _gardensByType[gardenType].add(gardenAddress);
         _userGardensByType[owner][gardenType].push(gardenAddress);
         _gardenToOwner[gardenAddress] = owner;
-
-        // Mint SBT if collection is provided
-        // if (collection != address(0) && block.chainid == 42_161) {
-        //     _sbtRegistry.mintByAddress(collection, owner, tokenId);
-        // }
 
         emit GardenCreated(gardenAddress, owner, index);
     }
@@ -313,11 +293,6 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     function getProtocolStatus() external view returns (address) {
         return _protocolStatus;
     }
-
-    // /// @inheritdoc IGardenFactory
-    // function getSBTRegistry() external view returns (address) {
-    //     return address(_sbtRegistry);
-    // }
 
     /// @inheritdoc IGardenFactory
     function isIndexAvailable(address user, uint256 index) external view returns (bool) {
