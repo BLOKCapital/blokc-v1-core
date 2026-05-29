@@ -91,11 +91,7 @@ contract Deploy is BaseScript {
         protocolStatus.activateProtocol();
         console2.log("ProtocolStatus activated");
 
-        gardenFactory = new GardenFactory{ salt: salt }(
-            deployer,
-            address(facetRegistry),
-            address(protocolStatus)
-        );
+        gardenFactory = new GardenFactory{ salt: salt }(deployer, address(facetRegistry), address(protocolStatus));
         console2.log("GardenFactory deployed at:", address(gardenFactory));
     }
 }

@@ -103,11 +103,7 @@ contract SwapOutputFuzzTest is IndexFacetTestBase {
         steps[0] = SwapStep({
             dexId: keccak256("TEST_DEX"),
             instruction: SwapInstruction({
-                amountIn: 0,
-                amountOut: minOut,
-                tokens: tokens,
-                pools: pools,
-                exactOutput: false
+                amountIn: 0, amountOut: minOut, tokens: tokens, pools: pools, exactOutput: false
             })
         });
         vm.expectRevert();

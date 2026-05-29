@@ -23,12 +23,7 @@ interface IGardenFactory {
     /// @param index The per-user garden index (must be between 1 and 10, inclusive)
     /// @param gardenType The type of garden to create (determines which modules/facets are included)
     /// @return gardenAddress The address of the newly deployed garden contract
-    function createGarden(
-        uint256 index,
-        bytes32 gardenType
-    )
-        external
-        returns (address gardenAddress);
+    function createGarden(uint256 index, bytes32 gardenType) external returns (address gardenAddress);
 
     /// @notice Returns all gardens created by this factory
     /// @return gardens Array of all registered garden addresses

@@ -118,13 +118,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     /// @param initialOwner The initial owner of the factory
     /// @param facetRegistry The address of the facet registry contract
     /// @param protocolStatus The address of the protocol status contract
-    constructor(
-        address initialOwner,
-        address facetRegistry,
-        address protocolStatus
-    )
-        Ownable(initialOwner)
-    {
+    constructor(address initialOwner, address facetRegistry, address protocolStatus) Ownable(initialOwner) {
         _facetRegistry = facetRegistry;
         _protocolStatus = protocolStatus;
 

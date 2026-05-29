@@ -141,7 +141,18 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
     function test_getWeights_largeComponent() public {
         uint256 count = 10;
 
-        bytes32[10] memory tokenNames = [bytes32("TKN1"), bytes32("TKN2"), bytes32("TKN3"), bytes32("TKN4"), bytes32("TKN5"), bytes32("TKN6"), bytes32("TKN7"), bytes32("TKN8"), bytes32("TKN9"), bytes32("TKN10")];
+        bytes32[10] memory tokenNames = [
+            bytes32("TKN1"),
+            bytes32("TKN2"),
+            bytes32("TKN3"),
+            bytes32("TKN4"),
+            bytes32("TKN5"),
+            bytes32("TKN6"),
+            bytes32("TKN7"),
+            bytes32("TKN8"),
+            bytes32("TKN9"),
+            bytes32("TKN10")
+        ];
 
         bytes32[] memory syms = new bytes32[](count);
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](count);
@@ -154,7 +165,10 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
 
             syms[i] = sym;
             comps[i] = IndexComponentRegistry.Component({
-                symbol: sym, tokenAddress: makeAddr(string(abi.encodePacked(sym))), priceFeedAddress: address(oracle), heartbeat: 3600
+                symbol: sym,
+                tokenAddress: makeAddr(string(abi.encodePacked(sym))),
+                priceFeedAddress: address(oracle),
+                heartbeat: 3600
             });
             supplies[i] = i + 1;
         }
@@ -212,10 +226,16 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
 
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](2);
         comps[0] = IndexComponentRegistry.Component({
-            symbol: bytes32("TOKEN1"), tokenAddress: makeAddr("T1"), priceFeedAddress: address(oracleTiny), heartbeat: 3600
+            symbol: bytes32("TOKEN1"),
+            tokenAddress: makeAddr("T1"),
+            priceFeedAddress: address(oracleTiny),
+            heartbeat: 3600
         });
         comps[1] = IndexComponentRegistry.Component({
-            symbol: bytes32("TOKEN2"), tokenAddress: makeAddr("T2"), priceFeedAddress: address(oracleBig), heartbeat: 3600
+            symbol: bytes32("TOKEN2"),
+            tokenAddress: makeAddr("T2"),
+            priceFeedAddress: address(oracleBig),
+            heartbeat: 3600
         });
 
         vm.startPrank(owner);

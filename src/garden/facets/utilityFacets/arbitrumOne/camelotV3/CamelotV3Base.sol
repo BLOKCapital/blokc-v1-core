@@ -322,9 +322,11 @@ abstract contract CamelotV3Base {
 
         uint256 rawAmountIn;
         if (tokenIn == token0 && tokenOut == token1) {
-            rawAmountIn = Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
+            rawAmountIn =
+                Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
         } else if (tokenIn == token1 && tokenOut == token0) {
-            rawAmountIn = Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
+            rawAmountIn =
+                Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
         } else {
             revert CamelotV3Facet_InvalidPool();
         }

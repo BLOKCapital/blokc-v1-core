@@ -50,13 +50,19 @@ contract IndicesTestSetUp is Test {
         // component
         components.push(
             IndexComponentRegistry.Component({
-                symbol: bytes32("BTC"), tokenAddress: btcAddress, priceFeedAddress: address(btcPriceFeed), heartbeat: 3600
+                symbol: bytes32("BTC"),
+                tokenAddress: btcAddress,
+                priceFeedAddress: address(btcPriceFeed),
+                heartbeat: 3600
             })
         );
 
         components.push(
             IndexComponentRegistry.Component({
-                symbol: bytes32("ETH"), tokenAddress: ethAddress, priceFeedAddress: address(ethPriceFeed), heartbeat: 3600
+                symbol: bytes32("ETH"),
+                tokenAddress: ethAddress,
+                priceFeedAddress: address(ethPriceFeed),
+                heartbeat: 3600
             })
         );
         // register component

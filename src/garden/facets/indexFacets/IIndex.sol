@@ -114,10 +114,5 @@ interface IIndex {
     function getPendingIntent()
         external
         view
-        returns (
-            bool active,
-            uint256 totalValueUsd,
-            bytes32[] memory symbols,
-            uint256[] memory targetValues
-        );
+        returns (bool active, uint256 totalValueUsd, bytes32[] memory symbols, uint256[] memory targetValues);
 }

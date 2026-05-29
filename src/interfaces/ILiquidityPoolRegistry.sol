@@ -62,12 +62,14 @@ interface ILiquidityPoolRegistry {
     // Events
     // ========================================================================
 
-    // ── DEX events ──────────────────────────────────────────────────────
+    // ── DEX events
+    // ──────────────────────────────────────────────────────
     event DexRegistered(bytes32 indexed dexId, bytes4 swapSelector, bytes4 quoteSelector);
     event DexSelectorsUpdated(bytes32 indexed dexId, bytes4 swapSelector, bytes4 quoteSelector);
     event DexStatusChanged(bytes32 indexed dexId, bool active);
 
-    // ── Pool events ─────────────────────────────────────────────────────
+    // ── Pool events
+    // ─────────────────────────────────────────────────────
     event PoolAdded(
         address indexed poolAddress, bytes32 indexed pairId, bytes32 indexed dexId, address token0, address token1
     );
@@ -181,7 +183,11 @@ interface ILiquidityPoolRegistry {
     /// @param tokenB Second token address
     /// @param dexId DEX identifier
     /// @return pools Array of pool addresses on that DEX
-    function getPoolsForPairOnDex(address tokenA, address tokenB, bytes32 dexId)
+    function getPoolsForPairOnDex(
+        address tokenA,
+        address tokenB,
+        bytes32 dexId
+    )
         external
         view
         returns (address[] memory pools);

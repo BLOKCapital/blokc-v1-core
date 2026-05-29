@@ -150,8 +150,7 @@ abstract contract IndexBase {
             revert IndexFacet_RebalanceIntervalNotPassed();
         }
 
-        IndexComponentRegistry componentRegistry =
-            IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
         // Get target weights from index
         (bytes32[] memory symbols, uint256[] memory weights) = Index(s.indexAddress).getWeights();
@@ -211,8 +210,7 @@ abstract contract IndexBase {
             revert IndexFacet_IntentExpired();
         }
 
-        IndexComponentRegistry componentRegistry =
-            IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
         uint256 valueBefore = _calculateTotalValue(componentRegistry);
 
@@ -361,8 +359,7 @@ abstract contract IndexBase {
             uint256 targetValue = s.pendingIntent.targetValues[i];
 
             // Calculate threshold
-            uint256 threshold =
-                Math.mulDiv(targetValue, IndexStorage.BALANCE_THRESHOLD_BPS, 10_000, Math.Rounding.Ceil);
+            uint256 threshold = Math.mulDiv(targetValue, IndexStorage.BALANCE_THRESHOLD_BPS, 10_000, Math.Rounding.Ceil);
 
             // Verify within threshold (use abs diff to avoid underflow)
             uint256 diff = currentValue > targetValue ? currentValue - targetValue : targetValue - currentValue;
@@ -377,10 +374,7 @@ abstract contract IndexBase {
 
     /// @notice Calculate total garden value in USD using the IndexComponentRegistry oracle
     /// @param componentRegistry The IndexComponentRegistry instance.
-    function _calculateTotalValue(IndexComponentRegistry componentRegistry)
-        internal
-        returns (uint256 totalValueUsd)
-    {
+    function _calculateTotalValue(IndexComponentRegistry componentRegistry) internal returns (uint256 totalValueUsd) {
         IndexStorage.Layout storage s = IndexStorage.layout();
 
         for (uint256 i = 0; i < s.pendingIntent.symbols.length; i++) {
@@ -459,19 +453,11 @@ abstract contract IndexBase {
     function _getPendingIntent()
         internal
         view
-        returns (
-            bool active,
-            uint256 totalValueUsd,
-            bytes32[] memory symbols,
-            uint256[] memory targetValues
-        )
+        returns (bool active, uint256 totalValueUsd, bytes32[] memory symbols, uint256[] memory targetValues)
     {
         IndexStorage.Layout storage s = IndexStorage.layout();
         return (
-            s.pendingIntent.active,
-            s.pendingIntent.totalValueUsd,
-            s.pendingIntent.symbols,
-            s.pendingIntent.targetValues
+            s.pendingIntent.active, s.pendingIntent.totalValueUsd, s.pendingIntent.symbols, s.pendingIntent.targetValues
         );
     }
 }

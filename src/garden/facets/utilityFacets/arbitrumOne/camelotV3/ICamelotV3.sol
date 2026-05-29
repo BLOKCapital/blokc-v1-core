@@ -71,7 +71,10 @@ interface ICamelotV3 {
     /// @param twapInterval TWAP observation interval in seconds (0 for spot price)
     /// @return sqrtPriceX96 The sqrt price in Q64.96 format
     /// @return deadline Suggested deadline for swaps using this price (now + 300s)
-    function camelotV3GetSqrtTwapX96(address poolAddress, uint32 twapInterval)
+    function camelotV3GetSqrtTwapX96(
+        address poolAddress,
+        uint32 twapInterval
+    )
         external
         view
         returns (uint160 sqrtPriceX96, uint256 deadline);

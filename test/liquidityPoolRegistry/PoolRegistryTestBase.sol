@@ -25,7 +25,8 @@ contract MockPool {
 abstract contract PoolRegistryTestBase is BaseTest {
     LiquidityPoolRegistry public registry;
 
-    // ── DEX identifiers ──────────────────────────────────────────────
+    // ── DEX identifiers
+    // ──────────────────────────────────────────────
     bytes32 public constant DEX_UNISWAP_V3 = keccak256("UNISWAP_V3");
     bytes32 public constant DEX_UNISWAP_V2 = keccak256("UNISWAP_V2");
     bytes32 public constant DEX_CAMELOT_V3 = keccak256("CAMELOT_V3");
@@ -36,14 +37,16 @@ abstract contract PoolRegistryTestBase is BaseTest {
     address public tokenC = address(0xCCCC);
     address public tokenD = address(0xDDDD);
 
-    // ── Pre-deployed mock pool contracts ─────────────────────────────
+    // ── Pre-deployed mock pool contracts
+    // ─────────────────────────────
     address public pool1;
     address public pool2;
     address public pool3;
     address public pool4;
     address public pool5;
 
-    // ── Default selectors for test DEXes ─────────────────────────────
+    // ── Default selectors for test DEXes
+    // ─────────────────────────────
     bytes4 public constant SWAP_SELECTOR_V3 =
         bytes4(keccak256("uniswapV3Swap((uint256,uint256,address[],address[],bool))"));
     bytes4 public constant QUOTE_SELECTOR_V3 =
@@ -94,24 +97,12 @@ abstract contract PoolRegistryTestBase is BaseTest {
         returns (ILiquidityPoolRegistry.AddPoolParams memory)
     {
         return ILiquidityPoolRegistry.AddPoolParams({
-            poolAddress: poolAddr,
-            tokenA: tA,
-            tokenB: tB,
-            dexId: dexId,
-            pairName: pairName
+            poolAddress: poolAddr, tokenA: tA, tokenB: tB, dexId: dexId, pairName: pairName
         });
     }
 
     /// @notice Add a pool as owner
-    function _addPool(
-        address poolAddr,
-        address tA,
-        address tB,
-        bytes32 dexId,
-        string memory pairName
-    )
-        internal
-    {
+    function _addPool(address poolAddr, address tA, address tB, bytes32 dexId, string memory pairName) internal {
         vm.prank(owner);
         registry.addPool(_params(poolAddr, tA, tB, dexId, pairName));
     }

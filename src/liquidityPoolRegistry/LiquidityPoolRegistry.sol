@@ -21,7 +21,8 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 // Errors
 // ============================================================================
 
-// ── DEX errors ──────────────────────────────────────────────────────────
+// ── DEX errors
+// ──────────────────────────────────────────────────────────
 
 /// @notice Thrown when DEX ID is zero
 error LiquidityPoolRegistry_EmptyDexId();
@@ -37,7 +38,8 @@ error LiquidityPoolRegistry_DexDoesNotExist(bytes32 dexId);
 /// @notice Thrown when a required selector is zero
 error LiquidityPoolRegistry_EmptySelector();
 
-// ── Pool errors ─────────────────────────────────────────────────────────
+// ── Pool errors
+// ─────────────────────────────────────────────────────────
 
 /// @notice Thrown when pool address is zero
 error LiquidityPoolRegistry_ZeroAddress();
@@ -294,7 +296,6 @@ contract LiquidityPoolRegistry is ILiquidityPoolRegistry, Ownable {
         view
         returns (address[] memory pools)
     {
-        
         if (!_dexExists[dexId]) revert LiquidityPoolRegistry_DexDoesNotExist(dexId);
 
         return _getPoolsForPairOnDex(tokenA, tokenB, dexId);
