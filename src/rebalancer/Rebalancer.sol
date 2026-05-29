@@ -379,6 +379,8 @@ contract Rebalancer is Ownable {
             totalValueUsd += gardenTotal;
         }
 
+        // gardens[] is built from DAO-registered Index contracts and contains only BLOK vault
+        // contracts that have explicitly approved this Rebalancer to pull tokens (Slither: arbitrary-send-erc20, false positive).
         for (uint256 i = 0; i < gardens.length; i++) {
             for (uint256 j = 0; j < symbols.length; j++) {
                 address token = COMPONENT_REGISTRY.getComponentAddress(symbols[j]);
@@ -524,6 +526,7 @@ contract Rebalancer is Ownable {
     }
 
     function _executeSwaps(TokenExcess[] memory excess, TokenDeficit[] memory deficit, uint256 deadline) private {
+        // Phase 1: Direct swaps — excess → deficit via direct pools only
         for (uint256 ei = 0; ei < excess.length; ei++) {
             uint256 remainingSellAmount = excess[ei].sellAmount;
             uint256 remainingSellValue = excess[ei].sellValueUsd;
@@ -532,16 +535,18 @@ contract Rebalancer is Ownable {
                 if (remainingSellAmount == 0) break;
                 if (deficit[di].buyValueUsd == 0) continue;
 
-                uint256 swapValueUsd = remainingSellValue < deficit[di].buyValueUsd
-                    ? remainingSellValue : deficit[di].buyValueUsd;
+                address[] memory directPools = POOL_REGISTRY.getPoolsForPair(excess[ei].token, deficit[di].token);
+                if (directPools.length == 0) continue;
 
                 uint256 sellPrice = COMPONENT_REGISTRY.fetchPrice(excess[ei].symbol);
                 uint8 sellDecimals = IERC20Metadata(excess[ei].token).decimals();
+                uint256 swapValueUsd = remainingSellValue < deficit[di].buyValueUsd
+                    ? remainingSellValue : deficit[di].buyValueUsd;
                 uint256 swapAmountIn = Math.mulDiv(swapValueUsd, 10 ** sellDecimals, sellPrice, Math.Rounding.Floor);
                 if (swapAmountIn > remainingSellAmount) swapAmountIn = remainingSellAmount;
                 if (swapAmountIn == 0) continue;
 
-                SwapRoute memory route = _findBestSwapRoute(excess[ei].token, deficit[di].token, swapAmountIn);
+                SwapRoute memory route = _evaluatePools(directPools, excess[ei].token, deficit[di].token, swapAmountIn);
                 if (route.pool == address(0)) continue;
 
                 uint256 minOut = Math.mulDiv(route.expectedOut, 95, 100);
@@ -559,7 +564,23 @@ contract Rebalancer is Ownable {
                     deficit[di].buyValueUsd = 0;
                 }
             }
+
+            // Phase 2: Remaining excess → consolidated to USDC in one swap per token.
+            if (remainingSellAmount > 0 && excess[ei].token != USDC) {
+                uint256 balance = IERC20(excess[ei].token).balanceOf(address(this));
+                uint256 sellAmount = remainingSellAmount < balance ? remainingSellAmount : balance;
+                if (sellAmount > 0) {
+                    address[] memory usdcPools = POOL_REGISTRY.getPoolsForPair(excess[ei].token, USDC);
+                    SwapRoute memory usdcRoute = _evaluatePools(usdcPools, excess[ei].token, USDC, sellAmount);
+                    if (usdcRoute.pool != address(0)) {
+                        uint256 minOut = Math.mulDiv(usdcRoute.expectedOut, 95, 100);
+                        _executeSwapRoute(usdcRoute, minOut, deadline);
+                    }
+                }
+            }
         }
+
+        // Phase 3: Buy deficits with USDC
         _sweepUsdcToDeficits(deficit, deadline);
     }
 
@@ -775,14 +796,14 @@ contract Rebalancer is Ownable {
         private
         returns (uint256 amountOut)
     {
-        // Read fee tier from the pool on-chain (works for V3-style pools; defaults to 0)
-        uint24 fee;
+        // Read fee tier from the pool on-chain (works for V3-style pools; reverts on failure)
         (bool feeOk, bytes memory feeData) = route.pool.staticcall(
             abi.encodeWithSignature("fee()")
         );
-        if (feeOk && feeData.length >= 32) {
-            fee = abi.decode(feeData, (uint24));
+        if (!feeOk || feeData.length < 32) {
+            revert Rebalancer_SwapFailed(route.tokenIn, route.tokenOut, "V3 pool fee() lookup failed");
         }
+        uint24 fee = abi.decode(feeData, (uint24));
 
         uint256 balanceBefore = IERC20(route.tokenOut).balanceOf(address(this));
 
