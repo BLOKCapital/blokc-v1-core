@@ -312,11 +312,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             return _hasPendingIntent();
         }
 
-        function getPendingIntent()
-            external
-            view
-            returns (bool, uint256, bytes32[] memory, uint256[] memory)
-        {
+        function getPendingIntent() external view returns (bool, uint256, bytes32[] memory, uint256[] memory) {
             return _getPendingIntent();
         }
 
@@ -799,9 +795,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
         function test_rebalance_revertsWhenNoPendingIntent() public {
             // Clear the intent flag directly
-            h.forceSetPendingIntent(
-                false, new bytes32[](0), new uint256[](0), 0
-            );
+            h.forceSetPendingIntent(false, new bytes32[](0), new uint256[](0), 0);
             vm.expectRevert(IndexFacet_NoPendingIntent.selector);
             h.rebalance(new SwapStep[](0));
         }
@@ -857,11 +851,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             steps[0] = SwapStep({
                 dexId: keccak256("TEST_DEX"),
                 instruction: SwapInstruction({
-                    amountIn: 0,
-                    amountOut: 0,
-                    tokens: tokens,
-                    pools: pools,
-                    exactOutput: false
+                    amountIn: 0, amountOut: 0, tokens: tokens, pools: pools, exactOutput: false
                 })
             });
         }
@@ -948,7 +938,11 @@ contract MockERC20 is IERC20, IERC20Metadata {
             address tokenOut,
             uint256 amountIn,
             uint256 amountOut
-        ) internal pure returns (SwapStep memory) {
+        )
+            internal
+            pure
+            returns (SwapStep memory)
+        {
             address[] memory tokens = new address[](2);
             tokens[0] = tokenIn;
             tokens[1] = tokenOut;
@@ -957,11 +951,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             return SwapStep({
                 dexId: dexId,
                 instruction: SwapInstruction({
-                    amountIn: amountIn,
-                    amountOut: amountOut,
-                    tokens: tokens,
-                    pools: pools,
-                    exactOutput: false
+                    amountIn: amountIn, amountOut: amountOut, tokens: tokens, pools: pools, exactOutput: false
                 })
             });
         }

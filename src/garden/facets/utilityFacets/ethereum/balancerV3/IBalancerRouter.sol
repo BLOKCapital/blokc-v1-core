@@ -14,7 +14,10 @@ interface IBalancerRouter {
         uint256 deadline,
         bool wethIsEth,
         bytes calldata userData
-    ) external payable returns (uint256 amountOut);
+    )
+        external
+        payable
+        returns (uint256 amountOut);
 
     function swapSingleTokenExactOut(
         address pool,
@@ -25,5 +28,8 @@ interface IBalancerRouter {
         uint256 deadline,
         bool wethIsEth,
         bytes calldata userData
-    ) external payable returns (uint256 amountIn);
+    )
+        external
+        payable
+        returns (uint256 amountIn);
 }

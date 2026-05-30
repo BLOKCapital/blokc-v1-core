@@ -84,9 +84,9 @@ abstract contract SushiSwapV3Base {
     address internal constant POOL_REGISTRY_ADDRESS = 0xDe6338E4dd7B0A2076e8CE63cC0443dC6cE7f0B6;
 
     /// @dev Lower bound for sqrtPriceLimitX96 — passed when zeroForOne to mean no price limit
-    uint160 internal constant MIN_SQRT_RATIO = 4295128739;
+    uint160 internal constant MIN_SQRT_RATIO = 4_295_128_739;
     /// @dev Upper bound for sqrtPriceLimitX96 — passed when oneForZero to mean no price limit
-    uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
+    uint160 internal constant MAX_SQRT_RATIO = 1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342;
 
     // ========================================================================
     // Events
@@ -114,13 +114,14 @@ abstract contract SushiSwapV3Base {
     {
         bool zeroForOne = params.tokenIn == IUniswapV3Pool(pool).token0();
 
-        (int256 amount0, int256 amount1) = IUniswapV3Pool(pool).swap(
-            address(this),
-            zeroForOne,
-            int256(params.amountIn),
-            zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
-            abi.encode(params.tokenIn, pool)
-        );
+        (int256 amount0, int256 amount1) = IUniswapV3Pool(pool)
+            .swap(
+                address(this),
+                zeroForOne,
+                int256(params.amountIn),
+                zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                abi.encode(params.tokenIn, pool)
+            );
 
         amountOut = uint256(-(zeroForOne ? amount1 : amount0));
         if (amountOut < params.amountOutMinimum) revert SushiSwapV3Facet_InsufficientOutputAmount();
@@ -152,13 +153,14 @@ abstract contract SushiSwapV3Base {
 
             bool zeroForOne = tokenIn == IUniswapV3Pool(pool).token0();
 
-            (int256 amount0, int256 amount1) = IUniswapV3Pool(pool).swap(
-                address(this),
-                zeroForOne,
-                int256(amountIn),
-                zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
-                abi.encode(tokenIn, pool)
-            );
+            (int256 amount0, int256 amount1) = IUniswapV3Pool(pool)
+                .swap(
+                    address(this),
+                    zeroForOne,
+                    int256(amountIn),
+                    zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                    abi.encode(tokenIn, pool)
+                );
 
             // Output of this hop becomes input for the next
             amountIn = uint256(-(zeroForOne ? amount1 : amount0));
@@ -187,13 +189,14 @@ abstract contract SushiSwapV3Base {
     {
         bool zeroForOne = params.tokenIn == IUniswapV3Pool(pool).token0();
 
-        (int256 amount0, int256 amount1) = IUniswapV3Pool(pool).swap(
-            address(this),
-            zeroForOne,
-            -int256(params.amountOut),
-            zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
-            abi.encode(params.tokenIn, pool)
-        );
+        (int256 amount0, int256 amount1) = IUniswapV3Pool(pool)
+            .swap(
+                address(this),
+                zeroForOne,
+                -int256(params.amountOut),
+                zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                abi.encode(params.tokenIn, pool)
+            );
 
         uint256 amountIn = uint256(zeroForOne ? amount0 : amount1);
         if (amountIn > params.amountInMaximum) revert SushiSwapV3Facet_ExcessiveInputAmount();
@@ -299,8 +302,7 @@ abstract contract SushiSwapV3Base {
         } else {
             result = inst.amount;
             for (uint256 i = hops; i > 0; i--) {
-                result =
-                    _reverseQuotePool(inst.pools[i - 1], result, inst.tokens[i - 1], inst.tokens[i], twapInterval);
+                result = _reverseQuotePool(inst.pools[i - 1], result, inst.tokens[i - 1], inst.tokens[i], twapInterval);
             }
         }
     }
