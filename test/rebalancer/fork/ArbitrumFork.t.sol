@@ -77,7 +77,10 @@ contract ArbitrumForkTest is Test {
 
     function setUp() public {
         string memory rpcUrl = vm.envOr("ARBITRUM_RPC_URL", string(""));
-        if (bytes(rpcUrl).length == 0) { forkActive = false; return; }
+        if (bytes(rpcUrl).length == 0) {
+            forkActive = false;
+            return;
+        }
         forkActive = true;
         vm.createSelectFork(rpcUrl);
 
@@ -152,11 +155,7 @@ contract ArbitrumForkTest is Test {
         uint256[] memory overrideWeights = new uint256[](2);
         overrideWeights[0] = 0.5e18;
         overrideWeights[1] = 0.5e18;
-        vm.mockCall(
-            testIndex,
-            abi.encodeWithSignature("getWeights()"),
-            abi.encode(overrideSymbols, overrideWeights)
-        );
+        vm.mockCall(testIndex, abi.encodeWithSignature("getWeights()"), abi.encode(overrideSymbols, overrideWeights));
 
         // =====================================================================
         // 4. Fix ComponentRegistry.fetchPrice for fork stability
@@ -165,25 +164,31 @@ contract ArbitrumForkTest is Test {
         //    used in this test. getComponentAddress/isComponentRegistered are
         //    NOT mocked — they use real on-chain registry data.
         // =====================================================================
-        _mockFetchPrice(bytes32("BTC"), uint256(60000e8));
+        _mockFetchPrice(bytes32("BTC"), uint256(60_000e8));
         _mockFetchPrice(bytes32("ETH"), uint256(3000e8));
         _mockFetchPrice(bytes32("USDC"), uint256(1e8));
 
         // =====================================================================
         // 4. Deploy the Rebalancer — ALL constructor args are real contracts
         // =====================================================================
-        rebalancer = new Rebalancer(
-            address(this), INDEX_FACTORY, COMPONENT_REGISTRY,
-            POOL_REGISTRY, FACET_REGISTRY, USDC
-        );
+        rebalancer =
+            new Rebalancer(address(this), INDEX_FACTORY, COMPONENT_REGISTRY, POOL_REGISTRY, FACET_REGISTRY, USDC);
 
         rebalancer.setDexConfig(
-            keccak256("CAMELOT_V2"), CAMELOT_V2_ROUTER, DEX_FACET,
-            bytes4(keccak256("swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)")),
+            keccak256("CAMELOT_V2"),
+            CAMELOT_V2_ROUTER,
+            DEX_FACET,
+            bytes4(
+                keccak256(
+                    "swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)"
+                )
+            ),
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         rebalancer.setDexConfig(
-            keccak256("UNISWAP_V3"), UNISWAP_V3_ROUTER, DEX_FACET,
+            keccak256("UNISWAP_V3"),
+            UNISWAP_V3_ROUTER,
+            DEX_FACET,
             bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
@@ -281,11 +286,7 @@ contract ArbitrumForkTest is Test {
     }
 
     function _mockFetchPrice(bytes32 symbol, uint256 price) internal {
-        vm.mockCall(
-            COMPONENT_REGISTRY,
-            abi.encodeWithSignature("fetchPrice(bytes32)", symbol),
-            abi.encode(price)
-        );
+        vm.mockCall(COMPONENT_REGISTRY, abi.encodeWithSignature("fetchPrice(bytes32)", symbol), abi.encode(price));
     }
 }
 
@@ -294,7 +295,12 @@ contract ArbitrumForkTest is Test {
 // =============================================================================
 
 interface IDiamondCut {
-    enum FacetCutAction { Add, Replace, Remove }
+    enum FacetCutAction {
+        Add,
+        Replace,
+        Remove
+    }
+
     struct FacetCut {
         address facetAddress;
         FacetCutAction action;
@@ -364,20 +370,33 @@ contract ArbitrumForkScaleTest is Test {
     uint256 internal constant TOKEN_COUNT = 10;
     bool internal forkActive;
 
-    modifier skipIfNoFork() { if (!forkActive) return; _; }
+    modifier skipIfNoFork() {
+        if (!forkActive) return;
+        _;
+    }
 
     function setUp() public {
         string memory rpcUrl = vm.envOr("ARBITRUM_RPC_URL", string(""));
-        if (bytes(rpcUrl).length == 0) { forkActive = false; return; }
+        if (bytes(rpcUrl).length == 0) {
+            forkActive = false;
+            return;
+        }
         forkActive = true;
         vm.createSelectFork(rpcUrl);
     }
 
     function test_scale_50gardens_blokc10() public skipIfNoFork {
         bytes32[] memory symbols = new bytes32[](TOKEN_COUNT);
-        symbols[0] = BTC; symbols[1] = ETH; symbols[2] = LINK; symbols[3] = UNI;
-        symbols[4] = ARB; symbols[5] = AAVE; symbols[6] = GMX; symbols[7] = PENDLE;
-        symbols[8] = GRT; symbols[9] = CRV;
+        symbols[0] = BTC;
+        symbols[1] = ETH;
+        symbols[2] = LINK;
+        symbols[3] = UNI;
+        symbols[4] = ARB;
+        symbols[5] = AAVE;
+        symbols[6] = GMX;
+        symbols[7] = PENDLE;
+        symbols[8] = GRT;
+        symbols[9] = CRV;
 
         address[] memory tokens = new address[](TOKEN_COUNT);
         tokens[0] = WBTC;
@@ -392,12 +411,21 @@ contract ArbitrumForkScaleTest is Test {
         tokens[9] = 0x11cDb42B0EB46D95f990BeDD4695A6e3fA034978;
 
         uint256[] memory prices = new uint256[](TOKEN_COUNT);
-        prices[0] = 60000e8; prices[1] = 3000e8; prices[2] = 15e8; prices[3] = 8e8;
-        prices[4] = 1e8; prices[5] = 150e8; prices[6] = 25e8; prices[7] = 5e8;
-        prices[8] = 0.15e8; prices[9] = 0.5e8;
+        prices[0] = 60_000e8;
+        prices[1] = 3000e8;
+        prices[2] = 15e8;
+        prices[3] = 8e8;
+        prices[4] = 1e8;
+        prices[5] = 150e8;
+        prices[6] = 25e8;
+        prices[7] = 5e8;
+        prices[8] = 0.15e8;
+        prices[9] = 0.5e8;
 
         uint256[] memory weights = new uint256[](TOKEN_COUNT);
-        for (uint256 i = 0; i < TOKEN_COUNT; i++) weights[i] = 0.1e18;
+        for (uint256 i = 0; i < TOKEN_COUNT; i++) {
+            weights[i] = 0.1e18;
+        }
 
         address[] memory gardens = new address[](GARDEN_COUNT);
         for (uint256 i = 0; i < GARDEN_COUNT; i++) {
@@ -421,15 +449,26 @@ contract ArbitrumForkScaleTest is Test {
         mockFactory.setRegistered(address(mockIdx), true);
 
         Rebalancer r = new Rebalancer(
-            address(this), address(mockFactory), address(mockComp),
-            POOL_REGISTRY, FACET_REGISTRY, USDC
+            address(this), address(mockFactory), address(mockComp), POOL_REGISTRY, FACET_REGISTRY, USDC
         );
-        r.setDexConfig(keccak256("CAMELOT_V2"), CAMELOT_V2_ROUTER, DEX_FACET,
-            bytes4(keccak256("swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)")),
-            Rebalancer.DexType.V2_CONSTANT_PRODUCT);
-        r.setDexConfig(keccak256("UNISWAP_V3"), UNISWAP_V3_ROUTER, DEX_FACET,
+        r.setDexConfig(
+            keccak256("CAMELOT_V2"),
+            CAMELOT_V2_ROUTER,
+            DEX_FACET,
+            bytes4(
+                keccak256(
+                    "swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)"
+                )
+            ),
+            Rebalancer.DexType.V2_CONSTANT_PRODUCT
+        );
+        r.setDexConfig(
+            keccak256("UNISWAP_V3"),
+            UNISWAP_V3_ROUTER,
+            DEX_FACET,
             bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))")),
-            Rebalancer.DexType.V3_CONCENTRATED);
+            Rebalancer.DexType.V3_CONCENTRATED
+        );
         r.addIndexToType(keccak256("BLOKC10"), address(mockIdx));
 
         for (uint256 i = 0; i < GARDEN_COUNT; i++) {
@@ -460,24 +499,64 @@ contract MockCompRegistry {
     mapping(bytes32 => address) public components;
     mapping(address => uint256) public prices;
     mapping(bytes32 => bool) public registered;
-    function setComponent(bytes32 s, address t) external { components[s] = t; registered[s] = true; }
-    function setPrice(address t, uint256 p) external { prices[t] = p; }
-    function setRegistered(bytes32 s, bool v) external { registered[s] = v; }
-    function getComponentAddress(bytes32 s) external view returns (address) { return components[s]; }
-    function fetchPrice(bytes32 s) external view returns (uint256) { return prices[components[s]]; }
-    function isComponentRegistered(bytes32 s) external view returns (bool) { return registered[s]; }
+
+    function setComponent(bytes32 s, address t) external {
+        components[s] = t;
+        registered[s] = true;
+    }
+
+    function setPrice(address t, uint256 p) external {
+        prices[t] = p;
+    }
+
+    function setRegistered(bytes32 s, bool v) external {
+        registered[s] = v;
+    }
+
+    function getComponentAddress(bytes32 s) external view returns (address) {
+        return components[s];
+    }
+
+    function fetchPrice(bytes32 s) external view returns (uint256) {
+        return prices[components[s]];
+    }
+
+    function isComponentRegistered(bytes32 s) external view returns (bool) {
+        return registered[s];
+    }
 }
 
 contract MockIdx {
-    bytes32[] private _symbols; uint256[] private _weights; address[] private _gardens;
-    function setWeights(bytes32[] memory s, uint256[] memory w) external { _symbols = s; _weights = w; }
-    function setGardens(address[] memory g) external { _gardens = g; }
-    function getWeights() external view returns (bytes32[] memory, uint256[] memory) { return (_symbols, _weights); }
-    function getConnectedGardens() external view returns (address[] memory) { return _gardens; }
+    bytes32[] private _symbols;
+    uint256[] private _weights;
+    address[] private _gardens;
+
+    function setWeights(bytes32[] memory s, uint256[] memory w) external {
+        _symbols = s;
+        _weights = w;
+    }
+
+    function setGardens(address[] memory g) external {
+        _gardens = g;
+    }
+
+    function getWeights() external view returns (bytes32[] memory, uint256[] memory) {
+        return (_symbols, _weights);
+    }
+
+    function getConnectedGardens() external view returns (address[] memory) {
+        return _gardens;
+    }
 }
 
 contract MockIdxFactory {
     mapping(address => bool) public registered;
-    function setRegistered(address idx, bool val) external { registered[idx] = val; }
-    function isIndexRegistered(address idx) external view returns (bool) { return registered[idx]; }
+
+    function setRegistered(address idx, bool val) external {
+        registered[idx] = val;
+    }
+
+    function isIndexRegistered(address idx) external view returns (bool) {
+        return registered[idx];
+    }
 }

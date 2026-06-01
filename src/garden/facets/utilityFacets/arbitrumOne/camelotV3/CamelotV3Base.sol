@@ -240,8 +240,11 @@ abstract contract CamelotV3Base {
     function _validateSwapPools(SwapInstruction calldata instruction) internal view {
         for (uint256 i; i < instruction.pools.length; i++) {
             DexPoolValidator.validateCamelotV3Pool(
-                POOL_REGISTRY_ADDRESS, CAMELOT_V3_FACTORY_ADDRESS,
-                instruction.pools[i], instruction.tokens[i], instruction.tokens[i + 1]
+                POOL_REGISTRY_ADDRESS,
+                CAMELOT_V3_FACTORY_ADDRESS,
+                instruction.pools[i],
+                instruction.tokens[i],
+                instruction.tokens[i + 1]
             );
         }
     }

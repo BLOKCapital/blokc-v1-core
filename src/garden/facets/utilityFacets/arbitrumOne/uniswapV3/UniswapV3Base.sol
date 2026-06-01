@@ -476,16 +476,12 @@ abstract contract UniswapV3Base {
 
     /// @notice Validates a single V3 pool through the shared DexPoolValidator library
     function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
-        DexPoolValidator.validateV3Pool(
-            POOL_REGISTRY_ADDRESS, UNISWAP_FACTORY_ADDRESS, pool, tokenIn, tokenOut
-        );
+        DexPoolValidator.validateV3Pool(POOL_REGISTRY_ADDRESS, UNISWAP_FACTORY_ADDRESS, pool, tokenIn, tokenOut);
     }
 
     /// @notice Validates all pools in a SwapInstruction through DexPoolValidator
     function _validateSwapPools(SwapInstruction calldata instruction) internal view {
-        DexPoolValidator.validateSwapPools(
-            POOL_REGISTRY_ADDRESS, UNISWAP_FACTORY_ADDRESS, instruction, true
-        );
+        DexPoolValidator.validateSwapPools(POOL_REGISTRY_ADDRESS, UNISWAP_FACTORY_ADDRESS, instruction, true);
     }
 
     /// @notice Encodes a multi-hop path for Uniswap V3 router

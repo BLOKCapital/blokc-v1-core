@@ -86,9 +86,8 @@ library DexPoolValidator {
         }
 
         // 2. Pool must be the canonical factory pair for this token pair
-        (bool ok, bytes memory data) = factory.staticcall(
-            abi.encodeWithSignature("getPair(address,address)", tokenA, tokenB)
-        );
+        (bool ok, bytes memory data) =
+            factory.staticcall(abi.encodeWithSignature("getPair(address,address)", tokenA, tokenB));
         if (!ok || data.length < 32) revert DexPoolValidator_FactoryCallFailed();
 
         address canonical = abi.decode(data, (address));
@@ -168,9 +167,8 @@ library DexPoolValidator {
         }
 
         // 2. Pool must be the canonical Camelot V3 factory pool for this pair
-        (bool ok, bytes memory data) = factory.staticcall(
-            abi.encodeWithSignature("poolByPair(address,address)", tokenA, tokenB)
-        );
+        (bool ok, bytes memory data) =
+            factory.staticcall(abi.encodeWithSignature("poolByPair(address,address)", tokenA, tokenB));
         if (!ok || data.length < 32) revert DexPoolValidator_FactoryCallFailed();
 
         address canonical = abi.decode(data, (address));
