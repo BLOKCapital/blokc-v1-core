@@ -74,8 +74,7 @@ contract DeployAndTestFork is Script {
         bytes32[] memory symbols = new bytes32[](2);
         symbols[0] = bytes32("BTC");
         symbols[1] = bytes32("ETH");
-        address testIndex =
-            IIndexFactory(INDEX_FACTORY).deployIndex("BLOKC2-FORK-SCRIPT", MARKET_CAP_WEIGHTED, symbols);
+        address testIndex = IIndexFactory(INDEX_FACTORY).deployIndex("BLOKC2-FORK-SCRIPT", MARKET_CAP_WEIGHTED, symbols);
         console2.log("Index deployed at:", testIndex);
         vm.stopBroadcast();
 
@@ -128,11 +127,7 @@ contract DeployAndTestFork is Script {
         uint256[] memory overrideWeights = new uint256[](2);
         overrideWeights[0] = 0.5e18;
         overrideWeights[1] = 0.5e18;
-        vm.mockCall(
-            testIndex,
-            abi.encodeWithSignature("getWeights()"),
-            abi.encode(overrideSymbols, overrideWeights)
-        );
+        vm.mockCall(testIndex, abi.encodeWithSignature("getWeights()"), abi.encode(overrideSymbols, overrideWeights));
         console2.log("Index weights overridden to 50/50");
 
         // =====================================================================
@@ -142,7 +137,7 @@ contract DeployAndTestFork is Script {
         vm.mockCall(
             COMPONENT_REGISTRY,
             abi.encodeWithSignature("fetchPrice(bytes32)", bytes32("BTC")),
-            abi.encode(uint256(60000e8))
+            abi.encode(uint256(60_000e8))
         );
         vm.mockCall(
             COMPONENT_REGISTRY,
@@ -160,22 +155,28 @@ contract DeployAndTestFork is Script {
         // 7. Deploy Rebalancer — ALL constructor args are real
         // =====================================================================
         vm.startBroadcast(deployer);
-        Rebalancer rebalancer = new Rebalancer(
-            deployer, INDEX_FACTORY, COMPONENT_REGISTRY,
-            POOL_REGISTRY, FACET_REGISTRY, USDC
-        );
+        Rebalancer rebalancer =
+            new Rebalancer(deployer, INDEX_FACTORY, COMPONENT_REGISTRY, POOL_REGISTRY, FACET_REGISTRY, USDC);
         console2.log("Rebalancer deployed at:", address(rebalancer));
 
         // =====================================================================
         // 8. Configure DEXs
         // =====================================================================
         rebalancer.setDexConfig(
-            keccak256("CAMELOT_V2"), CAMELOT_V2_ROUTER, DEX_FACET,
-            bytes4(keccak256("swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)")),
+            keccak256("CAMELOT_V2"),
+            CAMELOT_V2_ROUTER,
+            DEX_FACET,
+            bytes4(
+                keccak256(
+                    "swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)"
+                )
+            ),
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         rebalancer.setDexConfig(
-            keccak256("UNISWAP_V3"), UNISWAP_V3_ROUTER, DEX_FACET,
+            keccak256("UNISWAP_V3"),
+            UNISWAP_V3_ROUTER,
+            DEX_FACET,
             bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );

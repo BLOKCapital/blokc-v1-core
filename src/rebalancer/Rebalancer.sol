@@ -90,10 +90,10 @@ contract Rebalancer is Ownable {
 
     /// @notice Per-DEX configuration set by the DAO. No DEX-specific code lives in this contract.
     struct DexConfig {
-        address router;          // DEX router address for swap execution
-        address quoteFacet;      // DEX facet address for generic quoting (via quoteSelector)
+        address router; // DEX router address for swap execution
+        address quoteFacet; // DEX facet address for generic quoting (via quoteSelector)
         bytes4 routerSwapSelector; // Router's own swap function selector (e.g. swapExactTokensForTokens.selector)
-        DexType dexType;         // How to encode the calldata (V2 vs V3 parameter layout)
+        DexType dexType; // How to encode the calldata (V2 vs V3 parameter layout)
     }
 
     // ========================================================================
@@ -131,8 +131,12 @@ contract Rebalancer is Ownable {
     event IndexTypeRemoved(bytes32 indexed indexTypeId, address indexed indexAddress);
     event CumulativeRebalanceStarted(bytes32 indexed indexTypeId, uint256 gardenCount, uint256 totalValueUsd);
     event CumulativeSwapExecuted(
-        bytes32 indexed dexId, address indexed tokenIn, address indexed tokenOut,
-        uint256 amountIn, uint256 amountOut, address pool
+        bytes32 indexed dexId,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256 amountIn,
+        uint256 amountOut,
+        address pool
     );
     event CumulativeRebalanceCompleted(
         bytes32 indexed indexTypeId, uint256 gardenCount, uint256 timestamp, uint256 nextRebalanceTimestamp
@@ -186,7 +190,11 @@ contract Rebalancer is Ownable {
      * @param dexType Router interface type (V2_CONSTANT_PRODUCT or V3_CONCENTRATED)
      */
     function setDexConfig(
-        bytes32 dexId, address router, address quoteFacet, bytes4 routerSwapSelector, DexType dexType
+        bytes32 dexId,
+        address router,
+        address quoteFacet,
+        bytes4 routerSwapSelector,
+        DexType dexType
     )
         external
         onlyOwner
@@ -202,8 +210,7 @@ contract Rebalancer is Ownable {
         if (router.code.length == 0 || quoteFacet.code.length == 0) revert Rebalancer_InvalidConfig();
 
         dexConfigs[dexId] = DexConfig({
-            router: router, quoteFacet: quoteFacet,
-            routerSwapSelector: routerSwapSelector, dexType: dexType
+            router: router, quoteFacet: quoteFacet, routerSwapSelector: routerSwapSelector, dexType: dexType
         });
         emit DexConfigSet(dexId, router, dexType);
     }
@@ -268,15 +275,16 @@ contract Rebalancer is Ownable {
             revert Rebalancer_NoGardensFound(indexTypeId);
         }
 
-        (bytes32[] memory symbols, uint256[] memory weights) =
-            IIndex(_indexTypeIndices[indexTypeId].at(0)).getWeights();
+        (bytes32[] memory symbols, uint256[] memory weights) = IIndex(_indexTypeIndices[indexTypeId].at(0)).getWeights();
 
         bool usdcIsComponent = _isSymbolInSet(symbols, _USDC_SYMBOL);
 
         bytes32[] memory allSymbols = symbols;
         if (!usdcIsComponent) {
             allSymbols = new bytes32[](symbols.length + 1);
-            for (uint256 i = 0; i < symbols.length; i++) { allSymbols[i] = symbols[i]; }
+            for (uint256 i = 0; i < symbols.length; i++) {
+                allSymbols[i] = symbols[i];
+            }
             allSymbols[symbols.length] = _USDC_SYMBOL;
         }
 
@@ -338,17 +346,25 @@ contract Rebalancer is Ownable {
             for (uint256 j = 0; j < connectedGardens.length; j++) {
                 bool duplicate = false;
                 for (uint256 k = 0; k < count; k++) {
-                    if (gardens[k] == connectedGardens[j]) { duplicate = true; break; }
+                    if (gardens[k] == connectedGardens[j]) {
+                        duplicate = true;
+                        break;
+                    }
                 }
-                if (!duplicate) { gardens[count] = connectedGardens[j]; count++; }
+                if (!duplicate) {
+                    gardens[count] = connectedGardens[j];
+                    count++;
+                }
             }
         }
 
-        if (count < totalGardens) { assembly { mstore(gardens, count) } }
+        if (count < totalGardens) assembly { mstore(gardens, count) }
     }
 
     function _snapshotAndPullTokens(
-        address[] memory gardens, bytes32[] memory symbols, bool usdcIsComponent
+        address[] memory gardens,
+        bytes32[] memory symbols,
+        bool usdcIsComponent
     )
         private
         returns (uint256[] memory contributions, uint256 totalValueUsd)
@@ -380,7 +396,8 @@ contract Rebalancer is Ownable {
         }
 
         // gardens[] is built from DAO-registered Index contracts and contains only BLOK vault
-        // contracts that have explicitly approved this Rebalancer to pull tokens (Slither: arbitrary-send-erc20, false positive).
+        // contracts that have explicitly approved this Rebalancer to pull tokens (Slither: arbitrary-send-erc20, false
+        // positive).
         for (uint256 i = 0; i < gardens.length; i++) {
             for (uint256 j = 0; j < symbols.length; j++) {
                 address token = COMPONENT_REGISTRY.getComponentAddress(symbols[j]);
@@ -399,7 +416,10 @@ contract Rebalancer is Ownable {
     // ========================================================================
 
     function _computeCumulativeState(
-        bytes32[] memory symbols, uint256[] memory weights, uint256 totalValueUsd, bool usdcIsComponent
+        bytes32[] memory symbols,
+        uint256[] memory weights,
+        uint256 totalValueUsd,
+        bool usdcIsComponent
     )
         private
         returns (uint256[] memory currentValues, uint256[] memory targetValues, uint256 recomputedTotal)
@@ -471,7 +491,9 @@ contract Rebalancer is Ownable {
     }
 
     function _identifyExcessAndDeficit(
-        bytes32[] memory symbols, uint256[] memory currentValues, uint256[] memory targetValues
+        bytes32[] memory symbols,
+        uint256[] memory currentValues,
+        uint256[] memory targetValues
     )
         private
         returns (TokenExcess[] memory excess, TokenDeficit[] memory deficit)
@@ -540,8 +562,8 @@ contract Rebalancer is Ownable {
 
                 uint256 sellPrice = COMPONENT_REGISTRY.fetchPrice(excess[ei].symbol);
                 uint8 sellDecimals = IERC20Metadata(excess[ei].token).decimals();
-                uint256 swapValueUsd = remainingSellValue < deficit[di].buyValueUsd
-                    ? remainingSellValue : deficit[di].buyValueUsd;
+                uint256 swapValueUsd =
+                    remainingSellValue < deficit[di].buyValueUsd ? remainingSellValue : deficit[di].buyValueUsd;
                 uint256 swapAmountIn = Math.mulDiv(swapValueUsd, 10 ** sellDecimals, sellPrice, Math.Rounding.Floor);
                 if (swapAmountIn > remainingSellAmount) swapAmountIn = remainingSellAmount;
                 if (swapAmountIn == 0) continue;
@@ -620,7 +642,9 @@ contract Rebalancer is Ownable {
     // ========================================================================
 
     function _findBestSwapRoute(
-        address tokenIn, address tokenOut, uint256 amountIn
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
     )
         private
         view
@@ -641,7 +665,10 @@ contract Rebalancer is Ownable {
      *      with any DEX that registers a quoteSelector with a QuoteInstruction interface.
      */
     function _evaluatePools(
-        address[] memory pools, address tokenIn, address tokenOut, uint256 amountIn
+        address[] memory pools,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
     )
         private
         view
@@ -666,16 +693,11 @@ contract Rebalancer is Ownable {
             address[] memory pathPools = new address[](1);
             pathPools[0] = pool;
 
-            QuoteInstruction memory qInst = QuoteInstruction({
-                amount: amountIn,
-                tokens: tokens,
-                pools: pathPools,
-                exactOutput: false
-            });
+            QuoteInstruction memory qInst =
+                QuoteInstruction({ amount: amountIn, tokens: tokens, pools: pathPools, exactOutput: false });
 
             uint256 expectedOut;
-            (bool ok, bytes memory data) =
-                cfg.quoteFacet.staticcall(abi.encodeWithSelector(quoteSelector, qInst));
+            (bool ok, bytes memory data) = cfg.quoteFacet.staticcall(abi.encodeWithSelector(quoteSelector, qInst));
             if (ok && data.length >= 32) {
                 expectedOut = abi.decode(data, (uint256));
             } else {
@@ -684,8 +706,12 @@ contract Rebalancer is Ownable {
 
             if (expectedOut > bestRoute.expectedOut) {
                 bestRoute = SwapRoute({
-                    dexId: dexId, pool: pool, tokenIn: tokenIn, tokenOut: tokenOut,
-                    amountIn: amountIn, expectedOut: expectedOut
+                    dexId: dexId,
+                    pool: pool,
+                    tokenIn: tokenIn,
+                    tokenOut: tokenOut,
+                    amountIn: amountIn,
+                    expectedOut: expectedOut
                 });
             }
         }
@@ -695,7 +721,11 @@ contract Rebalancer is Ownable {
     // Internal: Swap Execution (DexType-driven, no DEX-specific code)
     // ========================================================================
 
-    function _executeSwapRoute(SwapRoute memory route, uint256 minOut, uint256 deadline)
+    function _executeSwapRoute(
+        SwapRoute memory route,
+        uint256 minOut,
+        uint256 deadline
+    )
         private
         returns (uint256 amountOut)
     {
@@ -720,9 +750,7 @@ contract Rebalancer is Ownable {
             revert Rebalancer_InsufficientSwapOutput(route.tokenOut, amountOut, minOut);
         }
 
-        emit CumulativeSwapExecuted(
-            route.dexId, route.tokenIn, route.tokenOut, route.amountIn, amountOut, route.pool
-        );
+        emit CumulativeSwapExecuted(route.dexId, route.tokenIn, route.tokenOut, route.amountIn, amountOut, route.pool);
     }
 
     /**
@@ -730,7 +758,11 @@ contract Rebalancer is Ownable {
      *      Works for Uniswap V2, SushiSwap V2, and any DEX following the standard Uniswap V2 interface.
      */
     function _swapV2Standard(
-        address router, bytes4 selector, SwapRoute memory route, uint256 minOut, uint256 deadline
+        address router,
+        bytes4 selector,
+        SwapRoute memory route,
+        uint256 minOut,
+        uint256 deadline
     )
         private
         returns (uint256 amountOut)
@@ -741,9 +773,8 @@ contract Rebalancer is Ownable {
 
         uint256 balanceBefore = IERC20(route.tokenOut).balanceOf(address(this));
 
-        (bool success, bytes memory ret) = router.call(
-            abi.encodeWithSelector(selector, route.amountIn, minOut, path, address(this), deadline)
-        );
+        (bool success, bytes memory ret) =
+            router.call(abi.encodeWithSelector(selector, route.amountIn, minOut, path, address(this), deadline));
         if (!success) {
             bytes memory reason = ret.length > 0 ? ret : bytes("V2 swap failed");
             revert Rebalancer_SwapFailed(route.tokenIn, route.tokenOut, reason);
@@ -757,7 +788,11 @@ contract Rebalancer is Ownable {
      *      Used for Camelot V2. The extra referrer param is included in the encoding.
      */
     function _swapV2Style(
-        address router, bytes4 selector, SwapRoute memory route, uint256 minOut, uint256 deadline
+        address router,
+        bytes4 selector,
+        SwapRoute memory route,
+        uint256 minOut,
+        uint256 deadline
     )
         private
         returns (uint256 amountOut)
@@ -769,9 +804,7 @@ contract Rebalancer is Ownable {
         uint256 balanceBefore = IERC20(route.tokenOut).balanceOf(address(this));
 
         (bool success, bytes memory ret) = router.call(
-            abi.encodeWithSelector(
-                selector, route.amountIn, minOut, path, address(this), address(0), deadline
-            )
+            abi.encodeWithSelector(selector, route.amountIn, minOut, path, address(this), address(0), deadline)
         );
         if (!success) {
             bytes memory reason = ret.length > 0 ? ret : bytes("V2 swap failed");
@@ -791,15 +824,17 @@ contract Rebalancer is Ownable {
      *      the correct selector + encoding via routerSwapSelector.
      */
     function _swapV3Style(
-        address router, bytes4 selector, SwapRoute memory route, uint256 minOut, uint256 deadline
+        address router,
+        bytes4 selector,
+        SwapRoute memory route,
+        uint256 minOut,
+        uint256 deadline
     )
         private
         returns (uint256 amountOut)
     {
         // Read fee tier from the pool on-chain (works for V3-style pools; reverts on failure)
-        (bool feeOk, bytes memory feeData) = route.pool.staticcall(
-            abi.encodeWithSignature("fee()")
-        );
+        (bool feeOk, bytes memory feeData) = route.pool.staticcall(abi.encodeWithSignature("fee()"));
         if (!feeOk || feeData.length < 32) {
             revert Rebalancer_SwapFailed(route.tokenIn, route.tokenOut, "V3 pool fee() lookup failed");
         }
@@ -810,8 +845,14 @@ contract Rebalancer is Ownable {
         (bool success, bytes memory ret) = router.call(
             abi.encodeWithSelector(
                 selector,
-                route.tokenIn, route.tokenOut, fee, address(this), deadline,
-                route.amountIn, minOut, uint160(0)
+                route.tokenIn,
+                route.tokenOut,
+                fee,
+                address(this),
+                deadline,
+                route.amountIn,
+                minOut,
+                uint160(0)
             )
         );
         if (!success) {
@@ -827,8 +868,10 @@ contract Rebalancer is Ownable {
     // ========================================================================
 
     function _redistribute(
-        address[] memory gardens, bytes32[] memory allSymbols,
-        uint256[] memory contributions, uint256 totalValueUsd
+        address[] memory gardens,
+        bytes32[] memory allSymbols,
+        uint256[] memory contributions,
+        uint256 totalValueUsd
     )
         private
     {

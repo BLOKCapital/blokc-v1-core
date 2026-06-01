@@ -273,15 +273,11 @@ abstract contract UniswapV2Base {
 
     /// @notice Validates a single V2 pool through the shared DexPoolValidator library
     function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
-        DexPoolValidator.validateV2Pool(
-            POOL_REGISTRY_ADDRESS, UNISWAP_V2_FACTORY_ADDRESS, pool, tokenIn, tokenOut
-        );
+        DexPoolValidator.validateV2Pool(POOL_REGISTRY_ADDRESS, UNISWAP_V2_FACTORY_ADDRESS, pool, tokenIn, tokenOut);
     }
 
     /// @notice Validates all pools in a SwapInstruction through DexPoolValidator
     function _validateSwapPools(SwapInstruction calldata instruction) internal view {
-        DexPoolValidator.validateSwapPools(
-            POOL_REGISTRY_ADDRESS, UNISWAP_V2_FACTORY_ADDRESS, instruction, false
-        );
+        DexPoolValidator.validateSwapPools(POOL_REGISTRY_ADDRESS, UNISWAP_V2_FACTORY_ADDRESS, instruction, false);
     }
 }

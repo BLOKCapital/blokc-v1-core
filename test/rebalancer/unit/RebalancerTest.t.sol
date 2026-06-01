@@ -54,11 +54,25 @@ contract MockERC20 is IERC20, IERC20Metadata {
         _decimals = decimals_;
     }
 
-    function name() public view override returns (string memory) { return _name; }
-    function symbol() public view override returns (string memory) { return _symbol; }
-    function decimals() public view override returns (uint8) { return _decimals; }
-    function totalSupply() public view override returns (uint256) { return _totalSupply; }
-    function balanceOf(address account) public view override returns (uint256) { return _balances[account]; }
+    function name() public view override returns (string memory) {
+        return _name;
+    }
+
+    function symbol() public view override returns (string memory) {
+        return _symbol;
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    function totalSupply() public view override returns (uint256) {
+        return _totalSupply;
+    }
+
+    function balanceOf(address account) public view override returns (uint256) {
+        return _balances[account];
+    }
 
     function allowance(address owner, address spender) public view override returns (uint256) {
         return _allowances[owner][spender];
@@ -115,13 +129,19 @@ contract MockV2Pool {
     }
 }
 
-// ── IndexFactory mock ──────────────────────────────────────────────────────────
+// ── IndexFactory mock
+// ──────────────────────────────────────────────────────────
 
 contract MockIndexFactory {
     mapping(address => bool) public registered;
 
-    function setRegistered(address idx, bool val) external { registered[idx] = val; }
-    function isIndexRegistered(address idx) external view returns (bool) { return registered[idx]; }
+    function setRegistered(address idx, bool val) external {
+        registered[idx] = val;
+    }
+
+    function isIndexRegistered(address idx) external view returns (bool) {
+        return registered[idx];
+    }
 }
 
 // ── Index mock — returns symbols, weights, and connected gardens ───────────────
@@ -136,7 +156,9 @@ contract MockIndex {
         _weights = wts;
     }
 
-    function setGardens(address[] memory g) external { _gardens = g; }
+    function setGardens(address[] memory g) external {
+        _gardens = g;
+    }
 
     function getWeights() external view returns (bytes32[] memory, uint256[] memory) {
         return (_symbols, _weights);
@@ -159,9 +181,13 @@ contract MockComponentRegistry {
         registered[symbol] = true;
     }
 
-    function setPrice(address token, uint256 price) external { prices[token] = price; }
+    function setPrice(address token, uint256 price) external {
+        prices[token] = price;
+    }
 
-    function setRegistered(bytes32 symbol, bool val) external { registered[symbol] = val; }
+    function setRegistered(bytes32 symbol, bool val) external {
+        registered[symbol] = val;
+    }
 
     function getComponentAddress(bytes32 symbol) external view returns (address) {
         return components[symbol];
@@ -176,7 +202,8 @@ contract MockComponentRegistry {
     }
 }
 
-// ── LiquidityPoolRegistry mock ─────────────────────────────────────────────────
+// ── LiquidityPoolRegistry mock
+// ─────────────────────────────────────────────────
 
 contract MockPoolRegistry {
     mapping(bytes32 => ILiquidityPoolRegistry.PoolInfo) private _pools;
@@ -184,23 +211,25 @@ contract MockPoolRegistry {
     mapping(bytes32 => bool) public dexActive;
     mapping(bytes32 => bool) public dexRegistered;
 
-    function setDexActive(bytes32 dexId, bool active) external { dexActive[dexId] = active; }
-    function setDexRegistered(bytes32 dexId, bool reg) external { dexRegistered[dexId] = reg; }
+    function setDexActive(bytes32 dexId, bool active) external {
+        dexActive[dexId] = active;
+    }
 
-    function isDexActive(bytes32 dexId) external view returns (bool) { return dexActive[dexId]; }
-    function isDexRegistered(bytes32 dexId) external view returns (bool) { return dexRegistered[dexId]; }
+    function setDexRegistered(bytes32 dexId, bool reg) external {
+        dexRegistered[dexId] = reg;
+    }
 
-    function addPool(
-        address poolAddr, bytes32 dexId, string memory pairName, address t0, address t1
-    )
-        external
-    {
+    function isDexActive(bytes32 dexId) external view returns (bool) {
+        return dexActive[dexId];
+    }
+
+    function isDexRegistered(bytes32 dexId) external view returns (bool) {
+        return dexRegistered[dexId];
+    }
+
+    function addPool(address poolAddr, bytes32 dexId, string memory pairName, address t0, address t1) external {
         ILiquidityPoolRegistry.PoolInfo memory info = ILiquidityPoolRegistry.PoolInfo({
-            poolAddress: poolAddr,
-            dexId: dexId,
-            pairName: pairName,
-            token0: t0,
-            token1: t1
+            poolAddress: poolAddr, dexId: dexId, pairName: pairName, token0: t0, token1: t1
         });
         _pools[bytes32(uint256(uint160(poolAddr)))] = info;
 
@@ -219,33 +248,70 @@ contract MockPoolRegistry {
         address[] memory rev = _pairPools[reverseKey];
         address[] memory result = new address[](fwd.length + rev.length);
         uint256 idx = 0;
-        for (uint256 i = 0; i < fwd.length; i++) { result[idx++] = fwd[i]; }
-        for (uint256 i = 0; i < rev.length; i++) { result[idx++] = rev[i]; }
+        for (uint256 i = 0; i < fwd.length; i++) {
+            result[idx++] = fwd[i];
+        }
+        for (uint256 i = 0; i < rev.length; i++) {
+            result[idx++] = rev[i];
+        }
         return result;
     }
 
     // Stubs for other ILiquidityPoolRegistry functions (not called by rebalancer)
-    function getAllPools() external view returns (address[] memory) { return new address[](0); }
-    function isPoolRegistered(address) external view returns (bool) { return true; }
+    function getAllPools() external view returns (address[] memory) {
+        return new address[](0);
+    }
+
+    function isPoolRegistered(address) external view returns (bool) {
+        return true;
+    }
+
     function getDex(bytes32) external view returns (ILiquidityPoolRegistry.DexInfo memory) {
-        return ILiquidityPoolRegistry.DexInfo({ dexId: bytes32(0), swapSelector: bytes4(0), quoteSelector: bytes4(0), active: false });
+        return ILiquidityPoolRegistry.DexInfo({
+            dexId: bytes32(0), swapSelector: bytes4(0), quoteSelector: bytes4(0), active: false
+        });
     }
     mapping(bytes32 => bytes4) public quoteSelectors;
 
-    function setQuoteSelector(bytes32 dexId, bytes4 sel) external { quoteSelectors[dexId] = sel; }
-    function getSwapSelectorForDex(bytes32) external view returns (bytes4) { return bytes4(0); }
+    function setQuoteSelector(bytes32 dexId, bytes4 sel) external {
+        quoteSelectors[dexId] = sel;
+    }
+
+    function getSwapSelectorForDex(bytes32) external view returns (bytes4) {
+        return bytes4(0);
+    }
+
     function getQuoteSelectorForDex(bytes32 dexId) external view returns (bytes4) {
         return quoteSelectors[dexId];
     }
-    function getRegisteredDexIds() external view returns (bytes32[] memory) { return new bytes32[](0); }
-    function getActiveDexIds() external view returns (bytes32[] memory) { return new bytes32[](0); }
-    function getDexPoolCount(bytes32) external view returns (uint256) { return 0; }
-    function getPoolCount() external view returns (uint256) { return 0; }
-    function getAllPairIds() external view returns (bytes32[] memory) { return new bytes32[](0); }
+
+    function getRegisteredDexIds() external view returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
+
+    function getActiveDexIds() external view returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
+
+    function getDexPoolCount(bytes32) external view returns (uint256) {
+        return 0;
+    }
+
+    function getPoolCount() external view returns (uint256) {
+        return 0;
+    }
+
+    function getAllPairIds() external view returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
+
     function getPoolsForPairOnDex(address, address, bytes32) external view returns (address[] memory) {
         return new address[](0);
     }
-    function getPoolsByDex(bytes32) external view returns (address[] memory) { return new address[](0); }
+
+    function getPoolsByDex(bytes32) external view returns (address[] memory) {
+        return new address[](0);
+    }
 }
 
 // ── Mock DEX Router + Quote Facet (handles both swap and quote) ─────────────
@@ -259,7 +325,12 @@ contract MockRouter {
         rates[keccak256(abi.encode(tokenIn, tokenOut))] = rate;
     }
 
-    function _executeSwap(address _tokenIn, address _tokenOut, uint256 _amountIn, address _recipient)
+    function _executeSwap(
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountIn,
+        address _recipient
+    )
         internal
         returns (uint256 amountOut)
     {
@@ -274,7 +345,8 @@ contract MockRouter {
         MockERC20(_tokenOut).mint(_recipient, amountOut);
     }
 
-    // ─── Camelot V2 ──────────────────────────────────────────
+    // ─── Camelot V2
+    // ──────────────────────────────────────────
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
         uint256 amountIn,
         uint256, /* amountOutMin */
@@ -288,7 +360,8 @@ contract MockRouter {
         _executeSwap(path[0], path[1], amountIn, to);
     }
 
-    // ─── Uniswap V2 ─────────────────────────────────────────
+    // ─── Uniswap V2
+    // ─────────────────────────────────────────
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256, /* amountOutMin */
@@ -305,10 +378,17 @@ contract MockRouter {
         amounts[1] = out;
     }
 
-    // ─── Uniswap V3 ─────────────────────────────────────────
+    // ─── Uniswap V3
+    // ─────────────────────────────────────────
     function exactInputSingle(
-        address tokenIn, address tokenOut, uint24, address recipient, uint256,
-        uint256 amountIn, uint256, uint160
+        address tokenIn,
+        address tokenOut,
+        uint24,
+        address recipient,
+        uint256,
+        uint256 amountIn,
+        uint256,
+        uint160
     )
         external
         returns (uint256 amountOut)
@@ -335,10 +415,10 @@ abstract contract RebalancerTestBase is Test {
 
     // -- Addresses --
     address internal owner = makeAddr("owner");
-    address internal alice = makeAddr("alice");  // garden owner
-    address internal bob = makeAddr("bob");       // garden owner
+    address internal alice = makeAddr("alice"); // garden owner
+    address internal bob = makeAddr("bob"); // garden owner
     address internal charlie = makeAddr("charlie"); // garden owner
-    address internal keeper = makeAddr("keeper");  // permissionless caller
+    address internal keeper = makeAddr("keeper"); // permissionless caller
     address internal stranger = makeAddr("stranger");
 
     // -- DEX Identifiers --
@@ -361,7 +441,7 @@ abstract contract RebalancerTestBase is Test {
 
     // -- Prices (8 decimals, Chainlink standard) --
     uint256 internal constant WETH_PRICE = 3000e8; // $3,000
-    uint256 internal constant WBTC_PRICE = 60000e8; // $60,000
+    uint256 internal constant WBTC_PRICE = 60_000e8; // $60,000
     uint256 internal constant USDC_PRICE = 1e8; // $1
 
     // -- Mocks --
@@ -431,17 +511,13 @@ abstract contract RebalancerTestBase is Test {
         wethUsdcPool = new MockV2Pool();
         // token0 = USDC, token1 = WETH; reserve0 = 100K USDC (6 dec), reserve1 = ~33.33 WETH (18 dec)
         wethUsdcPool.setPool(address(usdc), address(weth), 100_000 * 1e6, 33.33e18);
-        poolRegistry.addPool(
-            address(wethUsdcPool), DEX_CAMELOT_V2, "WETH/USDC", address(usdc), address(weth)
-        );
+        poolRegistry.addPool(address(wethUsdcPool), DEX_CAMELOT_V2, "WETH/USDC", address(usdc), address(weth));
 
         // WBTC/USDC pool: ~$60000/BTC rate
         wbtcUsdcPool = new MockV2Pool();
         // token0 = USDC, token1 = WBTC; reserve0 = 600K USDC (6 dec), reserve1 = 10 WBTC (8 dec)
         wbtcUsdcPool.setPool(address(usdc), address(wbtc), 600_000 * 1e6, 10 * 1e8);
-        poolRegistry.addPool(
-            address(wbtcUsdcPool), DEX_CAMELOT_V2, "WBTC/USDC", address(usdc), address(wbtc)
-        );
+        poolRegistry.addPool(address(wbtcUsdcPool), DEX_CAMELOT_V2, "WBTC/USDC", address(usdc), address(wbtc));
 
         // -- Register quote selectors (the router acts as the DEX facet for quoting) --
         bytes4 quoteSel = router.quoteOut.selector;
@@ -467,12 +543,16 @@ abstract contract RebalancerTestBase is Test {
         // -- Configure DEXs via DAO (identical to how a real deployment would work) --
         vm.startPrank(owner);
         rebalancer.setDexConfig(
-            DEX_CAMELOT_V2, address(router), address(router),
+            DEX_CAMELOT_V2,
+            address(router),
+            address(router),
             router.swapExactTokensForTokensSupportingFeeOnTransferTokens.selector,
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         rebalancer.setDexConfig(
-            DEX_UNISWAP_V2, address(router), address(router),
+            DEX_UNISWAP_V2,
+            address(router),
+            address(router),
             router.swapExactTokensForTokens.selector,
             Rebalancer.DexType.V2_STANDARD
         );
@@ -504,11 +584,7 @@ abstract contract RebalancerTestBase is Test {
     }
 
     /// @notice Helper to compute constant-product expected output
-    function _quoteCP(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
-        internal
-        pure
-        returns (uint256)
-    {
+    function _quoteCP(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) internal pure returns (uint256) {
         uint256 amountInWithFee = amountIn * 997;
         uint256 numerator = amountInWithFee * reserveOut;
         uint256 denominator = reserveIn * 1000 + amountInWithFee;
@@ -572,9 +648,7 @@ contract AdminTest is RebalancerTestBase {
 
     function test_removeIndexFromType_revertsIfNotInType() public {
         vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(Rebalancer_IndexNotInType.selector, INDEX_TYPE, makeAddr("notThere"))
-        );
+        vm.expectRevert(abi.encodeWithSelector(Rebalancer_IndexNotInType.selector, INDEX_TYPE, makeAddr("notThere")));
         rebalancer.removeIndexFromType(INDEX_TYPE, makeAddr("notThere"));
     }
 
@@ -640,10 +714,7 @@ contract GuardTest is RebalancerTestBase {
         // Second rebalance within the same interval should revert
         vm.expectRevert(
             abi.encodeWithSelector(
-                Rebalancer_RebalanceIntervalNotPassed.selector,
-                INDEX_TYPE,
-                block.timestamp,
-                block.timestamp + 24 hours
+                Rebalancer_RebalanceIntervalNotPassed.selector, INDEX_TYPE, block.timestamp, block.timestamp + 24 hours
             )
         );
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
@@ -693,9 +764,7 @@ contract CumulativeRebalanceTest is RebalancerTestBase {
         uint256 bobWbtcBefore = wbtc.balanceOf(bob);
 
         vm.expectEmit(true, false, false, true);
-        emit Rebalancer.CumulativeRebalanceCompleted(
-            INDEX_TYPE, 2, block.timestamp, block.timestamp + 24 hours
-        );
+        emit Rebalancer.CumulativeRebalanceCompleted(INDEX_TYPE, 2, block.timestamp, block.timestamp + 24 hours);
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
 
         // Gardens should have received tokens back (proportional redistribution)
@@ -1066,10 +1135,10 @@ contract ValueLossTest is RebalancerTestBase {
         _fundGarden(alice, 1e18, 10_000_000, 0);
         _fundGarden(bob, 0.5e18, 5_000_000, 0);
 
-        uint256 aliceValueBefore = _usdValue(1e18, WETH_DECIMALS, WETH_PRICE)
-            + _usdValue(10_000_000, WBTC_DECIMALS, WBTC_PRICE);
-        uint256 bobValueBefore = _usdValue(0.5e18, WETH_DECIMALS, WETH_PRICE)
-            + _usdValue(5_000_000, WBTC_DECIMALS, WBTC_PRICE);
+        uint256 aliceValueBefore =
+            _usdValue(1e18, WETH_DECIMALS, WETH_PRICE) + _usdValue(10_000_000, WBTC_DECIMALS, WBTC_PRICE);
+        uint256 bobValueBefore =
+            _usdValue(0.5e18, WETH_DECIMALS, WETH_PRICE) + _usdValue(5_000_000, WBTC_DECIMALS, WBTC_PRICE);
         uint256 totalValueBefore = aliceValueBefore + bobValueBefore;
 
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
@@ -1188,12 +1257,8 @@ contract EndToEndTargetWeightTest is RebalancerTestBase {
         uint256 targetPerToken = totalValue / 2;
         uint256 threshold = targetPerToken * 200 / 10_000; // 2% of target
 
-        uint256 wethDiff = wethValue > targetPerToken
-            ? wethValue - targetPerToken
-            : targetPerToken - wethValue;
-        uint256 wbtcDiff = wbtcValue > targetPerToken
-            ? wbtcValue - targetPerToken
-            : targetPerToken - wbtcValue;
+        uint256 wethDiff = wethValue > targetPerToken ? wethValue - targetPerToken : targetPerToken - wethValue;
+        uint256 wbtcDiff = wbtcValue > targetPerToken ? wbtcValue - targetPerToken : targetPerToken - wbtcValue;
 
         assertLe(wethDiff, threshold, string(abi.encodePacked(label, ": WETH off target")));
         assertLe(wbtcDiff, threshold, string(abi.encodePacked(label, ": WBTC off target")));

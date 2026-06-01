@@ -38,12 +38,7 @@ contract DeployRebalancer is BaseScript {
         address usdc = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
         Rebalancer rebalancer = new Rebalancer{ salt: salt }(
-            deployer,
-            indexFactory,
-            componentRegistry,
-            poolRegistry,
-            facetRegistry,
-            usdc
+            deployer, indexFactory, componentRegistry, poolRegistry, facetRegistry, usdc
         );
 
         console2.log("Rebalancer deployed at:", address(rebalancer));
@@ -67,7 +62,11 @@ contract DeployRebalancer is BaseScript {
             keccak256("CAMELOT_V2"),
             0xc873fEcbd354f5A56E00E710B90EF4201db2448d, // router
             0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B, // DEX facet (for quoting)
-            bytes4(keccak256("swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)")),
+            bytes4(
+                keccak256(
+                    "swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)"
+                )
+            ),
             Rebalancer.DexType.V2_CONSTANT_PRODUCT
         );
         console2.log("Configured Camelot V2");
@@ -96,7 +95,9 @@ contract DeployRebalancer is BaseScript {
         console2.log("Next steps:");
         console2.log("1. DAO: rebalancer.addIndexToType(keccak256(\"BLOKC2\"), <blokc2-index-address>)");
         console2.log("2. DAO: rebalancer.addIndexToType(keccak256(\"BLOKC5\"), <blokc5-index-address>)");
-        console2.log("3. Garden owners: approve(token).approve(rebalancer, type(uint256).max) for each component + USDC");
+        console2.log(
+            "3. Garden owners: approve(token).approve(rebalancer, type(uint256).max) for each component + USDC"
+        );
         console2.log("4. Anyone: rebalancer.cumulativeRebalance(keccak256(\"BLOKC2\")) after 24h cooldown");
 
         console2.log("");
