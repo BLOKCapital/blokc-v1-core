@@ -16,12 +16,11 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 
 // Uniswap V2 Contracts
 import { IUniswapV2Router02 } from "v2-periphery/interfaces/IUniswapV2Router02.sol";
-import { IUniswapV2Factory } from "v2-core/interfaces/IUniswapV2Factory.sol";
-
 // Local Interfaces
 import { IUniswapV2 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/IUniswapV2.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
+import { DexPoolValidator } from "src/garden/libraries/DexPoolValidator.sol";
 
 // ============================================================================
 // Errors
@@ -272,28 +271,17 @@ abstract contract UniswapV2Base {
     // Internal Validation Functions
     // ========================================================================
 
-    /// @notice Validates a single pool: registered in PoolRegistry AND canonical in Uniswap V2 factory
-    /// @param pool The pool address from SwapInstruction.pools[]
-    /// @param tokenIn The input token for this hop
-    /// @param tokenOut The output token for this hop
+    /// @notice Validates a single V2 pool through the shared DexPoolValidator library
     function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
-        if (pool == address(0)) revert UniswapV2Facet_InvalidPoolAddress();
-
-        // 1. Pool must be registered in our PoolRegistry
-        if (!ILiquidityPoolRegistry(POOL_REGISTRY_ADDRESS).isPoolRegistered(pool)) {
-            revert UniswapV2Facet_UnregisteredPool();
-        }
-
-        // 2. Pool must be the canonical Uniswap V2 factory pair for this token pair
-        address canonical = IUniswapV2Factory(UNISWAP_V2_FACTORY_ADDRESS).getPair(tokenIn, tokenOut);
-        if (canonical != pool) revert UniswapV2Facet_UnregisteredPool();
+        DexPoolValidator.validateV2Pool(
+            POOL_REGISTRY_ADDRESS, UNISWAP_V2_FACTORY_ADDRESS, pool, tokenIn, tokenOut
+        );
     }
 
-    /// @notice Validates all pools in a SwapInstruction upfront before execution
-    /// @param instruction The swap instruction to validate
+    /// @notice Validates all pools in a SwapInstruction through DexPoolValidator
     function _validateSwapPools(SwapInstruction calldata instruction) internal view {
-        for (uint256 i; i < instruction.pools.length; i++) {
-            _validatePool(instruction.pools[i], instruction.tokens[i], instruction.tokens[i + 1]);
-        }
+        DexPoolValidator.validateSwapPools(
+            POOL_REGISTRY_ADDRESS, UNISWAP_V2_FACTORY_ADDRESS, instruction, false
+        );
     }
 }

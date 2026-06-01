@@ -25,6 +25,9 @@
     "CCTP": {
       "storage_libraries": []
     },
+    "CUMULATIVE_REBALANCER": {
+      "storage_libraries": []
+    },
     "GMX_V2": {
       "storage_libraries": [
         "GmxV2Storage"
