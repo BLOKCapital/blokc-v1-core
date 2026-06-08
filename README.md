@@ -253,11 +253,6 @@ Security‑sensitive changes (especially around facet registration, protocol sta
 
 ### Questions & Contact
 
-If you want to discuss the protocol, have doubts, or are considering contributing, you can reach **Jayesh Yadav** at:
-
-- **X (Twitter)**: [`@0xjayeshyadav`](https://x.com/0xjayeshyadav)
-- **LinkedIn**: [`@jayeshy14`](https://www.linkedin.com/in/jayeshy14/)
-- **Telegram**: `@jayeshy14`
-- **Discord**: `@jayeshy14`
-- **Email**: `jayeshnyadav497@gmail.com`
+If you want to discuss the protocol, have doubts, or are considering contributing, you can join our Discord 
+https://discord.com/invite/blokc
 
