@@ -4,15 +4,13 @@ on:
   issue_comment:
     types: [created]
 
-permissions:
-  contents: read
-  pull-requests: read
-  issues: write
+# The GITHUB_TOKEN built-in secret is read-only at the org level (BLOKCapital).
+# We use a PAT with issues:write scope stored as GH_PAT instead.
+# If GH_PAT isn't set, falls back to GITHUB_TOKEN (which may fail to post reviews).
 
 jobs:
   review:
     name: Claude Code Review
-    # Only run if the comment contains @claude AND it's on a PR (not a plain issue)
     if: |
       contains(github.event.comment.body, '@claude') &&
       github.event.issue.pull_request != null
@@ -24,6 +22,6 @@ jobs:
 
       - name: Claude PR Review
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
         run: python3 .github/scripts/pr_review.py

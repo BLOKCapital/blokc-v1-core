@@ -45,7 +45,7 @@ def log(msg: str) -> None:
 
 def github_api(path: str, method: str = "GET", body: dict | None = None) -> dict:
     """Call the GitHub REST API."""
-    token = os.environ["GITHUB_TOKEN"]
+    token = os.environ["GH_TOKEN"]
     url = f"https://api.github.com{path}"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -62,8 +62,16 @@ def github_api(path: str, method: str = "GET", body: dict | None = None) -> dict
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         err_body = e.read().decode(errors="replace")
-        log(f"GitHub API error {e.code}: {err_body}")
-        raise
+        err_msg = f"GitHub API error {e.code}: {err_body}"
+        log(err_msg)
+        if "Resource not accessible by integration" in err_body:
+            raise RuntimeError(
+                "GitHub token lacks write permissions. "
+                "Create a fine-grained PAT with read/write issues & pull-requests "
+                "scopes for this repo, then add it as secret GH_PAT:\n"
+                "  gh secret set GH_PAT --repo BLOKCapital/blokc-v1-core -b 'github_pat_...'"
+            ) from e
+        raise RuntimeError(err_msg) from e
 
 
 def claude_review(diff: str) -> str:
@@ -96,8 +104,19 @@ def claude_review(diff: str) -> str:
             result = json.loads(resp.read())
     except urllib.error.HTTPError as e:
         err_body = e.read().decode(errors="replace")
-        log(f"Claude API error {e.code}: {err_body}")
-        raise
+        err_msg = f"Claude API error {e.code}: {err_body}"
+        log(err_msg)
+        # Detect common issues
+        if "credit balance is too low" in err_body:
+            raise RuntimeError(
+                "Claude API credits are exhausted. "
+                "Top up at https://console.anthropic.com/settings/billing"
+            ) from e
+        if "invalid x-api-key" in err_body.lower():
+            raise RuntimeError(
+                "Invalid CLAUDE_API_KEY. Check the secret in repo Settings → Secrets."
+            ) from e
+        raise RuntimeError(err_msg) from e
 
     # Extract text from the first content block
     content = result.get("content", [])
@@ -110,7 +129,7 @@ def claude_review(diff: str) -> str:
 def get_pr_diff(pr_number: int) -> str:
     """Fetch the unified diff for a PR."""
     # Use the media type for diff format
-    token = os.environ["GITHUB_TOKEN"]
+    token = os.environ["GH_TOKEN"]
     url = (
         f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
         f"/pulls/{pr_number}"
