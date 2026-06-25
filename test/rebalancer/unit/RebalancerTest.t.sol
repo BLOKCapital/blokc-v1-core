@@ -28,7 +28,9 @@ import {
     Rebalancer_RebalanceIntervalNotPassed,
     Rebalancer_RebalanceReentrancy,
     Rebalancer_ZeroTotalValue,
-    Rebalancer_ExcessiveValueLoss
+    Rebalancer_ExcessiveValueLoss,
+    Rebalancer_BatchSizeNotSet,
+    Rebalancer_InvalidConfig
 } from "src/rebalancer/Rebalancer.sol";
 
 // =============================================================================
@@ -561,6 +563,10 @@ abstract contract RebalancerTestBase is Test {
         // -- Register BLOKC2 index type --
         vm.prank(owner);
         rebalancer.addIndexToType(INDEX_TYPE, address(blokc2Index));
+
+        // -- Set max gardens per batch high so existing tests complete in one call --
+        vm.prank(owner);
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 1000);
     }
 
     // ==========================================================================
@@ -1358,5 +1364,199 @@ contract EndToEndTargetWeightTest is RebalancerTestBase {
 
         // USDC should have been mostly swapped away
         assertLe(usdc.balanceOf(alice) + usdc.balanceOf(bob), 100, "USDC dust");
+    }
+}
+
+// =============================================================================
+// BATCH TESTS
+// =============================================================================
+
+contract BatchTest is RebalancerTestBase {
+    function setUp() public override {
+        super.setUp();
+        // Override: set a small batch size for cursor testing
+        vm.prank(owner);
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 2);
+    }
+
+    function test_singleBatch_completesRound() public {
+        _fundGarden(alice, 1e18, 5_000_000, 0);
+        _fundGarden(bob, 0.5e18, 10_000_000, 0);
+
+        _warpPastInterval();
+
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
+
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        // Round should be complete (2 gardens, batchSize=2)
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
+    }
+
+    function test_multiBatch_cursorAdvances() public {
+        address dave = makeAddr("dave");
+        address eve = makeAddr("eve");
+
+        address[] memory allGardens = new address[](5);
+        allGardens[0] = alice;
+        allGardens[1] = bob;
+        allGardens[2] = charlie;
+        allGardens[3] = dave;
+        allGardens[4] = eve;
+        blokc2Index.setGardens(allGardens);
+
+        _fundGarden(alice, 1e18, 5_000_000, 0);
+        _fundGarden(bob, 0.5e18, 10_000_000, 0);
+        _fundGarden(charlie, 2e18, 15_000_000, 0);
+        _fundGarden(dave, 0.2e18, 1_000_000, 0);
+        _fundGarden(eve, 0.3e18, 2_000_000, 0);
+
+        vm.prank(owner);
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 2);
+
+        _warpPastInterval();
+
+        // Batch 1: gardens [0,1]
+        vm.expectEmit(true, false, false, true);
+        emit Rebalancer.BatchRebalanceCompleted(INDEX_TYPE, 2, 5);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 2);
+
+        // Batch 2: gardens [2,3]
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 4);
+
+        // Batch 3 (final): garden [4], completes round
+        vm.expectEmit(true, false, false, true);
+        emit Rebalancer.CumulativeRebalanceCompleted(INDEX_TYPE, 5, block.timestamp, block.timestamp + 24 hours);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
+    }
+
+    function test_cooldownNotEnforcedMidRound() public {
+        address[] memory allGardens = new address[](4);
+        allGardens[0] = alice;
+        allGardens[1] = bob;
+        allGardens[2] = charlie;
+        allGardens[3] = makeAddr("dave");
+        blokc2Index.setGardens(allGardens);
+
+        _fundGarden(alice, 1e18, 5_000_000, 0);
+        _fundGarden(bob, 0.5e18, 10_000_000, 0);
+        _fundGarden(charlie, 2e18, 15_000_000, 0);
+
+        _warpPastInterval();
+
+        // Batch 1
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 2);
+
+        // Batch 2 — should succeed even without advancing time
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
+    }
+
+    function test_cooldownEnforcedForNewRound() public {
+        _fundGarden(alice, 1e18, 5_000_000, 0);
+        _fundGarden(bob, 0.5e18, 10_000_000, 0);
+
+        _warpPastInterval();
+
+        // Complete one round
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
+
+        // Try to start a new round immediately — should revert
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Rebalancer_RebalanceIntervalNotPassed.selector,
+                INDEX_TYPE,
+                block.timestamp,
+                block.timestamp + 24 hours
+            )
+        );
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+    }
+
+    function test_revertsIfBatchSizeNotSet() public {
+        // Deploy a fresh rebalancer that has no batch size set
+        Rebalancer freshRebalancer = new Rebalancer(
+            owner,
+            address(indexFactory),
+            address(compRegistry),
+            address(poolRegistry),
+            address(1),
+            address(usdc)
+        );
+
+        vm.prank(owner);
+        freshRebalancer.addIndexToType(INDEX_TYPE, address(blokc2Index));
+
+        _fundGarden(alice, 1e18, 5_000_000, 0);
+        _warpPastInterval();
+
+        vm.expectRevert(abi.encodeWithSelector(Rebalancer_BatchSizeNotSet.selector, INDEX_TYPE));
+        freshRebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+    }
+
+    function test_setMaxGardensPerBatch_accessControl() public {
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 10);
+    }
+
+    function test_setMaxGardensPerBatch_revertsIfZero() public {
+        vm.prank(owner);
+        vm.expectRevert(Rebalancer_InvalidConfig.selector);
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 0);
+    }
+
+    function test_setMaxGardensPerBatch_succeeds() public {
+        vm.prank(owner);
+        vm.expectEmit(true, false, false, true);
+        emit Rebalancer.MaxGardensPerBatchSet(INDEX_TYPE, 42);
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 42);
+
+        assertEq(rebalancer.maxGardensPerBatch(INDEX_TYPE), 42);
+    }
+
+    function test_cursorResetOnGardenRemoval() public {
+        // 4 gardens, batchSize=2
+        address[] memory allGardens = new address[](4);
+        allGardens[0] = alice;
+        allGardens[1] = bob;
+        allGardens[2] = charlie;
+        allGardens[3] = makeAddr("dave");
+        blokc2Index.setGardens(allGardens);
+
+        _fundGarden(alice, 1e18, 5_000_000, 0);
+        _fundGarden(bob, 0.5e18, 10_000_000, 0);
+        _fundGarden(charlie, 2e18, 15_000_000, 0);
+
+        _warpPastInterval();
+
+        // Batch 1: gardens [0,1], cursor goes to 2
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 2);
+
+        // Remove 2 gardens (bob and dave), now only alice and charlie remain
+        // Due to swap-and-pop, the array after 2 removals depends on EnumerableSet internals
+        allGardens = new address[](2);
+        allGardens[0] = alice;
+        allGardens[1] = charlie;
+        blokc2Index.setGardens(allGardens);
+
+        // cursor=2 but totalGardens=2 — cursor >= totalGardens, resets to 0
+        // Next call starts a fresh round (cooldown enforced since cursor was reset)
+        // Actually the cooldown was never set (cursor was never 0 and we didn't complete),
+        // so cursor resets to 0 and the cooldown check won't have elapsed
+        // But cursor was reset to 0 internally (not via completion), so no timestamp was set
+        // The lastRebalanceTimestamp is still 0 (never completed a round), so no cooldown
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
     }
 }

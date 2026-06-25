@@ -194,6 +194,7 @@ contract ArbitrumForkTest is Test {
         );
 
         rebalancer.addIndexToType(keccak256("BLOKC2"), testIndex);
+        rebalancer.setMaxGardensPerBatch(keccak256("BLOKC2"), 1000);
 
         // =====================================================================
         // 5. Fund gardens + approve Rebalancer
@@ -470,6 +471,7 @@ contract ArbitrumForkScaleTest is Test {
             Rebalancer.DexType.V3_CONCENTRATED
         );
         r.addIndexToType(keccak256("BLOKC10"), address(mockIdx));
+        r.setMaxGardensPerBatch(keccak256("BLOKC10"), 1000);
 
         for (uint256 i = 0; i < GARDEN_COUNT; i++) {
             deal(WETH, gardens[i], 0.01e18);
