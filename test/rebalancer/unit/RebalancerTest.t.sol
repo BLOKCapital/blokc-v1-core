@@ -1472,10 +1472,7 @@ contract BatchTest is RebalancerTestBase {
         // Try to start a new round immediately — should revert
         vm.expectRevert(
             abi.encodeWithSelector(
-                Rebalancer_RebalanceIntervalNotPassed.selector,
-                INDEX_TYPE,
-                block.timestamp,
-                block.timestamp + 24 hours
+                Rebalancer_RebalanceIntervalNotPassed.selector, INDEX_TYPE, block.timestamp, block.timestamp + 24 hours
             )
         );
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
@@ -1484,12 +1481,7 @@ contract BatchTest is RebalancerTestBase {
     function test_revertsIfBatchSizeNotSet() public {
         // Deploy a fresh rebalancer that has no batch size set
         Rebalancer freshRebalancer = new Rebalancer(
-            owner,
-            address(indexFactory),
-            address(compRegistry),
-            address(poolRegistry),
-            address(1),
-            address(usdc)
+            owner, address(indexFactory), address(compRegistry), address(poolRegistry), address(1), address(usdc)
         );
 
         vm.prank(owner);
