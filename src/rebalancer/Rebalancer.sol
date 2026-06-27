@@ -45,6 +45,7 @@ error Rebalancer_DexNotConfigured(bytes32 dexId);
 error Rebalancer_DexTypeNotSupported(uint8 dexType);
 error Rebalancer_InvalidConfig();
 error Rebalancer_DeadlineExpired(uint256 deadline, uint256 blockTimestamp);
+error Rebalancer_BatchSizeNotSet(bytes32 indexTypeId);
 
 /**
  * @title Rebalancer
@@ -122,6 +123,13 @@ contract Rebalancer is Ownable {
     /// @notice Global reentrancy guard — prevents cross-type reentrancy via DEX router callbacks
     bool private _locked;
 
+    /// @notice Cursor tracking how many gardens have been processed in the current batch round.
+    ///         0 means either no round is in progress or the last round just finished.
+    mapping(bytes32 indexTypeId => uint256 cursor) public gardenCursor;
+
+    /// @notice Max gardens per batch for each index type. Set by the DAO.
+    mapping(bytes32 indexTypeId => uint256 batchSize) public maxGardensPerBatch;
+
     // ========================================================================
     // Events
     // ========================================================================
@@ -142,6 +150,8 @@ contract Rebalancer is Ownable {
         bytes32 indexed indexTypeId, uint256 gardenCount, uint256 timestamp, uint256 nextRebalanceTimestamp
     );
     event GardenRedistributed(address indexed garden, uint256 shareValueUsd);
+    event MaxGardensPerBatchSet(bytes32 indexed indexTypeId, uint256 batchSize);
+    event BatchRebalanceCompleted(bytes32 indexed indexTypeId, uint256 cursor, uint256 totalGardens);
 
     // ========================================================================
     // Constructor
@@ -216,6 +226,19 @@ contract Rebalancer is Ownable {
     }
 
     // ========================================================================
+    // Admin: Batch Configuration (DAO only)
+    // ========================================================================
+
+    /// @notice Sets the max gardens per batch for a given index type.
+    /// @param indexTypeId The index type identifier
+    /// @param batchSize Number of gardens to process per cumulativeRebalance call
+    function setMaxGardensPerBatch(bytes32 indexTypeId, uint256 batchSize) external onlyOwner {
+        if (batchSize == 0) revert Rebalancer_InvalidConfig();
+        maxGardensPerBatch[indexTypeId] = batchSize;
+        emit MaxGardensPerBatchSet(indexTypeId, batchSize);
+    }
+
+    // ========================================================================
     // Admin: Index Type Management (DAO only)
     // ========================================================================
 
@@ -256,23 +279,44 @@ contract Rebalancer is Ownable {
      */
     function cumulativeRebalance(bytes32 indexTypeId, uint256 deadline) external {
         if (deadline < block.timestamp) revert Rebalancer_DeadlineExpired(deadline, block.timestamp);
+
         // -- Pre-validate --
         if (_indexTypeIndices[indexTypeId].length() == 0) {
             revert Rebalancer_NoIndicesRegistered(indexTypeId);
         }
-        uint256 lastRebalance = lastRebalanceTimestamp[indexTypeId];
-        uint256 nextAllowed = lastRebalance + REBALANCE_INTERVAL;
-        if (block.timestamp < nextAllowed) {
-            revert Rebalancer_RebalanceIntervalNotPassed(indexTypeId, lastRebalance, nextAllowed);
+
+        uint256 batchSize = maxGardensPerBatch[indexTypeId];
+        if (batchSize == 0) revert Rebalancer_BatchSizeNotSet(indexTypeId);
+
+        uint256 cursor = gardenCursor[indexTypeId];
+
+        // Only enforce 24h cooldown when starting a new round (cursor == 0)
+        if (cursor == 0) {
+            uint256 lastRebalance = lastRebalanceTimestamp[indexTypeId];
+            uint256 nextAllowed = lastRebalance + REBALANCE_INTERVAL;
+            if (block.timestamp < nextAllowed) {
+                revert Rebalancer_RebalanceIntervalNotPassed(indexTypeId, lastRebalance, nextAllowed);
+            }
         }
-        if (_locked) {
-            revert Rebalancer_RebalanceReentrancy(indexTypeId);
-        }
+
+        if (_locked) revert Rebalancer_RebalanceReentrancy(indexTypeId);
         _locked = true;
 
-        address[] memory gardens = _collectGardens(indexTypeId);
-        if (gardens.length == 0) {
-            revert Rebalancer_NoGardensFound(indexTypeId);
+        address[] memory allGardens = _collectGardens(indexTypeId);
+        uint256 totalGardens = allGardens.length;
+        if (totalGardens == 0) revert Rebalancer_NoGardensFound(indexTypeId);
+
+        // If cursor is past the end (gardens were removed), reset to start a fresh round
+        if (cursor >= totalGardens) cursor = 0;
+
+        uint256 end = cursor + batchSize;
+        if (end > totalGardens) end = totalGardens;
+
+        // Slice the batch
+        uint256 batchLength = end - cursor;
+        address[] memory batch = new address[](batchLength);
+        for (uint256 i = 0; i < batchLength; i++) {
+            batch[i] = allGardens[cursor + i];
         }
 
         (bytes32[] memory symbols, uint256[] memory weights) = IIndex(_indexTypeIndices[indexTypeId].at(0)).getWeights();
@@ -289,11 +333,13 @@ contract Rebalancer is Ownable {
         }
 
         (uint256[] memory contributions, uint256 totalValueUsd) =
-            _snapshotAndPullTokens(gardens, symbols, usdcIsComponent);
+            _snapshotAndPullTokens(batch, symbols, usdcIsComponent);
 
         if (totalValueUsd == 0) revert Rebalancer_ZeroTotalValue(indexTypeId);
 
-        emit CumulativeRebalanceStarted(indexTypeId, gardens.length, totalValueUsd);
+        if (cursor == 0) {
+            emit CumulativeRebalanceStarted(indexTypeId, totalGardens, totalValueUsd);
+        }
 
         (uint256[] memory currentValues, uint256[] memory targetValues, uint256 totalValueAfterPull) =
             _computeCumulativeState(symbols, weights, totalValueUsd, usdcIsComponent);
@@ -317,13 +363,21 @@ contract Rebalancer is Ownable {
             revert Rebalancer_ExcessiveValueLoss(valueBefore, valueAfter);
         }
 
-        _redistribute(gardens, allSymbols, contributions, totalValueUsd);
+        _redistribute(batch, allSymbols, contributions, totalValueUsd);
+
+        // Advance cursor or complete round (before dropping lock for defense-in-depth)
+        if (end >= totalGardens) {
+            gardenCursor[indexTypeId] = 0;
+            lastRebalanceTimestamp[indexTypeId] = block.timestamp;
+            emit CumulativeRebalanceCompleted(
+                indexTypeId, totalGardens, block.timestamp, block.timestamp + REBALANCE_INTERVAL
+            );
+        } else {
+            gardenCursor[indexTypeId] = end;
+            emit BatchRebalanceCompleted(indexTypeId, end, totalGardens);
+        }
 
         _locked = false;
-        lastRebalanceTimestamp[indexTypeId] = block.timestamp;
-        uint256 nextRebalanceTimestamp = block.timestamp + REBALANCE_INTERVAL;
-
-        emit CumulativeRebalanceCompleted(indexTypeId, gardens.length, block.timestamp, nextRebalanceTimestamp);
     }
 
     // ========================================================================
