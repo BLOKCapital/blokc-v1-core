@@ -378,7 +378,11 @@ contract Rebalancer is Ownable {
 
     /// @notice Collects a batch of gardens for the given index type using paginated queries.
     ///         Returns the batch slice and the total count across all indices.
-    function _collectGardens(bytes32 indexTypeId, uint256 cursor, uint256 batchSize)
+    function _collectGardens(
+        bytes32 indexTypeId,
+        uint256 cursor,
+        uint256 batchSize
+    )
         private
         view
         returns (address[] memory batch, uint256 totalGardens)

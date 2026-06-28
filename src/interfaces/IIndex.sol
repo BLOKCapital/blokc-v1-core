@@ -28,7 +28,10 @@ interface IIndex {
     /// @param limit Maximum number of gardens to return (0 returns empty array)
     /// @return gardens Array of garden addresses for the requested page
     /// @return total Total number of connected gardens
-    function getConnectedGardens(uint256 offset, uint256 limit)
+    function getConnectedGardens(
+        uint256 offset,
+        uint256 limit
+    )
         external
         view
         returns (address[] memory gardens, uint256 total);
