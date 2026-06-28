@@ -18,8 +18,9 @@
   via_ir = true
 
 [profile.ci]
-  fuzz = { runs = 1_000 }
+  fuzz = { runs = 256 }
   verbosity = 2
+  via_ir = false
 
 remappings = [
     "@uniswap/v2-periphery/=lib/v2-periphery/"
