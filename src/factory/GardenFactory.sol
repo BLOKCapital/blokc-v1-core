@@ -69,10 +69,10 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     // ========================================================================
 
     /// @notice The address of the facet registry contract
-    address private _facetRegistry;
+    address private immutable _facetRegistry;
 
     /// @notice The address of the protocol status contract
-    address private _protocolStatus;
+    address private immutable _protocolStatus;
 
     /// @notice The set of all gardens created by this factory
     EnumerableSet.AddressSet private _gardens;

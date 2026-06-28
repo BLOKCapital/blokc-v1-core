@@ -86,6 +86,7 @@ contract CirculatingSupply is ICirculatingSupply, Ownable {
     /// @param initialOwner Address of the contract owner
     /// @param _updater Address authorized to push supply updates
     constructor(address initialOwner, address _updater, address _componentRegistry) Ownable(initialOwner) {
+        if (_updater == address(0)) revert CirculatingSupply_InvalidUpdater();
         updater = _updater;
         componentRegistry = IndexComponentRegistry(_componentRegistry);
     }

@@ -85,9 +85,6 @@ contract Garden is DiamondCutBase {
     // Constructor
     // ========================================================================
 
-    /// @notice The BASE module identifier (matches FacetRegistry.BASE_MODULE)
-    bytes32 private constant BASE_MODULE = keccak256("BASE");
-
     /// @notice Constructs the Diamond contract with initial facets and configuration
     /// @dev Validates all critical addresses are non-zero and initializes the diamond with
     ///      facets for the specified garden type. Module versions are synced at deployment.

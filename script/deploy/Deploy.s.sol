@@ -66,30 +66,9 @@ contract Deploy is BaseScript {
         console2.log("FacetRegistry deployed at:", address(facetRegistry));
 
         // --- Deploy ProtocolStatus ---
-        // For local testing: Use a placeholder ENS registry address (ENS won't resolve on Anvil)
-        // For production: Use the actual ENS registry address (0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e)
-        address ensRegistry = 0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e;
-
-        // For local testing: Use empty arrays to skip ENS resolution during construction
-        // For production: Populate with actual ENS names
-        bytes32[] memory initialNamehashes = new bytes32[](0);
-        string[] memory initialNames = new string[](0);
-        uint256[] memory initialExpiries = new uint256[](0);
-
-        // Uncomment below for production deployment with ENS names:
-        // bytes32[] memory initialNamehashes = new bytes32[](1);
-        // string[] memory initialNames = new string[](1);
-        // uint256[] memory initialExpiries = new uint256[](1);
-        // initialNames[0] = "chintan.eth";
-        // initialNamehashes[0] = keccak256(abi.encodePacked("chintan.eth"));
-        // initialExpiries[0] = block.timestamp + 365 days;
-
-        protocolStatus =
-            new ProtocolStatus{ salt: salt }(deployer, ensRegistry, initialNamehashes, initialNames, initialExpiries);
+        protocolStatus = new ProtocolStatus{ salt: salt }(deployer);
 
         console2.log("ProtocolStatus deployed at:", address(protocolStatus));
-        protocolStatus.activateProtocol();
-        console2.log("ProtocolStatus activated");
 
         gardenFactory = new GardenFactory{ salt: salt }(deployer, address(facetRegistry), address(protocolStatus));
         console2.log("GardenFactory deployed at:", address(gardenFactory));

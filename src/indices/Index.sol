@@ -12,6 +12,7 @@ pragma solidity ^0.8.31;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
+import { IIndex } from "src/interfaces/IIndex.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 
@@ -82,7 +83,7 @@ error Index_CallerNotGarden(address caller);
  * interval, and provides functions for gardens to connect and disconnect from the index. It also includes comprehensive
  * error handling for various edge cases related to index management and garden connections.
  */
-contract Index is Ownable {
+contract Index is IIndex, Ownable {
     /// @notice Minimum time interval between rebalances
     /// @dev Set to 1 hour to prevent excessive rebalancing and associated gas costs
     uint256 public constant REBALANCE_INTERVAL = 1 hours;

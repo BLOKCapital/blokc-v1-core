@@ -228,14 +228,6 @@ abstract contract CamelotV3Base {
     // Validation
     // ========================================================================
 
-    /// @notice Validates a single pool: registered in PoolRegistry AND canonical in Camelot factory
-    /// @notice Validates a single Camelot V3 pool through the shared DexPoolValidator library
-    function _validatePool(address pool, address tokenIn, address tokenOut) internal view {
-        DexPoolValidator.validateCamelotV3Pool(
-            POOL_REGISTRY_ADDRESS, CAMELOT_V3_FACTORY_ADDRESS, pool, tokenIn, tokenOut
-        );
-    }
-
     /// @notice Validates all pools in a SwapInstruction through DexPoolValidator
     function _validateSwapPools(SwapInstruction calldata instruction) internal view {
         for (uint256 i; i < instruction.pools.length; i++) {
