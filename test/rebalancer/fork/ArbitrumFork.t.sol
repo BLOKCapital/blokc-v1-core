@@ -138,8 +138,8 @@ contract ArbitrumForkTest is Test {
         IIndexFacet(garden2).connectToIndex(testIndex);
 
         // Verify connection
-        address[] memory connected = IIndex(testIndex).getConnectedGardens();
-        assertEq(connected.length, 2, "Should have 2 gardens connected");
+        (, uint256 total) = IIndex(testIndex).getConnectedGardens(0, 0);
+        assertEq(total, 2, "Should have 2 gardens connected");
 
         // =====================================================================
         // 3. Override Index weights to 50/50 for deterministic test behaviour.
@@ -338,7 +338,7 @@ interface IIndexFactory {
 
 interface IIndex {
     function connectGardenToIndex() external;
-    function getConnectedGardens() external view returns (address[] memory);
+    function getConnectedGardens(uint256, uint256) external view returns (address[] memory, uint256);
     function getWeights() external view returns (bytes32[] memory, uint256[] memory);
 }
 
@@ -546,8 +546,19 @@ contract MockIdx {
         return (_symbols, _weights);
     }
 
-    function getConnectedGardens() external view returns (address[] memory) {
-        return _gardens;
+    function getConnectedGardens(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory gardens, uint256 total)
+    {
+        total = _gardens.length;
+        if (offset >= total || limit == 0) return (new address[](0), total);
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        gardens = new address[](end - offset);
+        for (uint256 i = offset; i < end; i++) {
+            gardens[i - offset] = _gardens[i];
+        }
     }
 }
 
