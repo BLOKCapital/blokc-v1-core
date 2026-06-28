@@ -241,7 +241,7 @@ contract IndexFactory is Ownable {
     function removeIndex(address indexAddress) external onlyOwner {
         if (!_indexAddresses.contains(indexAddress)) revert IndexFactory_IndexNotRegistered(indexAddress);
 
-        uint256 connectedCount = Index(indexAddress).getConnectedGardens().length;
+        (, uint256 connectedCount) = Index(indexAddress).getConnectedGardens(0, 0);
         if (connectedCount > 0) {
             revert IndexFactory_IndexHasConnectedGardens(indexAddress, connectedCount);
         }

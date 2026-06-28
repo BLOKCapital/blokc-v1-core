@@ -232,10 +232,27 @@ contract Index is IIndex, Ownable {
         return _lastRebalanceTimestamp;
     }
 
-    /// @notice Returns all gardens currently connected to this index
-    /// @return Array of connected garden addresses
-    function getConnectedGardens() external view returns (address[] memory) {
-        return EnumerableSet.values(_connectedGardens);
+    /// @notice Returns a paginated slice of connected gardens.
+    /// @param offset Starting index in the garden list
+    /// @param limit Maximum number of gardens to return
+    /// @return gardens Array of garden addresses for the requested page
+    /// @return total Total number of connected gardens
+    function getConnectedGardens(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory gardens, uint256 total)
+    {
+        total = EnumerableSet.length(_connectedGardens);
+        if (offset >= total || limit == 0) return (new address[](0), total);
+
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256 count = end - offset;
+
+        gardens = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            gardens[i] = EnumerableSet.at(_connectedGardens, offset + i);
+        }
     }
 
     //=======================================================================
