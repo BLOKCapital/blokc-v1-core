@@ -145,17 +145,32 @@ def get_pr_diff(pr_number: int) -> str:
     return diff
 
 
-def post_comment(pr_number: int, body: str, in_reply_to: int | None = None) -> None:
-    """Post a review comment on the PR."""
-    payload: dict = {"body": body}
-    log(f"Posting review comment on PR #{pr_number}...")
-    github_api(f"/repos/{os.environ['GITHUB_REPOSITORY']}/issues/{pr_number}/comments",
-               method="POST", body=payload)
-    log("Review posted successfully.")
+def post_review(pr_number: int, body: str) -> None:
+    """Post a proper GitHub Pull Request Review (not a plain comment)."""
+    # Determine review event based on content
+    body_lower = body.lower()
+    if any(phrase in body_lower for phrase in ["critical", "🔴 critical", "changes requested"]):
+        event = "REQUEST_CHANGES"
+    elif any(phrase in body_lower for phrase in ["approved", "✅ approve", "lgtm"]):
+        event = "APPROVE"
+    else:
+        event = "COMMENT"
+
+    payload: dict = {
+        "body": body,
+        "event": event,
+    }
+    log(f"Posting GitHub review (event={event}) on PR #{pr_number}...")
+    github_api(
+        f"/repos/{os.environ['GITHUB_REPOSITORY']}/pulls/{pr_number}/reviews",
+        method="POST",
+        body=payload,
+    )
+    log(f"Review posted successfully (event={event}).")
 
 
-def add_reaction(comment_id: int, reaction: str = "+1") -> None:
-    """Add a reaction to a comment."""
+def add_reaction(comment_id: int, reaction: str = "eyes") -> None:
+    """Add a reaction to acknowledge the trigger comment."""
     github_api(
         f"/repos/{os.environ['GITHUB_REPOSITORY']}/issues/comments/{comment_id}/reactions",
         method="POST",
@@ -210,7 +225,7 @@ def main():
     diff = get_pr_diff(pr_number)
 
     if not diff.strip():
-        post_comment(
+        post_review(
             pr_number,
             f"🤖 @{comment_user} — this PR has no diff to review (maybe it's already merged?).",
         )
@@ -229,7 +244,7 @@ def main():
         review = claude_review(diff)
     except Exception as e:
         log(f"Claude API call failed: {e}")
-        post_comment(
+        post_review(
             pr_number,
             f"🤖 @{comment_user} — sorry, the Claude API call failed. "
             f"Check the workflow logs for details.\n\n```\n{e}\n```",
@@ -248,7 +263,7 @@ def main():
         user=comment_user
     )
     full_comment = header + review + divider
-    post_comment(pr_number, full_comment)
+    post_review(pr_number, full_comment)
 
 
 if __name__ == "__main__":
