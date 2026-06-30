@@ -44,8 +44,6 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     error ProtocolStatus_ProtocolIsAlreadyInactive();
 
     /// @notice Thrown when a required address argument is the zero address.
-    error ProtocolStatus_ZeroAddress();
-
     /// @notice Thrown when attempting to disable upgrades while the protocol is not active.
     error ProtocolStatus_MustBeActiveToDisableUpgrades();
 
@@ -64,7 +62,6 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     /// @notice Initializes the protocol in ACTIVE state.
     /// @param initialOwner The address that will own this contract.
     constructor(address initialOwner) Ownable(initialOwner) {
-        if (initialOwner == address(0)) revert ProtocolStatus_ZeroAddress();
         _protocolStatus = State.ACTIVE;
         emit ProtocolStatusChanged(State.INACTIVE, State.ACTIVE, initialOwner);
     }

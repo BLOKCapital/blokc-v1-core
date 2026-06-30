@@ -26,6 +26,13 @@ contract ProtocolStatusTest is Test {
         assertEq(uint256(ps.getProtocolStatus()), uint256(IProtocolStatus.State.ACTIVE));
     }
 
+    function test_constructor_emitsEvent() public {
+        vm.expectEmit(true, true, true, true);
+        emit ProtocolStatus.ProtocolStatusChanged(IProtocolStatus.State.INACTIVE, IProtocolStatus.State.ACTIVE, owner);
+        vm.prank(owner);
+        new ProtocolStatus(owner);
+    }
+
     function test_constructor_revertsOnZeroOwner() public {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableInvalidOwner.selector, address(0)));
         new ProtocolStatus(address(0));
@@ -58,7 +65,9 @@ contract ProtocolStatusTest is Test {
     function test_activate_succeeds() public {
         vm.startPrank(owner);
         ps.deactivateProtocol();
-        assertEq(uint256(ps.getProtocolStatus()), uint256(IProtocolStatus.State.INACTIVE));
+
+        vm.expectEmit(true, true, true, true);
+        emit ProtocolStatus.ProtocolStatusChanged(IProtocolStatus.State.INACTIVE, IProtocolStatus.State.ACTIVE, owner);
         ps.activateProtocol();
         assertEq(uint256(ps.getProtocolStatus()), uint256(IProtocolStatus.State.ACTIVE));
         vm.stopPrank();

@@ -109,7 +109,7 @@ def claude_review(diff: str) -> dict:
         "max_tokens": MAX_TOKENS,
         "system": SYSTEM_PROMPT,
         "messages": [
-            {"role": "user", "content": USER_PROMPT.format(diff=diff)},
+            {"role": "user", "content": USER_PROMPT.replace("{diff}", diff)},
         ],
     }
 
