@@ -427,7 +427,15 @@ contract Rebalancer is Ownable {
 
             (address[] memory page,) = IIndex(indices.at(i)).getConnectedGardens(idxStart, take);
             for (uint256 j = 0; j < page.length && filled < needed; j++) {
-                batch[filled++] = page[j];
+                // Dedup: skip gardens already in the batch (from a prior index)
+                bool seen = false;
+                for (uint256 k = 0; k < filled; k++) {
+                    if (batch[k] == page[j]) {
+                        seen = true;
+                        break;
+                    }
+                }
+                if (!seen) batch[filled++] = page[j];
             }
 
             globalCursor += idxTotal;

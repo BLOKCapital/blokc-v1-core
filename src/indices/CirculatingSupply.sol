@@ -26,6 +26,7 @@ error CirculatingSupply_StaleSupplyData(bytes32 symbol, uint256 lastUpdatedAt, u
 
 /// @notice Thrown when attempting to set updater to the zero address
 error CirculatingSupply_InvalidUpdater();
+error CirculatingSupply_InvalidRegistry();
 
 /// @notice Thrown when array lengths do not match
 error CirculatingSupply_LengthMismatch();
@@ -87,6 +88,7 @@ contract CirculatingSupply is ICirculatingSupply, Ownable {
     /// @param _updater Address authorized to push supply updates
     constructor(address initialOwner, address _updater, address _componentRegistry) Ownable(initialOwner) {
         if (_updater == address(0)) revert CirculatingSupply_InvalidUpdater();
+        if (_componentRegistry == address(0)) revert CirculatingSupply_InvalidRegistry();
         updater = _updater;
         componentRegistry = IndexComponentRegistry(_componentRegistry);
     }
