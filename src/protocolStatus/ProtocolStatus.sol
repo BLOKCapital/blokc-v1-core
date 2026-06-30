@@ -66,7 +66,7 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     constructor(address initialOwner) Ownable(initialOwner) {
         if (initialOwner == address(0)) revert ProtocolStatus_ZeroAddress();
         _protocolStatus = State.ACTIVE;
-        emit ProtocolStatusChanged(State.INACTIVE, State.ACTIVE, msg.sender);
+        emit ProtocolStatusChanged(State.INACTIVE, State.ACTIVE, initialOwner);
     }
 
     // ------------------------------------------------------------------------

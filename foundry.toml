@@ -18,7 +18,7 @@
   via_ir = true
 
 [profile.ci]
-  fuzz = { runs = 256 }
+  fuzz = { runs = 1_000 }
   verbosity = 2
 
 remappings = [

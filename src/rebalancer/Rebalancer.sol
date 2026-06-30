@@ -390,9 +390,12 @@ contract Rebalancer is Ownable {
         EnumerableSet.AddressSet storage indices = _indexTypeIndices[indexTypeId];
         uint256 indexCount = indices.length();
 
-        // Count total gardens across all indices (paginated .length is cheap)
+        // Count total gardens across all indices, caching per-index totals to avoid
+        // redundant getConnectedGardens(0,0) calls in the second loop.
+        uint256[] memory indexTotals = new uint256[](indexCount);
         for (uint256 i = 0; i < indexCount; i++) {
             (, uint256 idxTotal) = IIndex(indices.at(i)).getConnectedGardens(0, 0);
+            indexTotals[i] = idxTotal;
             totalGardens += idxTotal;
         }
 
@@ -405,11 +408,10 @@ contract Rebalancer is Ownable {
 
         batch = new address[](needed);
         uint256 filled = 0;
-        uint256 globalCursor = 0; // position across all indices
+        uint256 globalCursor = 0;
 
-        // Iterate indices, paginate through each to fill the batch slice
         for (uint256 i = 0; i < indexCount && filled < needed; i++) {
-            (, uint256 idxTotal) = IIndex(indices.at(i)).getConnectedGardens(0, 0);
+            uint256 idxTotal = indexTotals[i];
 
             // Skip indices entirely before cursor
             if (globalCursor + idxTotal <= cursor) {
