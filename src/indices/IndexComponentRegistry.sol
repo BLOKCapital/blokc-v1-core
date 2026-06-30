@@ -72,6 +72,7 @@ contract IndexComponentRegistry is Ownable {
         uint80 roundId;
         int256 answer;
         uint256 timestamp;
+        uint80 answeredInRound;
         bool success;
     }
 
@@ -210,11 +211,17 @@ contract IndexComponentRegistry is Ownable {
             int256 answer,
             uint256, /* startedAt */
             uint256 timestamp,
-            uint80 /* answeredInRound */
+            uint80 answeredInRound
         ) {
+            // Reject carried-over prices: per Chainlink, if answeredInRound < roundId,
+            // the answer is from a previous round and the feed may be stale.
+            if (answeredInRound < roundId) {
+                return (currResponse, prevResponse, false);
+            }
             currResponse.roundId = roundId;
             currResponse.answer = answer;
             currResponse.timestamp = timestamp;
+            currResponse.answeredInRound = answeredInRound;
             currResponse.success = true;
         } catch {
             return (currResponse, prevResponse, false);
@@ -228,11 +235,14 @@ contract IndexComponentRegistry is Ownable {
                         int256 prevAnswer,
                         uint256, /* startedAt */
                         uint256 prevTimestamp,
-                        uint80 /* answeredInRound */
+                        uint80 prevAnsweredInRound
                     ) {
+                        // Reject carried-over prices in previous round too
+                        if (prevAnsweredInRound < prevRoundId) return (currResponse, prevResponse, false);
                         prevResponse.roundId = prevRoundId;
                         prevResponse.answer = prevAnswer;
                         prevResponse.timestamp = prevTimestamp;
+                        prevResponse.answeredInRound = prevAnsweredInRound;
                         prevResponse.success = true;
                     } catch { }
                 }
