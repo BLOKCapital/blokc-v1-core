@@ -25,6 +25,7 @@ import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstructi
 
 // Local Libraries
 import { TickMath } from "src/garden/libraries/TickMath.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // ============================================================================
 // Errors
@@ -331,18 +332,21 @@ abstract contract SushiSwapV3Base {
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
 
-        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        uint256 sqrtP = uint256(sqrtPriceX96);
+        uint256 Q96 = 1 << 96;
         uint24 fee = IUniswapV3Pool(pool).fee();
 
         if (tokenIn == token0 && tokenOut == token1) {
-            amountOut = (amountIn * price) >> 96;
+            // amountOut = amountIn * sqrtP² / 2^192  (split into two mulDivs)
+            amountOut = Math.mulDiv(Math.mulDiv(amountIn, sqrtP, Q96), sqrtP, Q96);
         } else if (tokenIn == token1 && tokenOut == token0) {
-            amountOut = amountIn / price;
+            // amountOut = amountIn * 2^192 / sqrtP²  (split into two mulDivs)
+            amountOut = Math.mulDiv(Math.mulDiv(amountIn, Q96, sqrtP), Q96, sqrtP);
         } else {
             revert SushiSwapV3Facet_InvalidPath();
         }
         // Deduct the pool's swap fee from the quoted output
-        amountOut = amountOut * (1_000_000 - fee) / 1_000_000;
+        amountOut = Math.mulDiv(amountOut, 1_000_000 - fee, 1_000_000);
     }
 
     function _reverseQuotePool(
@@ -365,18 +369,24 @@ abstract contract SushiSwapV3Base {
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
 
-        uint256 price = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 192;
+        uint256 sqrtP = uint256(sqrtPriceX96);
+        uint256 Q96 = 1 << 96;
         uint24 fee = IUniswapV3Pool(pool).fee();
 
+        // Reverse of _quotePool: invert the direction
         if (tokenIn == token0 && tokenOut == token1) {
-            amountIn = (amountOut << 96) / price;
+            // Forward: out = in * sqrtP² / 2^192  →  Reverse: in = out * 2^192 / sqrtP²
+            amountIn =
+                Math.mulDiv(Math.mulDiv(amountOut, Q96, sqrtP, Math.Rounding.Ceil), Q96, sqrtP, Math.Rounding.Ceil);
         } else if (tokenIn == token1 && tokenOut == token0) {
-            amountIn = amountOut * price;
+            // Forward: out = in * 2^192 / sqrtP²  →  Reverse: in = out * sqrtP² / 2^192
+            amountIn =
+                Math.mulDiv(Math.mulDiv(amountOut, sqrtP, Q96, Math.Rounding.Ceil), sqrtP, Q96, Math.Rounding.Ceil);
         } else {
             revert SushiSwapV3Facet_InvalidPath();
         }
-        // Account for pool swap fee: need more input to cover the fee deduction (ceil division)
-        amountIn = (amountIn * 1_000_000 + (1_000_000 - fee) - 1) / (1_000_000 - fee);
+        // Account for pool swap fee: need more input to cover the fee deduction
+        amountIn = Math.mulDiv(amountIn, 1_000_000, 1_000_000 - fee, Math.Rounding.Ceil);
     }
 
     // ========================================================================

@@ -47,6 +47,9 @@ error Rebalancer_InvalidConfig();
 error Rebalancer_DeadlineExpired(uint256 deadline, uint256 blockTimestamp);
 error Rebalancer_BatchSizeNotSet(bytes32 indexTypeId);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error Rebalancer_CannotRenounceOwnership();
+
 /**
  * @title Rebalancer
  * @author BLOK Capital DAO
@@ -259,6 +262,12 @@ contract Rebalancer is Ownable {
         emit IndexTypeRemoved(indexTypeId, indexAddress);
     }
 
+    /// @notice Renounce ownership is disabled to prevent permanent lockout
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert Rebalancer_CannotRenounceOwnership();
+    }
+
     function getIndicesForType(bytes32 indexTypeId) external view returns (address[] memory) {
         return _indexTypeIndices[indexTypeId].values();
     }
@@ -279,6 +288,7 @@ contract Rebalancer is Ownable {
      */
     function cumulativeRebalance(bytes32 indexTypeId, uint256 deadline) external {
         if (deadline < block.timestamp) revert Rebalancer_DeadlineExpired(deadline, block.timestamp);
+        if (deadline > block.timestamp + 1 hours) revert Rebalancer_DeadlineExpired(deadline, block.timestamp);
 
         // -- Pre-validate --
         if (_indexTypeIndices[indexTypeId].length() == 0) {

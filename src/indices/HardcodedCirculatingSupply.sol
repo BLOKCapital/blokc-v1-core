@@ -23,6 +23,9 @@ error HardcodedCirculatingSupply_SupplyNotSet(bytes32 symbol);
 /// @notice Thrown when array lengths do not match
 error HardcodedCirculatingSupply_LengthMismatch();
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error HardcodedCirculatingSupply_CannotRenounceOwnership();
+
 /**
  * @title HardcodedCirculatingSupply
  * @author BLOK Capital DAO
@@ -69,6 +72,12 @@ contract HardcodedCirculatingSupply is ICirculatingSupply, Ownable {
             _isSet[symbols[i]] = true;
             emit SupplySet(symbols[i], supplies[i]);
         }
+    }
+
+    /// @notice Renounce ownership is disabled to prevent permanent lockout
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert HardcodedCirculatingSupply_CannotRenounceOwnership();
     }
 
     /// @notice Returns the raw supply without any checks (returns 0 if never set).

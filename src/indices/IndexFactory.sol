@@ -73,6 +73,9 @@ error IndexFactory_InvalidIndexName();
 /// @param connectedCount Number of connected gardens
 error IndexFactory_IndexHasConnectedGardens(address indexAddress, uint256 connectedCount);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error IndexFactory_CannotRenounceOwnership();
+
 /**
  * @title IndexFactory
  * @notice Factory contract for deploying new Index contracts with specified parameters. This contract validates that
@@ -250,6 +253,15 @@ contract IndexFactory is Ownable {
         _indexAddresses.remove(indexAddress);
         delete _indexInfo[indexAddress];
         emit IndexRemoved(indexAddress, indexId);
+    }
+
+    // ========================================================================
+    // Renounce Ownership
+    // ========================================================================
+
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert IndexFactory_CannotRenounceOwnership();
     }
 
     /// @notice Retrieves metadata for a specific index

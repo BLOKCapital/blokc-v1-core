@@ -37,6 +37,9 @@ error CirculatingSupply_OnlyUpdater();
 /// @notice Thrown when a symbol is not registered in the component registry
 error CirculatingSupply_SymbolNotRegistered(bytes32 symbol);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error CirculatingSupply_CannotRenounceOwnership();
+
 /**
  * @title CirculatingSupply
  * @notice A simple contract to track the circulating supply of various tokens, allowing an authorized updater to set
@@ -147,5 +150,11 @@ contract CirculatingSupply is ICirculatingSupply, Ownable {
         if (_updater == address(0)) revert CirculatingSupply_InvalidUpdater();
         emit UpdaterChanged(updater, _updater);
         updater = _updater;
+    }
+
+    /// @notice Renounce ownership is disabled to prevent permanent lockout
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert CirculatingSupply_CannotRenounceOwnership();
     }
 }

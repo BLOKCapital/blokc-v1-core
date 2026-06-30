@@ -33,6 +33,9 @@ error IndexCalculationRegistry_IndexCalculationAlreadyRegistered(address indexCa
 /// @param indexCalculationAddress The unregistered calculation address
 error IndexCalculationRegistry_IndexCalculationNotRegistered(address indexCalculationAddress);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error IndexCalculationRegistry_CannotRenounceOwnership();
+
 /**
  * @title IndexCalculationRegistry
  * @notice Registry contract for managing index calculation strategies. This contract allows the owner to register and
@@ -113,6 +116,12 @@ contract IndexCalculationRegistry is Ownable {
         emit IndexCalculationUnregistered(indexCalculationAddress);
         _indexCalculationAddresses.remove(indexCalculationAddress);
         delete _indexCalculationInfo[indexCalculationAddress];
+    }
+
+    /// @notice Renounce ownership is disabled to prevent permanent lockout
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert IndexCalculationRegistry_CannotRenounceOwnership();
     }
 
     /// @notice Retrieves metadata for a registered calculation

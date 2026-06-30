@@ -53,6 +53,9 @@ error GardenFactory_ProtocolIsInactive();
 /// @param gardenType The unregistered garden type
 error GardenFactory_GardenTypeNotRegistered(bytes32 gardenType);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error GardenFactory_CannotRenounceOwnership();
+
 /**
  * @title GardenFactory
  * @author BLOK Capital DAO
@@ -128,6 +131,15 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         if (_protocolStatus == address(0)) {
             revert GardenFactory_ProtocolStatusNotSet();
         }
+    }
+
+    // ========================================================================
+    // Renounce Ownership
+    // ========================================================================
+
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert GardenFactory_CannotRenounceOwnership();
     }
 
     // ========================================================================

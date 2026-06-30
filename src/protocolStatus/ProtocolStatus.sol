@@ -47,6 +47,9 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
     /// @notice Thrown when attempting to disable upgrades while the protocol is not active.
     error ProtocolStatus_MustBeActiveToDisableUpgrades();
 
+    /// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+    error ProtocolStatus_CannotRenounceOwnership();
+
     // ------------------------------------------------------------------------
     // EVENTS
     // ------------------------------------------------------------------------
@@ -91,6 +94,15 @@ contract ProtocolStatus is IProtocolStatus, Ownable {
         if (currentStatus != State.ACTIVE) revert ProtocolStatus_MustBeActiveToDisableUpgrades();
         _protocolStatus = State.UPGRADES_DISABLED;
         emit ProtocolStatusChanged(currentStatus, State.UPGRADES_DISABLED, msg.sender);
+    }
+
+    // ------------------------------------------------------------------------
+    // RENOUNCE OWNERSHIP
+    // ------------------------------------------------------------------------
+
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert ProtocolStatus_CannotRenounceOwnership();
     }
 
     // ------------------------------------------------------------------------

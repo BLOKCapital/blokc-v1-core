@@ -43,6 +43,9 @@ error IndexComponentRegistry__InvalidFeedResponseError(address token);
 
 error IndexComponentRegistry__UnknownFeedError(address token);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error IndexComponentRegistry_CannotRenounceOwnership();
+
 /**
  * @title IndexComponentRegistry
  * @notice Registry contract for managing index components and their associated price feeds. This contract allows the
@@ -155,6 +158,12 @@ contract IndexComponentRegistry is Ownable {
             delete _components[symbol];
             emit ComponentUnregistered(symbol, tokenAddress);
         }
+    }
+
+    /// @notice Renounce ownership is disabled to prevent permanent lockout
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert IndexComponentRegistry_CannotRenounceOwnership();
     }
 
     /// @notice Fetches and caches the latest oracle price for a registered component

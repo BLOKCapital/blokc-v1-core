@@ -75,6 +75,9 @@ error Index_CallerNotContract();
 /// @param caller Address of the caller that is not a registered garden
 error Index_CallerNotGarden(address caller);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error Index_CannotRenounceOwnership();
+
 /**
  * @title Index
  * @notice The Index contract manages the composition and weights of components in a decentralized index. It allows for
@@ -297,5 +300,14 @@ contract Index is IIndex, Ownable {
         _lastRebalanceTimestamp = block.timestamp;
 
         emit WeightsUpdated(symbols, weights, block.timestamp);
+    }
+
+    //=======================================================================
+    // Renounce Ownership
+    //=======================================================================
+
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert Index_CannotRenounceOwnership();
     }
 }
