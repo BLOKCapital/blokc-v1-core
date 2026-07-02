@@ -90,12 +90,6 @@ abstract contract RewardCollectionBase is IERC721, IERC721Metadata, IERC721Error
         return string(abi.encodePacked("data:application/json;base64,", Base64.encode(json)));
     }
 
-    /// @notice Gets the base URI of the collection
-    /// @return The base URI of the collection
-    function _baseURI() internal view virtual returns (string memory) {
-        return "";
-    }
-
     /// @notice Gets the total supply of minted tokens
     /// @return The total supply of tokens
     function _totalSupply() internal view returns (uint256) {

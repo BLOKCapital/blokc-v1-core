@@ -108,28 +108,6 @@ abstract contract TraderJoeV2Base {
     }
 
     // -------------------------------------------------------------------------
-    // Liquidity
-    // -------------------------------------------------------------------------
-
-    function _traderJoeV2CreateLBPair(
-        address tokenX,
-        address tokenY,
-        uint24 activeId,
-        uint16 binStep
-    )
-        internal
-        returns (ILBPair pair)
-    {
-        if (binStep == 0) {
-            revert TraderJoeV2Facet_InvalidAmount();
-        }
-
-        pair = _factory().createLBPair(IERC20(tokenX), IERC20(tokenY), activeId, binStep);
-
-        _checkPoolRegistered(address(pair));
-    }
-
-    // -------------------------------------------------------------------------
     // Swaps
     // -------------------------------------------------------------------------
 

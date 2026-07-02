@@ -208,13 +208,7 @@ contract BalancerV3FacetGardenForkTest is Test {
     }
 
     function _deployProtocolStatus() internal returns (ProtocolStatus deployedProtocolStatus) {
-        bytes32[] memory emptyNamehashes = new bytes32[](0);
-        string[] memory emptyNames = new string[](0);
-        uint256[] memory emptyExpiries = new uint256[](0);
-
-        deployedProtocolStatus =
-            new ProtocolStatus(address(this), makeAddr("ensRegistry"), emptyNamehashes, emptyNames, emptyExpiries);
-        deployedProtocolStatus.activateProtocol();
+        deployedProtocolStatus = new ProtocolStatus(address(this));
     }
 
     function _balancerFacetCuts(address facetAddress) internal pure returns (IDiamondCut.FacetCut[] memory cuts) {

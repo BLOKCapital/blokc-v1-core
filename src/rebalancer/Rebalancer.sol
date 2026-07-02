@@ -47,6 +47,9 @@ error Rebalancer_InvalidConfig();
 error Rebalancer_DeadlineExpired(uint256 deadline, uint256 blockTimestamp);
 error Rebalancer_BatchSizeNotSet(bytes32 indexTypeId);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error Rebalancer_CannotRenounceOwnership();
+
 /**
  * @title Rebalancer
  * @author BLOK Capital DAO
@@ -259,6 +262,12 @@ contract Rebalancer is Ownable {
         emit IndexTypeRemoved(indexTypeId, indexAddress);
     }
 
+    /// @notice Renounce ownership is disabled to prevent permanent lockout
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert Rebalancer_CannotRenounceOwnership();
+    }
+
     function getIndicesForType(bytes32 indexTypeId) external view returns (address[] memory) {
         return _indexTypeIndices[indexTypeId].values();
     }
@@ -279,6 +288,7 @@ contract Rebalancer is Ownable {
      */
     function cumulativeRebalance(bytes32 indexTypeId, uint256 deadline) external {
         if (deadline < block.timestamp) revert Rebalancer_DeadlineExpired(deadline, block.timestamp);
+        if (deadline > block.timestamp + 1 hours) revert Rebalancer_DeadlineExpired(deadline, block.timestamp);
 
         // -- Pre-validate --
         if (_indexTypeIndices[indexTypeId].length() == 0) {
@@ -302,8 +312,7 @@ contract Rebalancer is Ownable {
         if (_locked) revert Rebalancer_RebalanceReentrancy(indexTypeId);
         _locked = true;
 
-        address[] memory allGardens = _collectGardens(indexTypeId);
-        uint256 totalGardens = allGardens.length;
+        (address[] memory batch, uint256 totalGardens) = _collectGardens(indexTypeId, cursor, batchSize);
         if (totalGardens == 0) revert Rebalancer_NoGardensFound(indexTypeId);
 
         // If cursor is past the end (gardens were removed), reset to start a fresh round
@@ -311,13 +320,6 @@ contract Rebalancer is Ownable {
 
         uint256 end = cursor + batchSize;
         if (end > totalGardens) end = totalGardens;
-
-        // Slice the batch
-        uint256 batchLength = end - cursor;
-        address[] memory batch = new address[](batchLength);
-        for (uint256 i = 0; i < batchLength; i++) {
-            batch[i] = allGardens[cursor + i];
-        }
 
         (bytes32[] memory symbols, uint256[] memory weights) = IIndex(_indexTypeIndices[indexTypeId].at(0)).getWeights();
 
@@ -384,35 +386,77 @@ contract Rebalancer is Ownable {
     // Internal: Garden Collection & Token Pulling
     // ========================================================================
 
-    function _collectGardens(bytes32 indexTypeId) private view returns (address[] memory gardens) {
+    /// @notice Collects a batch of gardens for the given index type using paginated queries.
+    ///         Returns the batch slice and the total count across all indices.
+    function _collectGardens(
+        bytes32 indexTypeId,
+        uint256 cursor,
+        uint256 batchSize
+    )
+        private
+        view
+        returns (address[] memory batch, uint256 totalGardens)
+    {
         EnumerableSet.AddressSet storage indices = _indexTypeIndices[indexTypeId];
         uint256 indexCount = indices.length();
 
-        uint256 totalGardens = 0;
+        // Count total gardens across all indices, caching per-index totals to avoid
+        // redundant getConnectedGardens(0,0) calls in the second loop.
+        uint256[] memory indexTotals = new uint256[](indexCount);
         for (uint256 i = 0; i < indexCount; i++) {
-            totalGardens += IIndex(indices.at(i)).getConnectedGardens().length;
+            (, uint256 idxTotal) = IIndex(indices.at(i)).getConnectedGardens(0, 0);
+            indexTotals[i] = idxTotal;
+            totalGardens += idxTotal;
         }
 
-        gardens = new address[](totalGardens);
-        uint256 count = 0;
-        for (uint256 i = 0; i < indexCount; i++) {
-            address[] memory connectedGardens = IIndex(indices.at(i)).getConnectedGardens();
-            for (uint256 j = 0; j < connectedGardens.length; j++) {
-                bool duplicate = false;
-                for (uint256 k = 0; k < count; k++) {
-                    if (gardens[k] == connectedGardens[j]) {
-                        duplicate = true;
+        if (totalGardens == 0) return (new address[](0), 0);
+        if (cursor >= totalGardens) cursor = 0;
+
+        uint256 end = cursor + batchSize;
+        if (end > totalGardens) end = totalGardens;
+        uint256 needed = end - cursor;
+
+        batch = new address[](needed);
+        uint256 filled = 0;
+        uint256 globalCursor = 0;
+
+        for (uint256 i = 0; i < indexCount && filled < needed; i++) {
+            uint256 idxTotal = indexTotals[i];
+
+            // Skip indices entirely before cursor
+            if (globalCursor + idxTotal <= cursor) {
+                globalCursor += idxTotal;
+                continue;
+            }
+
+            uint256 idxStart = globalCursor < cursor ? cursor - globalCursor : 0;
+            uint256 remaining = needed - filled;
+            uint256 take = idxStart + remaining > idxTotal ? idxTotal - idxStart : remaining;
+            if (take == 0) {
+                globalCursor += idxTotal;
+                continue;
+            }
+
+            (address[] memory page,) = IIndex(indices.at(i)).getConnectedGardens(idxStart, take);
+            for (uint256 j = 0; j < page.length && filled < needed; j++) {
+                // Dedup: skip gardens already in the batch (from a prior index)
+                bool seen = false;
+                for (uint256 k = 0; k < filled; k++) {
+                    if (batch[k] == page[j]) {
+                        seen = true;
                         break;
                     }
                 }
-                if (!duplicate) {
-                    gardens[count] = connectedGardens[j];
-                    count++;
-                }
+                if (!seen) batch[filled++] = page[j];
             }
+
+            globalCursor += idxTotal;
         }
 
-        if (count < totalGardens) assembly { mstore(gardens, count) }
+        // Trim if we couldn't fill the entire batch
+        if (filled < needed) {
+            assembly { mstore(batch, filled) }
+        }
     }
 
     function _snapshotAndPullTokens(

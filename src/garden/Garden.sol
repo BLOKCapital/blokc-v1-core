@@ -67,6 +67,10 @@ error Garden_ProtocolIsInactive();
 /// @notice Thrown when the garden type is not registered
 error Garden_GardenTypeNotRegistered();
 
+/// @notice Thrown when a facet address has no deployed code at call time
+/// @param facet The facet address that has no code
+error Garden_FacetHasNoCode(address facet);
+
 /// @notice Thrown when a selector's module is not allowed for the garden's type
 /// @param selector The function selector whose module is not allowed
 error Garden_ModuleNotAllowed(bytes4 selector);
@@ -84,9 +88,6 @@ contract Garden is DiamondCutBase {
     // ========================================================================
     // Constructor
     // ========================================================================
-
-    /// @notice The BASE module identifier (matches FacetRegistry.BASE_MODULE)
-    bytes32 private constant BASE_MODULE = keccak256("BASE");
 
     /// @notice Constructs the Diamond contract with initial facets and configuration
     /// @dev Validates all critical addresses are non-zero and initializes the diamond with
@@ -196,6 +197,12 @@ contract Garden is DiamondCutBase {
         if (ld.gardenType != bytes32(0) && !moduleAllowed) {
             revert Garden_ModuleNotAllowed(msg.sig);
         }
+
+        // Defense-in-depth: ensure the facet address still contains code.
+        // Between facet installation and call time, a facet could lose its code
+        // (e.g. via SELFDESTRUCT in a constructor before Cancun, or a misconfigured
+        // upgrade). This check prevents silent success with empty return data.
+        if (facet.code.length == 0) revert Garden_FacetHasNoCode(facet);
 
         // Execute external function from facet using delegatecall and return any value
         assembly {

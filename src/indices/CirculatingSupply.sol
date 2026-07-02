@@ -26,6 +26,7 @@ error CirculatingSupply_StaleSupplyData(bytes32 symbol, uint256 lastUpdatedAt, u
 
 /// @notice Thrown when attempting to set updater to the zero address
 error CirculatingSupply_InvalidUpdater();
+error CirculatingSupply_InvalidRegistry();
 
 /// @notice Thrown when array lengths do not match
 error CirculatingSupply_LengthMismatch();
@@ -35,6 +36,9 @@ error CirculatingSupply_OnlyUpdater();
 
 /// @notice Thrown when a symbol is not registered in the component registry
 error CirculatingSupply_SymbolNotRegistered(bytes32 symbol);
+
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error CirculatingSupply_CannotRenounceOwnership();
 
 /**
  * @title CirculatingSupply
@@ -86,6 +90,8 @@ contract CirculatingSupply is ICirculatingSupply, Ownable {
     /// @param initialOwner Address of the contract owner
     /// @param _updater Address authorized to push supply updates
     constructor(address initialOwner, address _updater, address _componentRegistry) Ownable(initialOwner) {
+        if (_updater == address(0)) revert CirculatingSupply_InvalidUpdater();
+        if (_componentRegistry == address(0)) revert CirculatingSupply_InvalidRegistry();
         updater = _updater;
         componentRegistry = IndexComponentRegistry(_componentRegistry);
     }
@@ -144,5 +150,11 @@ contract CirculatingSupply is ICirculatingSupply, Ownable {
         if (_updater == address(0)) revert CirculatingSupply_InvalidUpdater();
         emit UpdaterChanged(updater, _updater);
         updater = _updater;
+    }
+
+    /// @notice Renounce ownership is disabled to prevent permanent lockout
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert CirculatingSupply_CannotRenounceOwnership();
     }
 }

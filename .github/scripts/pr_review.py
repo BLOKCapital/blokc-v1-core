@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 PR Review script — triggered by @claude mention in a PR comment.
-Fetches the PR diff, sends it to Claude for review, posts the result.
+Fetches the PR diff, sends it to Claude, and posts findings as inline
+review comments on the specific lines (Copilot-style).
+
 Uses only Python stdlib — no external dependencies needed.
 """
 import json
@@ -14,29 +16,49 @@ import urllib.request
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 MODEL = "claude-sonnet-4-6"
-MAX_TOKENS = 4096
-MAX_DIFF_BYTES = 80_000  # ~20k tokens, leaves room for response
+MAX_TOKENS = 8192
+MAX_DIFF_BYTES = 80_000
 
 SYSTEM_PROMPT = """\
-You are an expert Solidity smart contract reviewer for a Foundry project. \
+You are an expert Solidity smart contract reviewer for a Foundry project.
+
 When reviewing a PR diff, focus on:
-
-1. **Security vulnerabilities** — reentrancy, access control, overflow/underflow, \
-front-running, oracle manipulation, unchecked external calls, signature replay
+1. **Security** — reentrancy, access control, overflow, front-running, oracle manipulation
 2. **Correctness** — logic errors, invariant violations, edge cases
-3. **Gas optimization** — redundant storage reads, inefficient loops, \
-unnecessary computation
-4. **Foundry best practices** — test coverage gaps, missing forge coverage, \
-CheatCodes usage, fuzz test improvements
-5. **Code quality** — readability, naming, SOLID principles, NatSpec comments
+3. **Gas** — redundant storage reads, inefficient loops
+4. **Best practices** — test coverage, NatSpec, naming
 
-Format your review as a concise PR comment:
-- Use a 🔴 / 🟡 / 🔵 severity tag on each finding
-- Include the specific file and line reference
-- Suggest a concrete fix for each issue
-- End with a summary verdict (✅ Approve / ⚠️ Changes Requested / 💬 Comment)
+You MUST respond with a JSON object containing:
+{
+  "verdict": "REQUEST_CHANGES" | "APPROVE" | "COMMENT",
+  "summary": "2-3 sentence high-level summary of the PR changes",
+  "findings": [
+    {
+      "file": "src/Foo.sol",
+      "line": 42,
+      "severity": "critical" | "medium" | "info",
+      "body": "What's wrong and how to fix it. Use backticks for code."
+    }
+  ]
+}
 
-Keep it actionable — don't nitpick formatting that forge fmt would catch."""
+- Use "critical" for vulnerabilities, broken logic, fund-loss risks
+- Use "medium" for code quality, missing checks, gas improvements
+- Use "info" for style, naming, documentation nits
+- Include the exact file path as shown in the diff
+- Line numbers MUST match the NEW (right-side) line numbers in the unified diff (lines starting with + or context lines)
+- Only include findings that are worth a developer's time
+- Maximum 12 findings total
+- If there are no meaningful findings, return an empty findings array
+
+ONLY output the JSON object. No markdown, no code fences, no preamble."""
+
+USER_PROMPT = """Review this PR diff. Focus on logic errors, security issues, and correctness.
+Return ONLY the JSON object as specified.
+
+```diff
+{diff}
+```"""
 
 
 def log(msg: str) -> None:
@@ -74,8 +96,8 @@ def github_api(path: str, method: str = "GET", body: dict | None = None) -> dict
         raise RuntimeError(err_msg) from e
 
 
-def claude_review(diff: str) -> str:
-    """Send the diff to Claude and return the review text."""
+def claude_review(diff: str) -> dict:
+    """Send the diff to Claude and return parsed review JSON."""
     api_key = os.environ["CLAUDE_API_KEY"]
     headers = {
         "x-api-key": api_key,
@@ -87,10 +109,7 @@ def claude_review(diff: str) -> str:
         "max_tokens": MAX_TOKENS,
         "system": SYSTEM_PROMPT,
         "messages": [
-            {
-                "role": "user",
-                "content": f"Please review this PR diff:\n\n```diff\n{diff}\n```",
-            }
+            {"role": "user", "content": USER_PROMPT.replace("{diff}", diff)},
         ],
     }
 
@@ -106,10 +125,9 @@ def claude_review(diff: str) -> str:
         err_body = e.read().decode(errors="replace")
         err_msg = f"Claude API error {e.code}: {err_body}"
         log(err_msg)
-        # Detect common issues
         if "credit balance is too low" in err_body:
             raise RuntimeError(
-                "Claude API credits are exhausted. "
+                "Claude API credits exhausted. "
                 "Top up at https://console.anthropic.com/settings/billing"
             ) from e
         if "invalid x-api-key" in err_body.lower():
@@ -118,17 +136,32 @@ def claude_review(diff: str) -> str:
             ) from e
         raise RuntimeError(err_msg) from e
 
-    # Extract text from the first content block
-    content = result.get("content", [])
-    for block in content:
+    # Extract text from response
+    for block in result.get("content", []):
         if block.get("type") == "text":
-            return block["text"]
-    return "Claude returned no text response."
+            text = block["text"].strip()
+            # Strip markdown code fences if present
+            if text.startswith("```"):
+                text = re.sub(r"^```\w*\n?", "", text)
+                text = re.sub(r"\n```$", "", text)
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                log(f"Failed to parse Claude response as JSON. Raw: {text[:500]}")
+                raise RuntimeError("Claude response was not valid JSON")
+    raise RuntimeError("Claude returned no text response.")
+
+
+def get_pr_files(pr_number: int) -> list[dict]:
+    """Fetch the list of files changed in the PR."""
+    files = github_api(
+        f"/repos/{os.environ['GITHUB_REPOSITORY']}/pulls/{pr_number}/files?per_page=100"
+    )
+    return files
 
 
 def get_pr_diff(pr_number: int) -> str:
     """Fetch the unified diff for a PR."""
-    # Use the media type for diff format
     token = os.environ["GH_TOKEN"]
     url = (
         f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
@@ -141,21 +174,74 @@ def get_pr_diff(pr_number: int) -> str:
     }
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req) as resp:
-        diff = resp.read().decode()
-    return diff
+        return resp.read().decode()
 
 
-def post_comment(pr_number: int, body: str, in_reply_to: int | None = None) -> None:
-    """Post a review comment on the PR."""
-    payload: dict = {"body": body}
-    log(f"Posting review comment on PR #{pr_number}...")
-    github_api(f"/repos/{os.environ['GITHUB_REPOSITORY']}/issues/{pr_number}/comments",
-               method="POST", body=payload)
+def validate_finding(file: str, line: int, pr_files: list[dict]) -> bool:
+    """Check that the file exists in the PR and the line is valid."""
+    for f in pr_files:
+        if f["filename"] == file:
+            # We can't easily validate the exact line, but we check the file exists
+            return True
+    return False
+
+
+def post_review(pr_number: int, summary: str, findings: list[dict], verdict: str, pr_files: list[dict]) -> None:
+    """Post a GitHub PR Review with inline comments on specific lines."""
+    # Filter and validate findings
+    inline_comments = []
+    for f in findings:
+        file_path = f.get("file", "")
+        line = f.get("line", 0)
+        severity = f.get("severity", "info")
+        body = f.get("body", "")
+
+        if not file_path or not line or not body:
+            continue
+        if not validate_finding(file_path, line, pr_files):
+            log(f"Skipping finding for unknown file: {file_path}")
+            continue
+
+        emoji = {"critical": "🔴", "medium": "🟡"}.get(severity, "🔵")
+        inline_comments.append({
+            "path": file_path,
+            "line": line,
+            "body": f"{emoji} **{severity}:** {body}",
+        })
+
+    if not inline_comments:
+        log("No valid inline findings to post. Posting summary-only review.")
+        github_api(
+            f"/repos/{os.environ['GITHUB_REPOSITORY']}/pulls/{pr_number}/reviews",
+            method="POST",
+            body={"body": summary, "event": "COMMENT"},
+        )
+        return
+
+    # Map verdict to GitHub review event
+    event_map = {
+        "REQUEST_CHANGES": "REQUEST_CHANGES",
+        "APPROVE": "APPROVE",
+        "COMMENT": "COMMENT",
+    }
+    event = event_map.get(verdict, "COMMENT")
+
+    payload = {
+        "body": summary,
+        "event": event,
+        "comments": inline_comments,
+    }
+    log(f"Posting review with {len(inline_comments)} inline comments (event={event})...")
+    github_api(
+        f"/repos/{os.environ['GITHUB_REPOSITORY']}/pulls/{pr_number}/reviews",
+        method="POST",
+        body=payload,
+    )
     log("Review posted successfully.")
 
 
-def add_reaction(comment_id: int, reaction: str = "+1") -> None:
-    """Add a reaction to a comment."""
+def add_reaction(comment_id: int, reaction: str = "eyes") -> None:
+    """Add a reaction to acknowledge the trigger comment."""
     github_api(
         f"/repos/{os.environ['GITHUB_REPOSITORY']}/issues/comments/{comment_id}/reactions",
         method="POST",
@@ -172,7 +258,6 @@ def extract_focus(comment_body: str) -> str | None:
 def main():
     log("Starting PR review...")
 
-    # Parse event payload from environment
     event_path = os.environ.get("GITHUB_EVENT_PATH", "")
     if not event_path:
         log("ERROR: GITHUB_EVENT_PATH not set")
@@ -194,61 +279,71 @@ def main():
 
     log(f"Triggered by @{comment_user} on PR #{pr_number}")
 
-    # Acknowledge with a reaction
+    # Acknowledge
     if comment_id:
         try:
             add_reaction(comment_id, "eyes")
         except Exception as e:
             log(f"Warning: Could not add reaction: {e}")
 
-    # Optional focus hint
     focus = extract_focus(comment_body)
-    focus_note = f"\n\n_(Reviewer focused on: **{focus}**)_" if focus else ""
+    focus_note = f"\n\n_(Focused on: **{focus}**)_" if focus else ""
 
-    # Get the PR diff
+    # Get PR files for validation
+    log("Fetching PR files...")
+    pr_files = get_pr_files(pr_number)
+
+    # Get the diff
     log("Fetching PR diff...")
     diff = get_pr_diff(pr_number)
 
     if not diff.strip():
-        post_comment(
-            pr_number,
-            f"🤖 @{comment_user} — this PR has no diff to review (maybe it's already merged?).",
+        github_api(
+            f"/repos/{os.environ['GITHUB_REPOSITORY']}/pulls/{pr_number}/reviews",
+            method="POST",
+            body={"body": f"🤖 Nothing to review — this PR has no diff.", "event": "COMMENT"},
         )
         return
 
-    # Truncate if needed
     diff_bytes = diff.encode()
     if len(diff_bytes) > MAX_DIFF_BYTES:
         diff = diff_bytes[:MAX_DIFF_BYTES].decode(errors="replace")
         log(f"Diff truncated to {MAX_DIFF_BYTES} bytes")
 
-    log(f"Diff size: {len(diff_bytes)} bytes. Sending to Claude...")
+    log(f"Diff: {len(diff_bytes)} bytes. Sending to Claude...")
 
     # Call Claude
     try:
-        review = claude_review(diff)
+        parsed = claude_review(diff)
     except Exception as e:
         log(f"Claude API call failed: {e}")
-        post_comment(
-            pr_number,
-            f"🤖 @{comment_user} — sorry, the Claude API call failed. "
-            f"Check the workflow logs for details.\n\n```\n{e}\n```",
+        github_api(
+            f"/repos/{os.environ['GITHUB_REPOSITORY']}/pulls/{pr_number}/reviews",
+            method="POST",
+            body={
+                "body": f"🤖 Claude review failed.\n\n```\n{e}\n```",
+                "event": "COMMENT",
+            },
         )
         sys.exit(1)
 
-    # Clean up the review — strip markdown code fences the model might wrap in
-    review = review.strip()
-    if review.startswith("```"):
-        review = re.sub(r"^```\w*\n?", "", review)
-        review = re.sub(r"\n```$", "", review)
+    verdict = parsed.get("verdict", "COMMENT")
+    summary = parsed.get("summary", "Claude reviewed this PR.")
+    findings = parsed.get("findings", [])
 
-    # Post the review
-    header = f"## 🤖 Claude Code Review{focus_note}\n\n"
-    divider = "\n\n---\n\n*Requested by @{user} — [Claude Code](https://claude.com/claude-code)*".format(
-        user=comment_user
+    log(f"Claude returned {len(findings)} findings, verdict: {verdict}")
+
+    # Build summary body
+    emoji = {"REQUEST_CHANGES": "⚠️", "APPROVE": "✅"}.get(verdict, "💬")
+    summary_body = (
+        f"## 🤖 Claude Code Review{emoji}{focus_note}\n\n"
+        f"{summary}\n\n"
+        f"_{len(findings)} finding(s) — see inline comments below._\n\n"
+        f"---\n"
+        f"*Requested by @{comment_user} — [Claude Code](https://claude.com/claude-code)*"
     )
-    full_comment = header + review + divider
-    post_comment(pr_number, full_comment)
+
+    post_review(pr_number, summary_body, findings, verdict, pr_files)
 
 
 if __name__ == "__main__":

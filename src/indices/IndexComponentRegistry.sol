@@ -43,6 +43,9 @@ error IndexComponentRegistry__InvalidFeedResponseError(address token);
 
 error IndexComponentRegistry__UnknownFeedError(address token);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error IndexComponentRegistry_CannotRenounceOwnership();
+
 /**
  * @title IndexComponentRegistry
  * @notice Registry contract for managing index components and their associated price feeds. This contract allows the
@@ -69,6 +72,7 @@ contract IndexComponentRegistry is Ownable {
         uint80 roundId;
         int256 answer;
         uint256 timestamp;
+        uint80 answeredInRound;
         bool success;
     }
 
@@ -157,6 +161,12 @@ contract IndexComponentRegistry is Ownable {
         }
     }
 
+    /// @notice Renounce ownership is disabled to prevent permanent lockout
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert IndexComponentRegistry_CannotRenounceOwnership();
+    }
+
     /// @notice Fetches and caches the latest oracle price for a registered component
     /// @param _symbol Component symbol (registry key; token address is derived from `_components[_symbol]`)
     /// @return price Latest or cached price (aggregator raw units; decimals in `getOracleRecord`)
@@ -201,11 +211,17 @@ contract IndexComponentRegistry is Ownable {
             int256 answer,
             uint256, /* startedAt */
             uint256 timestamp,
-            uint80 /* answeredInRound */
+            uint80 answeredInRound
         ) {
+            // Reject carried-over prices: per Chainlink, if answeredInRound < roundId,
+            // the answer is from a previous round and the feed may be stale.
+            if (answeredInRound < roundId) {
+                return (currResponse, prevResponse, false);
+            }
             currResponse.roundId = roundId;
             currResponse.answer = answer;
             currResponse.timestamp = timestamp;
+            currResponse.answeredInRound = answeredInRound;
             currResponse.success = true;
         } catch {
             return (currResponse, prevResponse, false);
@@ -219,11 +235,14 @@ contract IndexComponentRegistry is Ownable {
                         int256 prevAnswer,
                         uint256, /* startedAt */
                         uint256 prevTimestamp,
-                        uint80 /* answeredInRound */
+                        uint80 prevAnsweredInRound
                     ) {
+                        // Reject carried-over prices in previous round too
+                        if (prevAnsweredInRound < prevRoundId) return (currResponse, prevResponse, false);
                         prevResponse.roundId = prevRoundId;
                         prevResponse.answer = prevAnswer;
                         prevResponse.timestamp = prevTimestamp;
+                        prevResponse.answeredInRound = prevAnsweredInRound;
                         prevResponse.success = true;
                     } catch { }
                 }

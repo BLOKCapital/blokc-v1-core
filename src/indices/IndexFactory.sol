@@ -73,6 +73,9 @@ error IndexFactory_InvalidIndexName();
 /// @param connectedCount Number of connected gardens
 error IndexFactory_IndexHasConnectedGardens(address indexAddress, uint256 connectedCount);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error IndexFactory_CannotRenounceOwnership();
+
 /**
  * @title IndexFactory
  * @notice Factory contract for deploying new Index contracts with specified parameters. This contract validates that
@@ -241,7 +244,7 @@ contract IndexFactory is Ownable {
     function removeIndex(address indexAddress) external onlyOwner {
         if (!_indexAddresses.contains(indexAddress)) revert IndexFactory_IndexNotRegistered(indexAddress);
 
-        uint256 connectedCount = Index(indexAddress).getConnectedGardens().length;
+        (, uint256 connectedCount) = Index(indexAddress).getConnectedGardens(0, 0);
         if (connectedCount > 0) {
             revert IndexFactory_IndexHasConnectedGardens(indexAddress, connectedCount);
         }
@@ -250,6 +253,15 @@ contract IndexFactory is Ownable {
         _indexAddresses.remove(indexAddress);
         delete _indexInfo[indexAddress];
         emit IndexRemoved(indexAddress, indexId);
+    }
+
+    // ========================================================================
+    // Renounce Ownership
+    // ========================================================================
+
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert IndexFactory_CannotRenounceOwnership();
     }
 
     /// @notice Retrieves metadata for a specific index

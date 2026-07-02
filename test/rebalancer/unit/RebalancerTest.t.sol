@@ -166,8 +166,22 @@ contract MockIndex {
         return (_symbols, _weights);
     }
 
-    function getConnectedGardens() external view returns (address[] memory) {
-        return _gardens;
+    function getConnectedGardens(
+        uint256 offset,
+        uint256 limit
+    )
+        external
+        view
+        returns (address[] memory gardens, uint256 total)
+    {
+        total = _gardens.length;
+        if (offset >= total || limit == 0) return (new address[](0), total);
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        gardens = new address[](end - offset);
+        for (uint256 i = offset; i < end; i++) {
+            gardens[i - offset] = _gardens[i];
+        }
     }
 }
 

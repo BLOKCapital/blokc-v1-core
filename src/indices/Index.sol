@@ -12,6 +12,7 @@ pragma solidity ^0.8.31;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IIndexCalculation } from "src/interfaces/IIndexCalculation.sol";
+import { IIndex } from "src/interfaces/IIndex.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 
@@ -74,6 +75,9 @@ error Index_CallerNotContract();
 /// @param caller Address of the caller that is not a registered garden
 error Index_CallerNotGarden(address caller);
 
+/// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
+error Index_CannotRenounceOwnership();
+
 /**
  * @title Index
  * @notice The Index contract manages the composition and weights of components in a decentralized index. It allows for
@@ -82,7 +86,7 @@ error Index_CallerNotGarden(address caller);
  * interval, and provides functions for gardens to connect and disconnect from the index. It also includes comprehensive
  * error handling for various edge cases related to index management and garden connections.
  */
-contract Index is Ownable {
+contract Index is IIndex, Ownable {
     /// @notice Minimum time interval between rebalances
     /// @dev Set to 1 hour to prevent excessive rebalancing and associated gas costs
     uint256 public constant REBALANCE_INTERVAL = 1 hours;
@@ -231,10 +235,30 @@ contract Index is Ownable {
         return _lastRebalanceTimestamp;
     }
 
-    /// @notice Returns all gardens currently connected to this index
-    /// @return Array of connected garden addresses
-    function getConnectedGardens() external view returns (address[] memory) {
-        return EnumerableSet.values(_connectedGardens);
+    /// @notice Returns a paginated slice of connected gardens.
+    /// @param offset Starting index in the garden list
+    /// @param limit Maximum number of gardens to return
+    /// @return gardens Array of garden addresses for the requested page
+    /// @return total Total number of connected gardens
+    function getConnectedGardens(
+        uint256 offset,
+        uint256 limit
+    )
+        external
+        view
+        returns (address[] memory gardens, uint256 total)
+    {
+        total = EnumerableSet.length(_connectedGardens);
+        if (offset >= total || limit == 0) return (new address[](0), total);
+
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256 count = end - offset;
+
+        gardens = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            gardens[i] = EnumerableSet.at(_connectedGardens, offset + i);
+        }
     }
 
     //=======================================================================
@@ -276,5 +300,14 @@ contract Index is Ownable {
         _lastRebalanceTimestamp = block.timestamp;
 
         emit WeightsUpdated(symbols, weights, block.timestamp);
+    }
+
+    //=======================================================================
+    // Renounce Ownership
+    //=======================================================================
+
+    /// @inheritdoc Ownable
+    function renounceOwnership() public pure override {
+        revert Index_CannotRenounceOwnership();
     }
 }

@@ -23,9 +23,18 @@ interface IIndex {
     /// @return The block timestamp when the last rebalance occurred
     function getLastUpdatedTimestamp() external view returns (uint256);
 
-    /// @notice Returns all gardens currently connected to this index
-    /// @return Array of connected garden addresses
-    function getConnectedGardens() external view returns (address[] memory);
+    /// @notice Returns a paginated slice of connected gardens.
+    /// @param offset Starting index in the garden list
+    /// @param limit Maximum number of gardens to return (0 returns empty array)
+    /// @return gardens Array of garden addresses for the requested page
+    /// @return total Total number of connected gardens
+    function getConnectedGardens(
+        uint256 offset,
+        uint256 limit
+    )
+        external
+        view
+        returns (address[] memory gardens, uint256 total);
 
     /// @notice Triggers a rebalance of the index weights
     function rebalance() external;
