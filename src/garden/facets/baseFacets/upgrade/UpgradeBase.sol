@@ -19,6 +19,13 @@ import { IUpgrade } from "src/garden/facets/baseFacets/upgrade/IUpgrade.sol";
 import { UpgradeStorage } from "src/garden/facets/baseFacets/upgrade/UpgradeStorage.sol";
 import { DiamondCutBase } from "src/garden/facets/baseFacets/cut/DiamondCutBase.sol";
 import { DiamondCutStorage } from "src/garden/facets/baseFacets/cut/DiamondCutStorage.sol";
+import { DiamondLoupeStorage } from "src/garden/facets/baseFacets/loupe/DiamondLoupeStorage.sol";
+import { OwnershipStorage } from "src/garden/facets/baseFacets/ownership/OwnershipStorage.sol";
+import { IndexStorage } from "src/garden/facets/indexFacets/IndexStorage.sol";
+import { GmxV2Storage } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/GmxV2Storage.sol";
+import {
+    RewardCollectionStorage
+} from "src/garden/facets/utilityFacets/arbitrumOne/rewardCollection/RewardCollectionStorage.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 // OpenZeppelin
@@ -38,6 +45,12 @@ error UpgradeFacet_FacetNotFound();
 
 /// @notice Thrown when no module upgrades are available
 error UpgradeFacet_NoModuleUpgradesAvailable();
+
+/// @notice Thrown when a storage layout version mismatch is detected during upgrade.
+/// @param libraryName The name of the storage library with the mismatch
+/// @param stored The version stored on-chain
+/// @param expected The version expected by the current facet code
+error UpgradeFacet_StorageLayoutMismatch(string libraryName, uint256 stored, uint256 expected);
 
 /**
  * @title UpgradeBase
@@ -89,6 +102,12 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
         }
 
         _applyDiamondCut(facetCuts, address(0), "");
+
+        // Validate storage layout compatibility before syncing module versions.
+        // Prevents facet upgrades that would misinterpret on-chain storage due to
+        // incompatible Layout struct changes (M5 fix).
+        _validateStorageLayoutVersions();
+
         _syncModuleVersions(gardenTypeModules, registryVersions, us);
 
         emit GardenUpgraded(facetCuts);
@@ -472,6 +491,49 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
         trimmedArray = new bytes4[](targetLength);
         for (uint256 i = 0; i < targetLength; i++) {
             trimmedArray[i] = sourceArray[i];
+        }
+    }
+
+    /// @notice Validates that all storage layout versions on-chain match the expected constants.
+    /// @dev Called after diamond cuts are applied but before module versions are synced.
+    ///      Allows stored version == 0 (uninitialized — the garden hasn't used this module yet).
+    ///      Reverts if stored version is non-zero and != the library's STORAGE_LAYOUT_VERSION.
+    function _validateStorageLayoutVersions() internal view {
+        _checkLayoutVersion("LibDiamond", LibDiamond.layout()._storageLayoutVersion, LibDiamond.STORAGE_LAYOUT_VERSION);
+        _checkLayoutVersion(
+            "DiamondCutStorage",
+            DiamondCutStorage.layout()._storageLayoutVersion,
+            DiamondCutStorage.STORAGE_LAYOUT_VERSION
+        );
+        _checkLayoutVersion(
+            "DiamondLoupeStorage",
+            DiamondLoupeStorage.layout()._storageLayoutVersion,
+            DiamondLoupeStorage.STORAGE_LAYOUT_VERSION
+        );
+        _checkLayoutVersion(
+            "OwnershipStorage", OwnershipStorage.layout()._storageLayoutVersion, OwnershipStorage.STORAGE_LAYOUT_VERSION
+        );
+        _checkLayoutVersion(
+            "UpgradeStorage", UpgradeStorage.layout()._storageLayoutVersion, UpgradeStorage.STORAGE_LAYOUT_VERSION
+        );
+        _checkLayoutVersion(
+            "IndexStorage", IndexStorage.layout()._storageLayoutVersion, IndexStorage.STORAGE_LAYOUT_VERSION
+        );
+        _checkLayoutVersion(
+            "GmxV2Storage", GmxV2Storage.layout()._storageLayoutVersion, GmxV2Storage.STORAGE_LAYOUT_VERSION
+        );
+        _checkLayoutVersion(
+            "RewardCollectionStorage",
+            RewardCollectionStorage.layout()._storageLayoutVersion,
+            RewardCollectionStorage.STORAGE_LAYOUT_VERSION
+        );
+    }
+
+    /// @notice Checks a single layout version and reverts on mismatch.
+    /// @dev Allows stored == 0 (uninitialized) to support lazy-initialized storage libraries.
+    function _checkLayoutVersion(string memory name, uint256 stored, uint256 expected) internal pure {
+        if (stored != 0 && stored != expected) {
+            revert UpgradeFacet_StorageLayoutMismatch(name, stored, expected);
         }
     }
 

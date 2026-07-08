@@ -20,7 +20,14 @@ library UpgradeStorage {
     /// @notice Layout for the UpgradeStorage
     /// @dev Tracks per-module versions only. Upgrade logic is driven by module versions;
     ///      the garden installs only modules allowed for its type
+    uint256 internal constant STORAGE_LAYOUT_VERSION = 1;
+
     struct Layout {
+        /// @notice Storage layout version — MUST be first field. Validated during upgrades.
+        uint256 _storageLayoutVersion;
+        /// @notice When true and garden is connected to an index, anyone can call upgrade().
+        ///         When false (default), only the garden owner can upgrade regardless of index connection.
+        bool autoUpgradeEnabled;
         mapping(bytes32 => uint256) moduleVersions;
     }
 

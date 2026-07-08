@@ -17,12 +17,12 @@ import { LibStorageSlot } from "./LibStorageSlot.sol";
 /// @notice Core storage library for the Diamond proxy, holding registry addresses and garden metadata.
 /// @dev Uses EIP-7201 namespaced storage via LibStorageSlot to avoid slot collisions.
 library LibDiamond {
+    uint256 internal constant STORAGE_LAYOUT_VERSION = 1;
+
     /// @notice Persistent storage layout for a Diamond proxy instance.
-    /// @param facetRegistry Address of the facet registry contract.
-    /// @param protocolStatus Address of the protocol status contract.
-    /// @param isConnectedToIndex Whether the diamond is connected to an index.
-    /// @param gardenType The garden type identifier that determines which modules are allowed.
     struct Layout {
+        /// @notice Storage layout version — MUST be first field. Validated during upgrades.
+        uint256 _storageLayoutVersion;
         address facetRegistry;
         address protocolStatus;
         bool isConnectedToIndex;

@@ -149,12 +149,11 @@ contract GardenDiamondTest is DiamondTestBase {
     //                     RECEIVE — ETH
     // ═════════════════════════════════════════════════════════════════
 
-    function test_receive_acceptsPlainETHTransfer() public {
+    function test_receive_revertsOnPlainETHTransfer() public {
         _addGardenTypeEmpty(GARDEN_TYPE_1);
         address garden = _deployGarden(GARDEN_TYPE_1, gardenOwner);
 
-        (bool success,) = garden.call{ value: 1 ether }("");
-        assertTrue(success);
-        assertEq(garden.balance, 1 ether);
+        vm.expectRevert(bytes("Garden: ETH not accepted"));
+        garden.call{ value: 1 ether }("");
     }
 }

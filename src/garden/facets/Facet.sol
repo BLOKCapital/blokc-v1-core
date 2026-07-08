@@ -12,6 +12,7 @@ pragma solidity ^0.8.31;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { OwnershipStorage } from "src/garden/facets/baseFacets/ownership/OwnershipStorage.sol";
+import { UpgradeStorage } from "src/garden/facets/baseFacets/upgrade/UpgradeStorage.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 /// @notice Thrown when caller is not the diamond owner
@@ -103,9 +104,12 @@ abstract contract Facet is ReentrancyGuard {
     }
 
     /// @notice Checks if the caller is the garden owner unless the garden is connected to an index
+    ///         AND the owner has opted into automatic upgrades via autoUpgradeEnabled.
+    /// @dev When connected to an index, the owner must explicitly enable auto-upgrades before
+    ///      non-owner callers can trigger them. This gives garden owners an inspection/delay window.
     function _onlyOwnerUnlessIndexConnected() internal view {
         LibDiamond.Layout storage ld = LibDiamond.layout();
-        if (ld.isConnectedToIndex) {
+        if (ld.isConnectedToIndex && UpgradeStorage.layout().autoUpgradeEnabled) {
             return;
         } else {
             if (msg.sender != OwnershipStorage.layout().owner) {

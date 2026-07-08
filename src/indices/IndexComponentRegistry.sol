@@ -46,6 +46,16 @@ error IndexComponentRegistry__UnknownFeedError(address token);
 /// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
 error IndexComponentRegistry_CannotRenounceOwnership();
 
+/// @notice Thrown when component heartbeat is outside allowed bounds
+/// @param heartbeat The invalid heartbeat value
+error IndexComponentRegistry__InvalidHeartbeat(uint256 heartbeat);
+
+/// @notice Thrown when a price deviates too far from the EMA (potential manipulation)
+/// @param token The token address
+/// @param price The current price
+/// @param emaPrice The exponentially smoothed average price
+error IndexComponentRegistry__PriceDeviationTooHigh(address token, uint256 price, uint256 emaPrice);
+
 /**
  * @title IndexComponentRegistry
  * @notice Registry contract for managing index components and their associated price feeds. This contract allows the
@@ -84,6 +94,9 @@ contract IndexComponentRegistry is Ownable {
         bool isFeedWorking;
         // --- slot boundary (32 bytes above) ---
         uint80 roundId;
+        // --- new slot ---
+        uint128 emaPrice; // exponentially smoothed price (same decimals as price)
+        uint48 emaUpdatedAt; // timestamp of last EMA update
     }
 
     /// @notice Emitted when a component is registered
@@ -97,6 +110,11 @@ contract IndexComponentRegistry is Ownable {
     /// @param tokenAddress ERC20 token contract address that was removed
     event ComponentUnregistered(bytes32 indexed symbol, address indexed tokenAddress);
 
+    /// @notice Emitted when an oracle feed has failed consecutively beyond the failure threshold
+    /// @param feed The price feed address that is consistently failing
+    /// @param reason The revert reason from the latest failed call
+    event OracleFailureThresholdReached(address indexed feed, bytes reason);
+
     /// @notice Mapping from symbol to component data
     mapping(bytes32 => Component) private _components;
     mapping(address => OracleRecord) private oracleRecords;
@@ -105,7 +123,27 @@ contract IndexComponentRegistry is Ownable {
     /// @dev Provides efficient lookup and iteration
     EnumerableSet.AddressSet private _componentAddresses;
 
-    uint256 public constant MAX_PRICE_DEVIATION_FROM_PREVIOUS_ROUND = 1500; // 15%
+    /// @notice Tracks consecutive failures per price feed for detecting permanently broken oracles
+    mapping(address => uint256) private _feedFailures;
+
+    // ============================================================================
+    // Constants
+    // ============================================================================
+
+    /// @notice Minimum allowed heartbeat: 30 minutes (prevents DoS from overly tight checks)
+    uint256 public constant MIN_HEARTBEAT = 30 minutes;
+
+    /// @notice Maximum allowed heartbeat: 26 hours (Chainlink max is ~24h + buffer)
+    uint256 public constant MAX_HEARTBEAT = 26 hours;
+
+    /// @notice Number of consecutive oracle failures before emitting a warning event
+    uint256 public constant FAILURE_THRESHOLD = 10;
+
+    /// @notice EMA smoothing factor in basis points (200 = 2% per update)
+    uint256 public constant EMA_ALPHA = 200;
+
+    /// @notice Maximum allowed deviation from EMA in basis points (1000 = 10%)
+    uint256 public constant MAX_EMA_DEVIATION = 1000;
 
     /// @notice Constructs the IndexComponentRegistry
     /// @param initialOwner Address of the contract owner
@@ -120,6 +158,9 @@ contract IndexComponentRegistry is Ownable {
             Component memory component = components[i];
             if (component.tokenAddress == address(0)) revert IndexComponentRegistry_InvalidComponentAddress();
             if (component.priceFeedAddress == address(0)) revert IndexComponentRegistry_InvalidPriceFeedAddress();
+            if (component.heartbeat < MIN_HEARTBEAT || component.heartbeat > MAX_HEARTBEAT) {
+                revert IndexComponentRegistry__InvalidHeartbeat(component.heartbeat);
+            }
             if (_components[component.symbol].tokenAddress != address(0)) {
                 revert IndexComponentRegistry_ComponentAlreadyRegistered();
             }
@@ -156,6 +197,7 @@ contract IndexComponentRegistry is Ownable {
             }
             _componentAddresses.remove(tokenAddress);
             delete oracleRecords[tokenAddress];
+            delete _feedFailures[tokenAddress];
             delete _components[symbol];
             emit ComponentUnregistered(symbol, tokenAddress);
         }
@@ -198,12 +240,18 @@ contract IndexComponentRegistry is Ownable {
         }
     }
 
+    /// @notice Returns the number of consecutive failures for a given price feed
+    /// @param feed The price feed address
+    /// @return The consecutive failure count
+    function getFeedFailures(address feed) public view returns (uint256) {
+        return _feedFailures[feed];
+    }
+
     function _fetchFeedResponses(
         AggregatorV3Interface oracle,
         uint80 lastRoundId
     )
         internal
-        view
         returns (FeedResponse memory currResponse, FeedResponse memory prevResponse, bool updated)
     {
         try oracle.latestRoundData() returns (
@@ -218,12 +266,21 @@ contract IndexComponentRegistry is Ownable {
             if (answeredInRound < roundId) {
                 return (currResponse, prevResponse, false);
             }
+            // Successful response: reset failure counter
+            delete _feedFailures[address(oracle)];
+
             currResponse.roundId = roundId;
             currResponse.answer = answer;
             currResponse.timestamp = timestamp;
             currResponse.answeredInRound = answeredInRound;
             currResponse.success = true;
-        } catch {
+        } catch (bytes memory reason) {
+            // Track consecutive failures; emit warning event at threshold
+            uint256 failures = _feedFailures[address(oracle)] + 1;
+            _feedFailures[address(oracle)] = failures;
+            if (failures >= FAILURE_THRESHOLD) {
+                emit OracleFailureThresholdReached(address(oracle), reason);
+            }
             return (currResponse, prevResponse, false);
         }
 
@@ -267,8 +324,11 @@ contract IndexComponentRegistry is Ownable {
             && (_response.timestamp <= block.timestamp) && (_response.answer > 0);
     }
 
+    /// @notice Checks if a price is stale relative to its heartbeat
+    /// @dev Uses >= to match Chainlink's reference implementation: a price exactly at the
+    ///      heartbeat boundary is considered stale (defense-in-depth).
     function _isPriceStale(uint256 _priceTimestamp, uint256 _heartbeat) internal view returns (bool isPriceStale) {
-        isPriceStale = block.timestamp - _priceTimestamp > _heartbeat;
+        isPriceStale = block.timestamp - _priceTimestamp >= _heartbeat;
     }
 
     function _processFeedResponses(
@@ -283,13 +343,14 @@ contract IndexComponentRegistry is Ownable {
     {
         bool isValidResponse = _isFeedWorking(_currResponse, _prevResponse)
             && !_isPriceStale(_currResponse.timestamp, componentInfo.heartbeat)
-            && !_isPriceChangeAboveMaxDeviation(_currResponse, _prevResponse);
+            && !_isPriceChangeAboveMaxDeviation(_currResponse, _prevResponse, oracleRecord);
 
         if (isValidResponse) {
             if (!oracleRecord.isFeedWorking) {
                 _updateFeedStatus(_token, oracleRecord, true);
             }
             _storePrice(_token, uint256(_currResponse.answer), _currResponse.timestamp, _currResponse.roundId);
+            _updateEma(_token, uint256(_currResponse.answer), oracleRecord);
             price = uint256(_currResponse.answer);
         } else {
             if (oracleRecord.isFeedWorking) {
@@ -302,24 +363,52 @@ contract IndexComponentRegistry is Ownable {
         }
     }
 
+    /// @notice Checks if the current price deviates too far from the EMA.
+    /// @dev Uses EMA instead of single previous round to catch cumulative manipulation
+    ///      (e.g., two consecutive 14.9% moves = ~32% cumulative, which the old per-round
+    ///      check would miss). On first registration (emaPrice == 0), initializes the EMA
+    ///      and accepts the price.
     function _isPriceChangeAboveMaxDeviation(
         FeedResponse memory _currResponse,
-        FeedResponse memory _prevResponse
+        FeedResponse memory _prevResponse,
+        OracleRecord memory oracleRecord
     )
         internal
-        pure
+        view
         returns (bool isPriceChangeAboveMaxDeviation)
     {
-        uint256 minPrice = Math.min(uint256(_currResponse.answer), uint256(_prevResponse.answer));
-        uint256 maxPrice = Math.max(uint256(_currResponse.answer), uint256(_prevResponse.answer));
-        /*
-         * Use the larger price as the denominator:
-         * - If price decreased, the percentage deviation is in relation to the previous price.
-         * - If price increased, the percentage deviation is in relation to the current price.
-         */
+        uint256 currentPrice = uint256(_currResponse.answer);
+
+        // If EMA is uninitialized (first registration), accept the price
+        if (oracleRecord.emaPrice == 0) {
+            return false;
+        }
+
+        uint256 emaPrice = uint256(oracleRecord.emaPrice);
+        uint256 minPrice = Math.min(currentPrice, emaPrice);
+        uint256 maxPrice = Math.max(currentPrice, emaPrice);
+
+        // Use the larger price as the denominator so deviation is always <= 100%
         uint256 percentDeviation = Math.mulDiv(maxPrice - minPrice, 1e4, maxPrice, Math.Rounding.Floor);
 
-        isPriceChangeAboveMaxDeviation = percentDeviation > MAX_PRICE_DEVIATION_FROM_PREVIOUS_ROUND;
+        isPriceChangeAboveMaxDeviation = percentDeviation > MAX_EMA_DEVIATION;
+    }
+
+    /// @notice Updates the EMA for a token's price.
+    /// @dev EMA = (price * alpha) + (oldEma * (1 - alpha)), where alpha = EMA_ALPHA / 1e4.
+    ///      On first call (emaPrice == 0), initializes to the current price.
+    function _updateEma(address _token, uint256 _price, OracleRecord memory oracleRecord) internal {
+        if (oracleRecord.emaPrice == 0) {
+            // First update: initialize EMA to current price
+            oracleRecords[_token].emaPrice = SafeCast.toUint128(_price);
+            oracleRecords[_token].emaUpdatedAt = SafeCast.toUint48(block.timestamp);
+        } else {
+            // newEma = (price * alpha + oldEma * (1e4 - alpha)) / 1e4
+            uint256 newEma =
+                Math.mulDiv(_price, EMA_ALPHA, 1e4) + Math.mulDiv(uint256(oracleRecord.emaPrice), 1e4 - EMA_ALPHA, 1e4);
+            oracleRecords[_token].emaPrice = SafeCast.toUint128(newEma);
+            oracleRecords[_token].emaUpdatedAt = SafeCast.toUint48(block.timestamp);
+        }
     }
 
     function _updateFeedStatus(address _token, OracleRecord memory _oracle, bool _isWorking) internal {

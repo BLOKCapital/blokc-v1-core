@@ -63,8 +63,9 @@ abstract contract CCTPBase {
     event CCTPFacetUSDCSent(address indexed sender, uint256 amount, uint32 destinationDomain, bytes32 mintRecipient);
 
     /// @notice Emitted when USDC is redeemed (minted) from another chain
+    /// @param sender The address that initiated the redemption
     /// @param mintedAmount The amount of USDC minted to this contract
-    event CCTPFacetUSDCRedeemed(uint256 mintedAmount);
+    event CCTPFacetUSDCRedeemed(address indexed sender, uint256 mintedAmount);
 
     /// @notice Sends (burns) native USDC and instructs Circle to mint on destination chain
     /// @param amount USDC amount to send (usually 6 decimals)
@@ -129,6 +130,6 @@ abstract contract CCTPBase {
 
         uint256 mintedAmount = afterBalance - beforeBalance;
 
-        emit CCTPFacetUSDCRedeemed(mintedAmount);
+        emit CCTPFacetUSDCRedeemed(msg.sender, mintedAmount);
     }
 }
