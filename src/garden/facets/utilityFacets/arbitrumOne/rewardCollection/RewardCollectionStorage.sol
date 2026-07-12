@@ -17,7 +17,11 @@ library RewardCollectionStorage {
 
     /// @notice Layout for the Garden Collection Storage
     /// @dev The struct stores all Garden Collection state including name, symbol, owners, balances, and approvals
+    uint256 internal constant STORAGE_LAYOUT_VERSION = 1;
+
     struct Layout {
+        /// @notice Storage layout version — MUST be first field. Validated during upgrades.
+        uint256 _storageLayoutVersion;
         /// @notice Total supply of tokens
         uint256 totalSupply;
         /// @notice Mapping from token ID to owner address

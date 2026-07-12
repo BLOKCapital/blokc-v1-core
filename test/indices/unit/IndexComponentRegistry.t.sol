@@ -223,9 +223,9 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
     function test_fetchPrice_after_refreshing_with_newPrice() public setComponentPriceFeed {
         vm.warp(block.timestamp + 3601);
 
-        // prices within 50% max deviation threshold
-        int256 newPriceBtc = 80_000e18;
-        int256 newPriceEth = 2900e18;
+        // prices within 10% of EMA (EMA initialized to registration price: BTC=70_000, ETH=3000)
+        int256 newPriceBtc = 77_000e18; // ~9% increase from EMA — within 10%
+        int256 newPriceEth = 2900e18; // ~3.3% decrease from EMA — within 10%
 
         btcPriceFeed.refresh(newPriceBtc);
         ethPriceFeed.refresh(newPriceEth);
@@ -266,8 +266,9 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         IndexComponentRegistry.OracleRecord memory record = icr.getOracleRecord(bytes32("BTC"));
         assertEq(record.isFeedWorking, true);
 
+        // Bad price: ~21% below EMA of 70_000 — clearly outside 10% threshold
         vm.warp(block.timestamp + 1800);
-        int256 badPrice = 20_000e18;
+        int256 badPrice = 55_000e18;
         btcPriceFeed.refresh(badPrice);
 
         uint256 cachedPrice = icr.fetchPrice(bytes32("BTC"));
@@ -276,8 +277,10 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         record = icr.getOracleRecord(bytes32("BTC"));
         assertEq(record.isFeedWorking, false);
 
-        vm.warp(block.timestamp + 1800);
-        int256 recoveredPrice = 22_000e18;
+        // Recovered price: ~5.7% below EMA of 70_000 — within 10% threshold
+        // Keep total warp under 3600 to avoid hitting the stale-price boundary
+        vm.warp(block.timestamp + 1000);
+        int256 recoveredPrice = 66_000e18;
         btcPriceFeed.refresh(recoveredPrice);
 
         uint256 newPrice = icr.fetchPrice(bytes32("BTC"));

@@ -212,13 +212,23 @@ abstract contract IndexBase {
 
         IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
 
-        uint256 valueBefore = _calculateTotalValue(componentRegistry);
+        // Cache all component prices once to ensure valueBefore and valueAfter
+        // use the same oracle snapshot. This prevents a Chainlink round update
+        // between the two reads from falsely triggering or suppressing the
+        // MAX_VALUE_LOSS_BPS guard (M4 fix).
+        uint256 len = s.pendingIntent.symbols.length;
+        uint256[] memory cachedPrices = new uint256[](len);
+        for (uint256 i = 0; i < len; i++) {
+            cachedPrices[i] = componentRegistry.fetchPrice(s.pendingIntent.symbols[i]);
+        }
+
+        uint256 valueBefore = _calculateTotalValue(componentRegistry, cachedPrices);
 
         // Execute each swap step on the Diamond's DEX facets
         _executeSwapSteps(steps);
 
         // Verify final balances match targets within threshold and get post-swap total value
-        uint256 valueAfter = _verifyBalancesMatchTargets(componentRegistry);
+        uint256 valueAfter = _verifyBalancesMatchTargets(componentRegistry, cachedPrices);
 
         uint256 minAcceptableValue =
             Math.mulDiv(valueBefore, 10_000 - IndexStorage.MAX_VALUE_LOSS_BPS, 10_000, Math.Rounding.Floor);
@@ -332,10 +342,14 @@ abstract contract IndexBase {
     /// @dev Verifies that post-rebalance balances match stored target values within the allowed threshold.
     ///      Uses stored targetValues from the pending intent to prevent target drift from oracle manipulation.
     ///      Also computes and returns the fresh total portfolio value (combining verify + value calculation
-    ///      into a single loop for gas efficiency).
+    ///      into a single loop for gas efficiency). Uses cached prices to avoid a second oracle round read.
     /// @param componentRegistry The IndexComponentRegistry instance.
+    /// @param cachedPrices Pre-fetched prices for each component symbol (parallel to pendingIntent.symbols).
     /// @return freshTotalValueUsd The fresh total portfolio value in USD (8 decimals).
-    function _verifyBalancesMatchTargets(IndexComponentRegistry componentRegistry)
+    function _verifyBalancesMatchTargets(
+        IndexComponentRegistry componentRegistry,
+        uint256[] memory cachedPrices
+    )
         internal
         returns (uint256 freshTotalValueUsd)
     {
@@ -349,7 +363,7 @@ abstract contract IndexBase {
             address token = componentRegistry.getComponentAddress(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = componentRegistry.fetchPrice(symbol);
+            uint256 price = cachedPrices[i];
             uint8 decimals = IERC20Metadata(token).decimals();
 
             uint256 currentValue = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
@@ -372,9 +386,16 @@ abstract contract IndexBase {
         freshTotalValueUsd += _getUsdcValueUsd(componentRegistry, s.pendingIntent.symbols);
     }
 
-    /// @notice Calculate total garden value in USD using the IndexComponentRegistry oracle
+    /// @notice Calculate total garden value in USD using cached oracle prices.
     /// @param componentRegistry The IndexComponentRegistry instance.
-    function _calculateTotalValue(IndexComponentRegistry componentRegistry) internal returns (uint256 totalValueUsd) {
+    /// @param cachedPrices Pre-fetched prices for each component symbol (parallel to pendingIntent.symbols).
+    function _calculateTotalValue(
+        IndexComponentRegistry componentRegistry,
+        uint256[] memory cachedPrices
+    )
+        internal
+        returns (uint256 totalValueUsd)
+    {
         IndexStorage.Layout storage s = IndexStorage.layout();
 
         for (uint256 i = 0; i < s.pendingIntent.symbols.length; i++) {
@@ -382,7 +403,7 @@ abstract contract IndexBase {
             address token = componentRegistry.getComponentAddress(symbol);
 
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = componentRegistry.fetchPrice(symbol);
+            uint256 price = cachedPrices[i];
             uint8 decimals = IERC20Metadata(token).decimals();
 
             totalValueUsd += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);

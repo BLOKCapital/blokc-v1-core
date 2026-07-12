@@ -19,7 +19,11 @@ import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 library OwnershipStorage {
     /// @notice Layout for the OwnershipStorage
     /// @dev The struct stores the address of the owner
+    uint256 internal constant STORAGE_LAYOUT_VERSION = 1;
+
     struct Layout {
+        /// @notice Storage layout version — MUST be first field. Validated during upgrades.
+        uint256 _storageLayoutVersion;
         /// @notice Address of the owner. When zero, no owner is set (renounced).
         address owner;
     }

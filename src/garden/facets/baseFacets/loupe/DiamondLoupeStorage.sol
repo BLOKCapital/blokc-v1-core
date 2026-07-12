@@ -19,7 +19,11 @@ import { LibStorageSlot } from "../../../libraries/LibStorageSlot.sol";
 library DiamondLoupeStorage {
     /// @notice Layout for the DiamondLoupeStorage
     /// @dev The map stores bytes4 -> bool for ERC-165 interface support
+    uint256 internal constant STORAGE_LAYOUT_VERSION = 1;
+
     struct Layout {
+        /// @notice Storage layout version — MUST be first field. Validated during upgrades.
+        uint256 _storageLayoutVersion;
         /// @notice Mapping of interface IDs to boolean values
         mapping(bytes4 => bool) supportedInterfaces;
     }

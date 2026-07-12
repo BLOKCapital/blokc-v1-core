@@ -27,7 +27,11 @@ library DiamondCutStorage {
         uint256 facetAddressPosition; // position of facetAddress in facetAddresses array
     }
 
+    uint256 internal constant STORAGE_LAYOUT_VERSION = 1;
+
     struct Layout {
+        /// @notice Storage layout version — MUST be first field. Validated during upgrades.
+        uint256 _storageLayoutVersion;
         // the position of the selector in the facetFunctionSelectors.selectors array
         mapping(bytes4 => FacetAddressAndPosition) selectorToFacetAndPosition;
         // maps facet addresses to function selectors

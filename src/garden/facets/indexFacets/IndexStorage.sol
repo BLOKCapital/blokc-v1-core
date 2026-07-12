@@ -78,11 +78,12 @@ library IndexStorage {
     /// @notice Module identifier for DEX facets; only selectors in this module are allowed during rebalance.
     bytes32 internal constant DEX_MODULE_ID = keccak256("DEX");
 
+    uint256 internal constant STORAGE_LAYOUT_VERSION = 1;
+
     /// @notice Storage layout for index-related state
-    /// @param indexAddress Address of the connected Index contract
-    /// @param lastRebalanceTimestamp Block timestamp of last rebalance
-    /// @param rebalancing Reentrancy guard flag for rebalance execution (separate from OZ ReentrancyGuard)
     struct Layout {
+        /// @notice Storage layout version — MUST be first field. Validated during upgrades.
+        uint256 _storageLayoutVersion;
         address indexAddress;
         // Timestamps
         uint256 lastRebalanceTimestamp;

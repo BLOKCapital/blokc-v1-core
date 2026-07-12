@@ -15,6 +15,7 @@ import { OwnershipStorage } from "src/garden/facets/baseFacets/ownership/Ownersh
 import { DiamondCutStorage } from "src/garden/facets/baseFacets/cut/DiamondCutStorage.sol";
 import { DiamondCutBase } from "src/garden/facets/baseFacets/cut/DiamondCutBase.sol";
 import { DiamondLoupeStorage } from "src/garden/facets/baseFacets/loupe/DiamondLoupeStorage.sol";
+import { UpgradeStorage } from "src/garden/facets/baseFacets/upgrade/UpgradeStorage.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 // Local Interfaces
@@ -124,10 +125,13 @@ contract Garden is DiamondCutBase {
         }
 
         // Set contract owner
-        OwnershipStorage.layout().owner = _contractOwner;
+        OwnershipStorage.Layout storage os = OwnershipStorage.layout();
+        os._storageLayoutVersion = OwnershipStorage.STORAGE_LAYOUT_VERSION;
+        os.owner = _contractOwner;
 
         LibDiamond.Layout storage ld = LibDiamond.layout();
-        // Initialize diamond storage with registry addresses and garden type
+        // Initialize diamond storage with registry addresses, garden type, and layout version
+        ld._storageLayoutVersion = LibDiamond.STORAGE_LAYOUT_VERSION;
         ld.facetRegistry = _facetRegistry;
         ld.protocolStatus = _protocolStatus;
         ld.gardenType = _gardenType;
@@ -135,7 +139,15 @@ contract Garden is DiamondCutBase {
         // Apply initial diamond cuts (BASE facets only - utility modules installed via upgrade())
         _applyDiamondCut(_diamondCut, address(0), "");
 
+        DiamondCutStorage.Layout storage ds = DiamondCutStorage.layout();
+        ds._storageLayoutVersion = DiamondCutStorage.STORAGE_LAYOUT_VERSION;
+
         DiamondLoupeStorage.Layout storage ls = DiamondLoupeStorage.layout();
+        ls._storageLayoutVersion = DiamondLoupeStorage.STORAGE_LAYOUT_VERSION;
+
+        UpgradeStorage.Layout storage us = UpgradeStorage.layout();
+        us._storageLayoutVersion = UpgradeStorage.STORAGE_LAYOUT_VERSION;
+
         ls.supportedInterfaces[type(IERC165).interfaceId] = true;
         ls.supportedInterfaces[type(IDiamondCut).interfaceId] = true;
         ls.supportedInterfaces[type(IDiamondLoupe).interfaceId] = true;
@@ -223,7 +235,10 @@ contract Garden is DiamondCutBase {
         }
     }
 
-    /// @notice Receive function to accept plain ETH transfers
-    /// @dev Allows the Diamond contract to receive ETH directly
-    receive() external payable { }
+    /// @notice Receive function — reverts to prevent accidental permanent ETH lock.
+    /// @dev Gardens interact exclusively with ERC-20 tokens. There is no withdrawal
+    ///      mechanism for ETH, so any ETH sent here would be permanently locked (L3 fix).
+    receive() external payable {
+        revert("Garden: ETH not accepted");
+    }
 }

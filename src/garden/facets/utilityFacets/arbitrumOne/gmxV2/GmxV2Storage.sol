@@ -29,7 +29,11 @@ library GmxV2Storage {
     }
 
     /// @notice Diamond storage layout for GMX V2 facet state
+    uint256 internal constant STORAGE_LAYOUT_VERSION = 1;
+
     struct Layout {
+        /// @notice Storage layout version — MUST be first field. Validated during upgrades.
+        uint256 _storageLayoutVersion;
         /// @notice Mapping from position key to position info
         mapping(bytes32 => PositionInfo) positions;
         /// @notice Array of all position keys for enumeration

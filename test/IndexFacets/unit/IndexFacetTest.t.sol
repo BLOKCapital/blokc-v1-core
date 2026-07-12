@@ -781,9 +781,10 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_rebalance_revertsWhenNotConnected() public {
             // Manually clear index address without going through disconnect
             // (disconnect clears pending intent; we want to test this guard independently)
+            // indexAddress is at struct field offset 1 (after _storageLayoutVersion at offset 0)
             vm.store(
                 address(h),
-                bytes32(uint256(LibStorageSlot.deriveStorageSlot(type(IndexStorage).name))),
+                bytes32(uint256(LibStorageSlot.deriveStorageSlot(type(IndexStorage).name)) + 1),
                 bytes32(0) // wipes indexAddress slot
             );
             vm.expectRevert(IndexFacet_NotConnectedToIndex.selector);
