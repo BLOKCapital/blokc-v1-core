@@ -6,7 +6,7 @@ pragma solidity ^0.8.31;
  *    @title MorphoBlueBase
  *    @author BLOK Capital DAO
  *    @notice Base contract for MorphoFacet exposing Morpho Blue integration functions
- *            (supply / withdraw / borrow / repay)
+ *            (supply / withdraw)
  *    @dev This base contract provides common functionality for MorphoFacet. It keeps
  *         the Morpho Blue core address as a compile-time constant and exposes
  *         thin internal wrappers around the protocol.
@@ -21,7 +21,9 @@ pragma solidity ^0.8.31;
  *
  *##############################################################################*/
 
-import { IMorphoBase, MarketParams, Id } from "@morphoBlue/src/interfaces/IMorpho.sol";
+import { IMorphoBase, MarketParams } from "@morphoBlue/src/interfaces/IMorpho.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // ============================================================================
 // Errors
@@ -30,17 +32,14 @@ import { IMorphoBase, MarketParams, Id } from "@morphoBlue/src/interfaces/IMorph
 /// @notice Thrown when market parameters are invalid
 error MorphoBlueFacet_InvalidMarketParams();
 
-/// @notice Thrown when onBehalf address is zero
-error MorphoBlueFacet_InvalidOnBehalfAddress();
-
-/// @notice Thrown when receiver address is zero
-error MorphoBlueFacet_InvalidReceiverAddress();
+/// @notice Thrown when a supply is attempted by shares (only supply-by-assets is supported)
+error MorphoBlueFacet_SharesMustBeZero();
 
 abstract contract MorphoBlueBase {
+    using SafeERC20 for IERC20;
     /// @notice Hardcoded Morpho Blue core contract address on Ethereum mainnet
     /// @dev Kept as an immutable compile-time constant (no dedicated storage)
-    /// @dev Official Morpho Blue singleton address from: https://docs.morpho.org/get-started/resources/addresses/
-    /// @dev Morpho Blue uses a singleton pattern - same address across all EVM chains
+    /// @dev Official Morpho Blue address from: https://docs.morpho.org/get-started/resources/addresses/
     /// @dev For other chains, check: https://docs.morpho.org/get-started/resources/addresses/
     /// @dev NOTE: This is Morpho Blue, the standalone lending primitive, NOT the legacy
     ///      Morpho V1 Optimizer. Blue features isolated permissionless markets.
@@ -49,9 +48,9 @@ abstract contract MorphoBlueBase {
     /// @notice Internal helper to get the Morpho Blue core interface
     /// @dev Morpho Blue uses isolated markets identified by MarketParams (loanToken, collateralToken,
     ///      oracle, irm, lltv). Each unique combination creates a separate market with isolated risk.
-    /// @dev RECOMMENDATION: For production, validate market IDs against a whitelist stored in your
-    ///      protocol storage rather than hardcoding markets. This allows governance to add/remove
-    ///      supported markets and validate oracle/LLTV before listing.
+    /// @dev RECOMMENDATION: For production, validation for market IDs against a whitelist stored in the
+    ///      storage rather than hardcoding markets is more secure and healthy,allows governance to add/remove
+    ///      supported markets and validate oracle/LLTV before listing any market
     function _morpho() internal pure returns (IMorphoBase) {
         return IMorphoBase(MORPHO_BLUE_CORE);
     }
@@ -61,72 +60,37 @@ abstract contract MorphoBlueBase {
         MarketParams memory marketParams,
         uint256 assets,
         uint256 shares,
-        address onBehalf,
         bytes calldata data
     )
         internal
         returns (uint256, uint256)
     {
-        if (onBehalf == address(0)) revert MorphoBlueFacet_InvalidOnBehalfAddress();
+        IERC20 loantoken = IERC20(marketParams.loanToken);
+
         if (marketParams.loanToken == address(0) || marketParams.collateralToken == address(0)) {
             revert MorphoBlueFacet_InvalidMarketParams();
         }
-        return _morpho().supply(marketParams, assets, shares, onBehalf, data);
+        if (shares != 0) revert MorphoBlueFacet_SharesMustBeZero();
+        loantoken.forceApprove(MORPHO_BLUE_CORE, assets);
+        return _morpho().supply(marketParams, assets, shares, address(this), data);
     }
 
     /// @notice Internal helper to withdraw liquidity from a Morpho Blue market
+    /// @dev onBehalf and receiver are hardcoded to the garden (address(this)) so the
+    ///      garden only ever withdraws its own position back to itself.
     function _morphoBlueWithdrawInternal(
         MarketParams memory marketParams,
         uint256 assets,
-        uint256 shares,
-        address onBehalf,
-        address receiver
+        uint256 shares
     )
         internal
         returns (uint256, uint256)
     {
-        if (onBehalf == address(0)) revert MorphoBlueFacet_InvalidOnBehalfAddress();
-        if (receiver == address(0)) revert MorphoBlueFacet_InvalidReceiverAddress();
         if (marketParams.loanToken == address(0) || marketParams.collateralToken == address(0)) {
             revert MorphoBlueFacet_InvalidMarketParams();
         }
-        return _morpho().withdraw(marketParams, assets, shares, onBehalf, receiver);
-    }
 
-    /// @notice Internal helper to borrow from a Morpho Blue market
-    function _morphoBlueBorrowInternal(
-        MarketParams memory marketParams,
-        uint256 assets,
-        uint256 shares,
-        address onBehalf,
-        address receiver
-    )
-        internal
-        returns (uint256, uint256)
-    {
-        if (onBehalf == address(0)) revert MorphoBlueFacet_InvalidOnBehalfAddress();
-        if (receiver == address(0)) revert MorphoBlueFacet_InvalidReceiverAddress();
-        if (marketParams.loanToken == address(0) || marketParams.collateralToken == address(0)) {
-            revert MorphoBlueFacet_InvalidMarketParams();
-        }
-        return _morpho().borrow(marketParams, assets, shares, onBehalf, receiver);
-    }
-
-    /// @notice Internal helper to repay a Morpho Blue position
-    function _morphoBlueRepayInternal(
-        MarketParams memory marketParams,
-        uint256 assets,
-        uint256 shares,
-        address onBehalf
-    )
-        internal
-        returns (uint256, uint256)
-    {
-        if (onBehalf == address(0)) revert MorphoBlueFacet_InvalidOnBehalfAddress();
-        if (marketParams.loanToken == address(0) || marketParams.collateralToken == address(0)) {
-            revert MorphoBlueFacet_InvalidMarketParams();
-        }
-        return _morpho().repay(marketParams, assets, shares, onBehalf, "");
+        return _morpho().withdraw(marketParams, assets, shares, address(this), address(this));
     }
 }
 
