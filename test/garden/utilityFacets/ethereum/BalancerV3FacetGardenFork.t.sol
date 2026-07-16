@@ -166,12 +166,12 @@ contract BalancerV3FacetGardenForkTest is Test {
         LiquidityPoolRegistry(POOL_REGISTRY)
             .addPool(
                 ILiquidityPoolRegistry.AddPoolParams({
-                poolAddress: BALANCER_POOL,
-                tokenA: TOKEN_IN,
-                tokenB: TOKEN_OUT,
-                dexId: BALANCER_V3,
-                pairName: "msUSD/USDC"
-            })
+                    poolAddress: BALANCER_POOL,
+                    tokenA: TOKEN_IN,
+                    tokenB: TOKEN_OUT,
+                    dexId: BALANCER_V3,
+                    pairName: "msUSD/USDC"
+                })
             );
     }
 
