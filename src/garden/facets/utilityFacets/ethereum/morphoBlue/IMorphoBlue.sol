@@ -21,15 +21,8 @@ pragma solidity ^0.8.31;
 import { MarketParams } from "@morphoBlue/src/interfaces/IMorpho.sol";
 
 interface IMorphoBlue {
-    /// @notice Supply to a Morpho Blue market (position held by the garden itself)
-    function morphoBlueSupply(
-        MarketParams memory marketParams,
-        uint256 assets,
-        uint256 shares,
-        bytes calldata data
-    )
-        external
-        returns (uint256, uint256);
+    /// @notice Supply to a Morpho Blue market (position held by the garden itself, by assets only)
+    function morphoBlueSupply(MarketParams memory marketParams, uint256 assets) external returns (uint256, uint256);
 
     /// @notice Withdraw from a Morpho Blue market (from and to the garden itself)
     function morphoBlueWithdraw(

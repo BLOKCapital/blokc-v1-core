@@ -32,9 +32,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 /// @notice Thrown when market parameters are invalid
 error MorphoBlueFacet_InvalidMarketParams();
 
-/// @notice Thrown when a supply is attempted by shares (only supply-by-assets is supported)
-error MorphoBlueFacet_SharesMustBeZero();
-
 abstract contract MorphoBlueBase {
     using SafeERC20 for IERC20;
     /// @notice Hardcoded Morpho Blue core contract address on Ethereum mainnet
@@ -58,21 +55,24 @@ abstract contract MorphoBlueBase {
     /// @notice Internal helper to supply liquidity to a Morpho Blue market
     function _morphoBlueSupplyInternal(
         MarketParams memory marketParams,
-        uint256 assets,
-        uint256 shares,
-        bytes calldata data
+        uint256 assets
     )
         internal
         returns (uint256, uint256)
     {
         IERC20 loantoken = IERC20(marketParams.loanToken);
 
+        //the collateral check is lame and post deprication shall need dao owned market whitelisting to escape this lame
+        // route
         if (marketParams.loanToken == address(0) || marketParams.collateralToken == address(0)) {
             revert MorphoBlueFacet_InvalidMarketParams();
         }
-        if (shares != 0) revert MorphoBlueFacet_SharesMustBeZero();
+
         loantoken.forceApprove(MORPHO_BLUE_CORE, assets);
-        return _morpho().supply(marketParams, assets, shares, address(this), data);
+        //at protocol level we prefer asset penetration only (not shares), therefore 0 shares
+        //empty callback data ("") — the garden pre-approves and holds tokens, so no supply callback is used
+
+        return _morpho().supply(marketParams, assets, 0, address(this), "");
     }
 
     /// @notice Internal helper to withdraw liquidity from a Morpho Blue market

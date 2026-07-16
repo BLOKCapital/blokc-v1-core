@@ -21,18 +21,14 @@ contract MorphoBlueFacet is IMorphoBlue, MorphoBlueBase, Facet {
     // External Functions (State-Changing)
     // ========================================================================
 
-    /// @notice Supplies liquidity to a Morpho Blue market on behalf of the garden itself
+    /// @notice Supplies liquidity to a Morpho Blue market on behalf of the garden itself (by assets only)
     /// @param marketParams The market parameters (loanToken, collateralToken, oracle, irm, lltv)
     /// @param assets The amount of assets to supply
-    /// @param shares Must be 0 — supply is only supported by assets
-    /// @param data Additional data for the supply operation
     /// @return assetsSupplied The actual amount of assets supplied
-    /// @return sharesSupplied The actual amount of shares supplied
+    /// @return sharesSupplied The actual amount of shares minted for the supply
     function morphoBlueSupply(
         MarketParams memory marketParams,
-        uint256 assets,
-        uint256 shares,
-        bytes calldata data
+        uint256 assets
     )
         external
         override
@@ -41,7 +37,7 @@ contract MorphoBlueFacet is IMorphoBlue, MorphoBlueBase, Facet {
         nonReentrant
         returns (uint256, uint256)
     {
-        return _morphoBlueSupplyInternal(marketParams, assets, shares, data);
+        return _morphoBlueSupplyInternal(marketParams, assets);
     }
 
     /// @notice Withdraws liquidity from the garden's own position in a Morpho Blue market
