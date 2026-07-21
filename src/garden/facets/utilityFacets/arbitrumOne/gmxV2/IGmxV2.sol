@@ -29,7 +29,7 @@ interface IGmxV2 {
         uint256 sizeInUsd; // Position size in USD (30 decimals)
         uint256 acceptablePrice; // Maximum acceptable price for entry (30 decimals)
         uint256 executionFee; // Fee for keeper execution
-        address callbackContract; // Optional callback contract
+        address market; // GMX market (per-pair address; cannot be derived from indexToken)
     }
 
     /// @notice Parameters for closing a short position
@@ -38,6 +38,7 @@ interface IGmxV2 {
         uint256 sizeInUsd; // Size to close in USD (0 = close entire position)
         uint256 acceptablePrice; // Minimum acceptable price for exit (30 decimals)
         uint256 executionFee; // Fee for keeper execution
+        address market; // GMX market; move into PositionInfo during the storage-model rework
     }
 
     /// @notice Emitted when a short position is opened

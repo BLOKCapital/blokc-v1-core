@@ -20,18 +20,70 @@ import { IGmxV2 } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/IGmxV2
 // Local Libraries
 import { GmxV2Storage } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/GmxV2Storage.sol";
 
+/// @title Order
+/// @author BLOK Capital DAO
+/// @notice Mirrors the enums in GMX V2 `contracts/order/Order.sol`.
+/// @dev Member ordering is consensus-critical. Each value is encoded as its uint8 ordinal, so members
+/// must never be reordered, renamed away from their ordinal meaning, or omitted — a wrong ordinal still
+/// produces a valid selector and is therefore silently accepted by GMX as a different operation.
+library Order {
+    enum OrderType {
+        MarketSwap,
+        LimitSwap,
+        MarketIncrease,
+        LimitIncrease,
+        MarketDecrease,
+        LimitDecrease,
+        StopLossDecrease,
+        Liquidation,
+        StopIncrease
+    }
+
+    enum DecreasePositionSwapType {
+        NoSwap,
+        SwapPnlTokenToCollateralToken,
+        SwapCollateralTokenToPnlToken
+    }
+}
+
 /// @title IExchangeRouter
 /// @author BLOK Capital DAO
 /// @notice Interface for GMX V2 ExchangeRouter contract
 interface IExchangeRouter {
     /// @notice Parameters for creating an order on GMX V2
-    /// @param addresses Array of addresses (receiver, callback, market, indexToken, collateralToken)
-    /// @param numbers Array of uint256 values (sizeDelta, collateralDelta, triggerPrice, acceptablePrice, executionFee,
-    /// minOutput) @param referralCode Referral code for the order
+    /// @dev Layout must match GMX `IBaseOrderUtils.CreateOrderParams` exactly. The struct shape
+    /// determines both the function selector (0xf59c48eb) and the calldata encoding.
     struct CreateOrderParams {
-        address[] addresses;
-        uint256[] numbers;
+        CreateOrderParamsAddresses addresses;
+        CreateOrderParamsNumbers numbers;
+        Order.OrderType orderType;
+        Order.DecreasePositionSwapType decreasePositionSwapType;
+        bool isLong;
+        bool shouldUnwrapNativeToken;
+        bool autoCancel;
         bytes32 referralCode;
+        bytes32[] dataList;
+    }
+
+    struct CreateOrderParamsAddresses {
+        address receiver;
+        address cancellationReceiver;
+        address callbackContract;
+        address uiFeeReceiver;
+        address market;
+        address initialCollateralToken;
+        address[] swapPath;
+    }
+
+    struct CreateOrderParamsNumbers {
+        uint256 sizeDeltaUsd;
+        uint256 initialCollateralDeltaAmount;
+        uint256 triggerPrice;
+        uint256 acceptablePrice;
+        uint256 executionFee;
+        uint256 callbackGasLimit;
+        uint256 minOutputAmount;
+        uint256 validFromTime;
     }
 
     /// @notice Creates a new order on GMX V2
@@ -141,6 +193,17 @@ abstract contract GmxV2Base is IGmxV2 {
 
     /// @notice Default minimum collateral (100 USD with 30 decimals)
     uint256 private constant DEFAULT_MIN_COLLATERAL_USD = 100 * 1e30;
+
+    /// @notice Gas forwarded to this contract's order callbacks by GMX keepers
+    /// @dev Must be non-zero or `afterOrderExecution` / `afterOrderCancellation` / `afterOrderFrozen` are
+    /// never invoked, leaving position lifecycle state stale. Must also stay at or below GMX's configured
+    /// MAX_CALLBACK_GAS_LIMIT, and the execution fee must be large enough to cover it.
+    uint256 private constant CALLBACK_GAS_LIMIT = 200_000;
+
+    /// @notice GMX referral code applied to orders originating from gardens
+    /// @dev Protocol-level constant, never caller-supplied. Set to a registered BLOK code to earn GMX
+    /// referral rebates on garden flow; bytes32(0) disables referral attribution.
+    bytes32 private constant REFERRAL_CODE = bytes32(0);
 
     /// @notice Opens a new short position on GMX V2
     /// @param params Parameters for opening the short position
@@ -343,25 +406,41 @@ abstract contract GmxV2Base is IGmxV2 {
         view
         returns (IExchangeRouter.CreateOrderParams memory)
     {
-        // GMX V2 order structure is complex. This is simplified.
-        // In production, properly encode all parameters according to GMX V2 specs
+        IExchangeRouter.CreateOrderParamsAddresses memory addresses = IExchangeRouter.CreateOrderParamsAddresses({
+            receiver: address(this),
+            cancellationReceiver: address(this),
+            callbackContract: address(this),
+            uiFeeReceiver: address(0),
+            market: params.market,
+            initialCollateralToken: params.collateralToken,
+            swapPath: new address[](0)
+        });
 
-        address[] memory addresses = new address[](5);
-        addresses[0] = address(this); // receiver
-        addresses[1] = params.callbackContract; // callbackContract
-        addresses[2] = address(0); // market (to be determined)
-        addresses[3] = params.indexToken; // indexToken
-        addresses[4] = params.collateralToken; // collateralToken
+        // `initialCollateralDeltaAmount` is ignored for increase orders — GMX overwrites it with
+        // `orderVault.recordTransferIn(...)`, i.e. whatever collateral actually reached the OrderVault.
+        // `triggerPrice` must be zero for market orders; a non-zero value makes it a trigger order.
+        IExchangeRouter.CreateOrderParamsNumbers memory numbers = IExchangeRouter.CreateOrderParamsNumbers({
+            sizeDeltaUsd: params.sizeInUsd,
+            initialCollateralDeltaAmount: 0,
+            triggerPrice: 0,
+            acceptablePrice: params.acceptablePrice,
+            executionFee: params.executionFee,
+            callbackGasLimit: CALLBACK_GAS_LIMIT,
+            minOutputAmount: 0,
+            validFromTime: 0
+        });
 
-        uint256[] memory numbers = new uint256[](6);
-        numbers[0] = params.sizeInUsd; // sizeDeltaUsd
-        numbers[1] = 0; // initialCollateralDeltaAmount
-        numbers[2] = params.acceptablePrice; // triggerPrice
-        numbers[3] = params.acceptablePrice; // acceptablePrice
-        numbers[4] = params.executionFee; // executionFee
-        numbers[5] = 0; // minOutputAmount
-
-        return IExchangeRouter.CreateOrderParams({ addresses: addresses, numbers: numbers, referralCode: bytes32(0) });
+        return IExchangeRouter.CreateOrderParams({
+            addresses: addresses,
+            numbers: numbers,
+            orderType: Order.OrderType.MarketIncrease,
+            decreasePositionSwapType: Order.DecreasePositionSwapType.NoSwap,
+            isLong: false,
+            shouldUnwrapNativeToken: false,
+            autoCancel: false,
+            referralCode: REFERRAL_CODE,
+            dataList: new bytes32[](0)
+        });
     }
 
     /// @notice Builds GMX order parameters for closing a short position
@@ -378,21 +457,40 @@ abstract contract GmxV2Base is IGmxV2 {
     {
         uint256 sizeToClose = params.sizeInUsd == 0 ? position.sizeInUsd : params.sizeInUsd;
 
-        address[] memory addresses = new address[](5);
-        addresses[0] = address(this); // receiver
-        addresses[1] = address(0); // callbackContract
-        addresses[2] = address(0); // market
-        addresses[3] = position.indexToken; // indexToken
-        addresses[4] = position.collateralToken; // collateralToken
+        IExchangeRouter.CreateOrderParamsAddresses memory addresses = IExchangeRouter.CreateOrderParamsAddresses({
+            receiver: address(this),
+            cancellationReceiver: address(this),
+            callbackContract: address(this),
+            uiFeeReceiver: address(0),
+            market: params.market,
+            initialCollateralToken: position.collateralToken,
+            swapPath: new address[](0)
+        });
 
-        uint256[] memory numbers = new uint256[](6);
-        numbers[0] = sizeToClose; // sizeDeltaUsd
-        numbers[1] = 0; // initialCollateralDeltaAmount
-        numbers[2] = params.acceptablePrice; // triggerPrice
-        numbers[3] = params.acceptablePrice; // acceptablePrice
-        numbers[4] = params.executionFee; // executionFee
-        numbers[5] = 0; // minOutputAmount
+        // Unlike the increase path, `initialCollateralDeltaAmount` IS read for decrease orders — it is the
+        // amount of collateral to withdraw. Zero leaves collateral withdrawal to GMX, which returns the
+        // remaining collateral on a full close.
+        IExchangeRouter.CreateOrderParamsNumbers memory numbers = IExchangeRouter.CreateOrderParamsNumbers({
+            sizeDeltaUsd: sizeToClose,
+            initialCollateralDeltaAmount: 0,
+            triggerPrice: 0,
+            acceptablePrice: params.acceptablePrice,
+            executionFee: params.executionFee,
+            callbackGasLimit: CALLBACK_GAS_LIMIT,
+            minOutputAmount: 0,
+            validFromTime: 0
+        });
 
-        return IExchangeRouter.CreateOrderParams({ addresses: addresses, numbers: numbers, referralCode: bytes32(0) });
+        return IExchangeRouter.CreateOrderParams({
+            addresses: addresses,
+            numbers: numbers,
+            orderType: Order.OrderType.MarketDecrease,
+            decreasePositionSwapType: Order.DecreasePositionSwapType.NoSwap,
+            isLong: false,
+            shouldUnwrapNativeToken: false,
+            autoCancel: false,
+            referralCode: REFERRAL_CODE,
+            dataList: new bytes32[](0)
+        });
     }
 }
