@@ -94,6 +94,11 @@ interface IExchangeRouter {
     /// @notice Cancels an existing order
     /// @param key The order key to cancel
     function cancelOrder(bytes32 key) external;
+
+    function sendWnt(address receiver, uint256 amount) external payable;
+    //sendTokens implements hook pluginTransfer
+    function sendTokens(address token, address receiver, uint256 amount) external payable;
+    function multicall(bytes[] calldata data) external payable returns (bytes[] memory);
 }
 
 /// @title IReader
@@ -179,6 +184,9 @@ abstract contract GmxV2Base is IGmxV2 {
     /// @notice GMX V2 ExchangeRouter on Arbitrum Sepolia
     address private constant GMX_EXCHANGE_ROUTER = 0xEd50B2A1eF0C35DAaF08Da6486971180237909c3;
 
+    //router address has to be made available at prod apart from just exchange router
+    address private constant GMX_ROUTER = 0x0000000000000000000000000000000000000000;
+
     /// @notice GMX V2 OrderVault on Arbitrum Sepolia
     address private constant GMX_ORDER_VAULT = 0x1b8AC606de71686fd2a1AEDEcb6E0EFba28909a2;
 
@@ -208,7 +216,7 @@ abstract contract GmxV2Base is IGmxV2 {
     /// @notice Opens a new short position on GMX V2
     /// @param params Parameters for opening the short position
     /// @return positionKey The unique identifier for the opened position
-    function _gmxV2OpenShort(GmxV2OpenShortParams calldata params) internal returns (bytes32 positionKey) {
+    function _gmxV2OpenShort(GmxV2OpenShortParams calldata params) internal returns (bytes32 orderKey) {
         GmxV2Storage.Layout storage s = GmxV2Storage.layout();
 
         // Initialize config if not set
@@ -217,7 +225,7 @@ abstract contract GmxV2Base is IGmxV2 {
             s.minCollateralUsd = DEFAULT_MIN_COLLATERAL_USD;
         }
 
-        // Validate parameters
+        // Validate
         if (params.collateralAmount == 0) revert GmxV2Base_InsufficientCollateral();
         if (params.executionFee == 0) revert GmxV2Base_InsufficientExecutionFee();
 
@@ -230,38 +238,50 @@ abstract contract GmxV2Base is IGmxV2 {
         uint256 balance = collateralToken.balanceOf(address(this));
         if (balance < params.collateralAmount) revert GmxV2Base_InsufficientBalance();
 
-        // Approve GMX router to spend collateral
-        collateralToken.forceApprove(GMX_EXCHANGE_ROUTER, params.collateralAmount);
-
         // Build GMX order params
         IExchangeRouter.CreateOrderParams memory orderParams = _buildOpenOrderParams(params);
 
+        bytes[] memory calls = new bytes[](3);
+        uint256 i;
+        calls[i++] = abi.encodeCall(IExchangeRouter.sendWnt, (GMX_ORDER_VAULT, executionFee));
+
+        collateralToken.forceApprove(GMX_ROUTER, collateralAmount);
+        calls[i++] =
+            abi.encodeCall(IExchangeRouter.sendTokens, (address(collateralToken), GMX_ORDER_VAULT, collateralAmount));
+
+        calls[i++] = abi.encodeCall(IExchangeRouter.createOrder, (orderParams));
+        bytes[] memory results = IExchangeRouter(GMX_EXCHANGE_ROUTER).multicall{ value: executionFee }(calls);
+        orderKey = abi.decode(results[2], (bytes32));
+
+        /**
+         * positionKey aspect yet to be reveiwed and implemented precisely
+         */
+
         // Create order on GMX (send execution fee as msg.value)
-        positionKey = IExchangeRouter(GMX_EXCHANGE_ROUTER).createOrder{ value: params.executionFee }(orderParams);
+        // // Store position info
 
-        // Store position info
-        s.positions[positionKey] = GmxV2Storage.PositionInfo({
-            positionKey: positionKey,
-            indexToken: params.indexToken,
-            collateralToken: params.collateralToken,
-            sizeInUsd: params.sizeInUsd,
-            collateralAmount: params.collateralAmount,
-            timestamp: block.timestamp,
-            isShort: true,
-            isActive: true
-        });
+        // s.positions[positionKey] = GmxV2Storage.PositionInfo({
+        //     positionKey: positionKey,
+        //     indexToken: params.indexToken,
+        //     collateralToken: params.collateralToken,
+        //     sizeInUsd: params.sizeInUsd,
+        //     collateralAmount: params.collateralAmount,
+        //     timestamp: block.timestamp,
+        //     isShort: true,
+        //     isActive: true
+        // });
 
-        // Add to position keys array
-        s.positionKeys.push(positionKey);
-        s.activePositionCount++;
-        s.totalCollateralLocked += params.collateralAmount;
-        s.lastInteractionTimestamp = block.timestamp;
+        // // Add to position keys array
+        // s.positionKeys.push(positionKey);
+        // s.activePositionCount++;
+        // s.totalCollateralLocked += params.collateralAmount;
+        // s.lastInteractionTimestamp = block.timestamp;
 
         emit GmxV2ShortPositionOpened(
-            positionKey, params.indexToken, params.collateralToken, params.sizeInUsd, params.collateralAmount
+            orderKey, params.indexToken, params.collateralToken, params.sizeInUsd, params.collateralAmount
         );
 
-        return positionKey;
+        return orderKey;
     }
 
     /// @notice Closes an existing short position on GMX V2
