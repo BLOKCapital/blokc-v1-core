@@ -21,7 +21,6 @@ library GmxV2Storage {
     enum OrderKind {
         Increase, // open a new short or add size/collateral (MarketIncrease)
         Decrease // reduce or fully close a short (MarketDecrease)
-
     }
 
     /// @notice A GMX order that has been submitted but not yet executed by a keeper

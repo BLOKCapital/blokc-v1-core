@@ -123,14 +123,28 @@ library GmxEventUtils {
         string key;
         string[] value;
     }
-
 }
 
 /// @title IOrderCallbackReceiver
 /// @notice GMX V2 order lifecycle callbacks. Selectors must match gmx-synthetics
 /// contracts/callback/IOrderCallbackReceiver.sol.
 interface IOrderCallbackReceiver {
-    function afterOrderExecution(bytes32 key, GmxEventUtils.EventLogData memory orderData, GmxEventUtils.EventLogData memory eventData) external;
-    function afterOrderCancellation(bytes32 key, GmxEventUtils.EventLogData memory orderData, GmxEventUtils.EventLogData memory eventData) external;
-    function afterOrderFrozen(bytes32 key, GmxEventUtils.EventLogData memory orderData, GmxEventUtils.EventLogData memory eventData) external;
+    function afterOrderExecution(
+        bytes32 key,
+        GmxEventUtils.EventLogData memory orderData,
+        GmxEventUtils.EventLogData memory eventData
+    )
+        external;
+    function afterOrderCancellation(
+        bytes32 key,
+        GmxEventUtils.EventLogData memory orderData,
+        GmxEventUtils.EventLogData memory eventData
+    )
+        external;
+    function afterOrderFrozen(
+        bytes32 key,
+        GmxEventUtils.EventLogData memory orderData,
+        GmxEventUtils.EventLogData memory eventData
+    )
+        external;
 }
