@@ -30,6 +30,7 @@ interface IGmxV2 {
         uint256 acceptablePrice; // Maximum acceptable price for entry (30 decimals)
         uint256 executionFee; // Fee for keeper execution
         address market; // GMX market (per-pair address; cannot be derived from indexToken)
+        bytes32 collateralSymbol; // Registry symbol for collateralToken, used to price the risk rails
     }
 
     /// @notice Parameters for closing a short position
@@ -38,7 +39,14 @@ interface IGmxV2 {
         uint256 sizeInUsd; // Size to close in USD (0 = close entire position)
         uint256 acceptablePrice; // Minimum acceptable price for exit (30 decimals)
         uint256 executionFee; // Fee for keeper execution
-        address market; // GMX market; move into PositionInfo during the storage-model rework
+    }
+
+    /// @notice Parameters for adding collateral to an existing short position
+    struct GmxV2AddCollateralParams {
+        bytes32 positionKey; // Position identifier
+        uint256 collateralAmount; // Amount of collateral to add
+        uint256 acceptablePrice; // Acceptable price for the zero-size increase (30 decimals)
+        uint256 executionFee; // Fee for keeper execution
     }
 
     /// @notice Emitted when a short position is opened
@@ -71,17 +79,22 @@ interface IGmxV2 {
 
     /// @notice Opens a new short position on GMX V2
     /// @param params Parameters for opening the short position
-    /// @return positionKey The unique identifier for the opened position
-    function gmxV2OpenShort(GmxV2OpenShortParams calldata params) external payable returns (bytes32 positionKey);
+    /// @return orderKey The GMX order key for the submitted increase order
+    function gmxV2OpenShort(GmxV2OpenShortParams calldata params) external payable returns (bytes32 orderKey);
 
-    /// @notice Closes an existing short position
+    /// @notice Closes or reduces an existing short position
     /// @param params Parameters for closing the position
-    function gmxV2CloseShort(GmxV2CloseShortParams calldata params) external payable;
+    /// @return orderKey The GMX order key for the submitted decrease order
+    function gmxV2CloseShort(GmxV2CloseShortParams calldata params) external payable returns (bytes32 orderKey);
 
     /// @notice Adds collateral to an existing position
-    /// @param positionKey The position to add collateral to
-    /// @param collateralAmount Amount of collateral to add
-    function gmxV2AddCollateral(bytes32 positionKey, uint256 collateralAmount) external;
+    /// @param params Parameters identifying the position and collateral to add
+    /// @return orderKey The GMX order key for the submitted increase order
+    function gmxV2AddCollateral(GmxV2AddCollateralParams calldata params) external payable returns (bytes32 orderKey);
+
+    /// @notice Cancels a pending GMX order that has not yet been executed by a keeper
+    /// @param orderKey The GMX order key to cancel
+    function gmxV2CancelOrder(bytes32 orderKey) external payable;
 
     /// @notice Gets information about a specific position
     /// @param positionKey The position identifier

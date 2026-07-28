@@ -12,6 +12,7 @@ import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/unis
 import { CamelotV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/CamelotV2Facet.sol";
 import { CamelotV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/CamelotV3Facet.sol";
 import { AaveV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Facet.sol";
+import { GmxV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/GmxV2Facet.sol";
 import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
@@ -24,6 +25,7 @@ contract RegisterUtilityFacets is BaseScript {
     bytes32 constant MODULE_DEX = keccak256("DEX");
     bytes32 constant MODULE_YIELD = keccak256("YIELD");
     bytes32 constant MODULE_INDEX = keccak256("INDEX");
+    bytes32 constant MODULE_PERP = keccak256("PERP");
 
     // Garden type IDs
     bytes32 constant YIELD_GARDEN = keccak256("YIELD");
@@ -155,6 +157,44 @@ contract RegisterUtilityFacets is BaseScript {
             registry.addGardenType(YIELD_GARDEN, yieldGardenModules);
             console2.log("YIELD_GARDEN type registered");
         }
+
+        // =====================================================================
+        // PERP module (GMX V2)
+        // =====================================================================
+        // The three afterOrder* selectors MUST be registered alongside the user-facing ones. They are the
+        // entry points GMX keepers call to report execution, cancellation and freezing — including
+        // liquidations and ADLs. If they are not routable through the diamond, GMX's callbacks hit the
+        // fallback and position state silently stops tracking the real position.
+        GmxV2Facet gmxV2Facet = new GmxV2Facet();
+        bytes4[] memory gmxSelectors = new bytes4[](15);
+        gmxSelectors[0] = gmxV2Facet.gmxV2OpenShort.selector;
+        gmxSelectors[1] = gmxV2Facet.gmxV2CloseShort.selector;
+        gmxSelectors[2] = gmxV2Facet.gmxV2AddCollateral.selector;
+        gmxSelectors[3] = gmxV2Facet.gmxV2CancelOrder.selector;
+        gmxSelectors[4] = gmxV2Facet.gmxV2RegisterCallback.selector;
+        gmxSelectors[5] = gmxV2Facet.gmxV2UpdateConfig.selector;
+        gmxSelectors[6] = gmxV2Facet.gmxV2GetPosition.selector;
+        gmxSelectors[7] = gmxV2Facet.gmxV2GetActivePositions.selector;
+        gmxSelectors[8] = gmxV2Facet.gmxV2GetTotalCollateral.selector;
+        gmxSelectors[9] = gmxV2Facet.gmxV2GetActivePositionCount.selector;
+        gmxSelectors[10] = gmxV2Facet.gmxV2GetConfig.selector;
+        gmxSelectors[11] = gmxV2Facet.gmxV2GetPositionPnL.selector;
+        gmxSelectors[12] = gmxV2Facet.afterOrderExecution.selector;
+        gmxSelectors[13] = gmxV2Facet.afterOrderCancellation.selector;
+        gmxSelectors[14] = gmxV2Facet.afterOrderFrozen.selector;
+        console2.log("GmxV2Facet deployed at:", address(gmxV2Facet));
+
+        IDiamondCut.FacetCut[] memory perpCuts = new IDiamondCut.FacetCut[](1);
+        perpCuts[0] = IDiamondCut.FacetCut({
+            facetAddress: address(gmxV2Facet), action: IDiamondCut.FacetCutAction.Add, functionSelectors: gmxSelectors
+        });
+
+        if (!registry.isModuleRegistered(MODULE_PERP)) {
+            registry.registerModule(MODULE_PERP);
+            console2.log("PERP module registered");
+        }
+        registry.upgradeModule(MODULE_PERP, perpCuts);
+        console2.log("PERP module upgraded with GmxV2Facet");
 
         // =====================================================================
         // INDEX module (IndexFacet)

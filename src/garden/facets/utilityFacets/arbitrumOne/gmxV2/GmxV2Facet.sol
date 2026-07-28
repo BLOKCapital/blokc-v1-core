@@ -16,6 +16,10 @@ import { GmxV2Base } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/Gmx
 
 // Local Interfaces
 import { IGmxV2 } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/IGmxV2.sol";
+import {
+    IOrderCallbackReceiver,
+    GmxEventUtils
+} from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/IGmxV2Callback.sol";
 
 // Local Libraries
 import { GmxV2Storage } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/GmxV2Storage.sol";
@@ -29,7 +33,7 @@ import { GmxV2Storage } from "src/garden/facets/utilityFacets/arbitrumOne/gmxV2/
  * with GMX V2, while GmxV2Facet itself provides the external interface for these operations with appropriate access
  * control and user-facing error messages.
  */
-contract GmxV2Facet is Facet, GmxV2Base {
+contract GmxV2Facet is Facet, GmxV2Base, IOrderCallbackReceiver {
     /// @inheritdoc IGmxV2
     function gmxV2OpenShort(GmxV2OpenShortParams calldata params)
         external
@@ -38,7 +42,7 @@ contract GmxV2Facet is Facet, GmxV2Base {
         onlyGardenOwner
         nonReentrant
         ifIndexNotConnected
-        returns (bytes32 positionKey)
+        returns (bytes32 orderKey)
     {
         return _gmxV2OpenShort(params);
     }
@@ -51,27 +55,106 @@ contract GmxV2Facet is Facet, GmxV2Base {
         onlyGardenOwner
         nonReentrant
         ifIndexNotConnected
+        returns (bytes32 orderKey)
     {
-        _gmxV2CloseShort(params);
+        return _gmxV2CloseShort(params);
     }
 
     /// @inheritdoc IGmxV2
-    function gmxV2AddCollateral(
-        bytes32 positionKey,
-        uint256 collateralAmount
+    function gmxV2AddCollateral(GmxV2AddCollateralParams calldata params)
+        external
+        payable
+        override
+        onlyGardenOwner
+        nonReentrant
+        ifIndexNotConnected
+        returns (bytes32 orderKey)
+    {
+        return _gmxV2AddCollateral(params);
+    }
+
+    /// @notice GMX keeper callback fired after an order executes successfully
+    /// @dev Only callable by a GMX handler (CONTROLLER role). Promotes/updates the target position.
+    /// The event payloads are ignored; work is correlated by the order key alone.
+    function afterOrderExecution(
+        bytes32 key,
+        GmxEventUtils.EventLogData memory orderData,
+        GmxEventUtils.EventLogData memory eventData
     )
         external
+        override
+        nonReentrant
+    {
+        _validateGmxCallback();
+        _handleOrderExecution(key, orderData, eventData);
+    }
+
+    /// @notice GMX keeper callback fired after an order is cancelled
+    /// @dev Only callable by a GMX handler. Clears the pending order; collateral was refunded by GMX.
+    function afterOrderCancellation(
+        bytes32 key,
+        GmxEventUtils.EventLogData memory,
+        GmxEventUtils.EventLogData memory
+    )
+        external
+        override
+        nonReentrant
+    {
+        _validateGmxCallback();
+        _handleOrderCancellation(key);
+    }
+
+    /// @notice GMX keeper callback fired after an order is frozen
+    /// @dev Only callable by a GMX handler. Clears the pending order; funds remain in the vault pending retry.
+    function afterOrderFrozen(
+        bytes32 key,
+        GmxEventUtils.EventLogData memory,
+        GmxEventUtils.EventLogData memory
+    )
+        external
+        override
+        nonReentrant
+    {
+        _validateGmxCallback();
+        _handleOrderCancellation(key);
+    }
+
+    /// @inheritdoc IGmxV2
+    /// @dev `ifIndexNotConnected` matches the other state-changing functions on this facet: an
+    /// index-connected garden must not have its leverage or collateral risk parameters altered.
+    function gmxV2UpdateConfig(
+        uint256 maxLeverage,
+        uint256 minCollateralUsd
+    )
+        external
+        override
+        onlyGardenOwner
+        ifIndexNotConnected
+    {
+        _gmxV2UpdateConfig(maxLeverage, minCollateralUsd);
+    }
+
+    /// @inheritdoc IGmxV2
+    function gmxV2CancelOrder(bytes32 orderKey)
+        external
+        payable
         override
         onlyGardenOwner
         nonReentrant
         ifIndexNotConnected
     {
-        _gmxV2AddCollateral(positionKey, collateralAmount);
+        _gmxV2CancelOrder(orderKey);
     }
 
-    /// @inheritdoc IGmxV2
-    function gmxV2UpdateConfig(uint256 maxLeverage, uint256 minCollateralUsd) external override onlyGardenOwner {
-        _gmxV2UpdateConfig(maxLeverage, minCollateralUsd);
+    /// @notice Registers this facet as the GMX callback for a market, so liquidation/ADL orders call back
+    /// @dev MUST be called once per market before (or alongside) the first short on that market. Until it
+    /// is, GMX-initiated orders — liquidations and ADLs — are not reported back and stored position state
+    /// silently diverges from the on-chain position. Idempotent; re-calling rewrites the same record.
+    /// See `GmxV2Base._gmxV2SetSavedCallback` for the full limitation note and the planned automatic
+    /// ("lazy") registration that would remove this manual step.
+    /// @param market The GMX market to register for
+    function gmxV2RegisterCallback(address market) external onlyGardenOwner nonReentrant ifIndexNotConnected {
+        _gmxV2SetSavedCallback(market);
     }
 
     /// @inheritdoc IGmxV2
