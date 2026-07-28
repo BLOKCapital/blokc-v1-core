@@ -43,6 +43,7 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         external
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256 amountOut)
     {
@@ -66,6 +67,7 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         external
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256 amountOut)
     {
@@ -88,6 +90,7 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         payable
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256 amountOut)
     {
@@ -111,6 +114,7 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         external
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256[] memory amountIn)
     {
@@ -134,6 +138,7 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         external
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256[] memory amountsIn)
     {
@@ -156,6 +161,7 @@ contract TraderJoeV2Facet is ITraderJoeV2, TraderJoeV2Base, Facet {
         payable
         override
         onlyGardenOwner
+        nonReentrant
         ifIndexNotConnected
         returns (uint256[] memory amountsIn)
     {
