@@ -17,7 +17,8 @@ import {
     ApproxParams,
     TokenInput,
     TokenOutput,
-    LimitOrderData
+    LimitOrderData,
+    ExitPostExpReturnParams
 } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPAllActionTypeV3.sol";
 
 /**
@@ -66,5 +67,22 @@ contract PendleV2Facet is IPendleV2, PendleV2Base, Facet {
         returns (uint256 netTokenOut, uint256 netSyFee, uint256 netSyInterm)
     {
         return _pendleV2SwapExactPtForToken(receiver, market, exactPtIn, output, limit);
+    }
+
+    /// @inheritdoc IPendleV2
+    function pendleV2ExitPostExpToToken(
+        address receiver,
+        address market,
+        uint256 netPtIn,
+        TokenOutput calldata output
+    )
+        external
+        override
+        onlyGardenOwner
+        nonReentrant
+        ifIndexNotConnected
+        returns (uint256 totalTokenOut, ExitPostExpReturnParams memory params)
+    {
+        return _pendleV2ExitPostExpToToken(receiver, market, netPtIn, output);
     }
 }

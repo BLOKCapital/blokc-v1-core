@@ -14,7 +14,8 @@ import {
     ApproxParams,
     TokenInput,
     TokenOutput,
-    LimitOrderData
+    LimitOrderData,
+    ExitPostExpReturnParams
 } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPAllActionTypeV3.sol";
 
 /// @title IPendleV2
@@ -61,4 +62,21 @@ interface IPendleV2 {
     )
         external
         returns (uint256 netTokenOut, uint256 netSyFee, uint256 netSyInterm);
+
+    /// @notice Redeems Principal Tokens (PT) for tokens after the Pendle market has matured
+    /// @dev Reverts if the market has not yet expired; use `pendleV2SwapExactPtForToken` to exit before maturity
+    /// @param receiver Address to receive the token output
+    /// @param market Address of the Pendle market
+    /// @param netPtIn Amount of PT to redeem
+    /// @param output Token output parameters including token address and minimum amount
+    /// @return totalTokenOut The net token amount received
+    /// @return params Breakdown of the redemption as reported by the Pendle router
+    function pendleV2ExitPostExpToToken(
+        address receiver,
+        address market,
+        uint256 netPtIn,
+        TokenOutput calldata output
+    )
+        external
+        returns (uint256 totalTokenOut, ExitPostExpReturnParams memory params);
 }
