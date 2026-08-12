@@ -14,12 +14,18 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IPAllActionV3 } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPAllActionV3.sol";
+import { IPMarket } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPMarket.sol";
+import { IPPrincipalToken } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPPrincipalToken.sol";
 import {
     TokenInput,
     TokenOutput,
     LimitOrderData,
-    ApproxParams
+    ApproxParams,
+    ExitPostExpReturnParams
 } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPAllActionTypeV3.sol";
+
+/// @notice Thrown when a post-expiry redemption is attempted on a market that has not yet matured
+error PendleV2Facet_MarketNotExpired();
 
 /**
  * @title PendleV2Base
@@ -50,6 +56,10 @@ abstract contract PendleV2Base {
         uint256 netTokenOut,
         uint256 netSyFee,
         uint256 netSyInterm
+    );
+
+    event PendleV2FacetExitPostExpiry(
+        address indexed receiver, address indexed market, uint256 netPtIn, uint256 netTokenOut, uint256 totalSyOut
     );
 
     /// @notice Swaps an exact amount of tokens for Principal Tokens (PT) via the Pendle V2 router
@@ -105,9 +115,49 @@ abstract contract PendleV2Base {
     {
         IPAllActionV3 router = IPAllActionV3(PENDLE_V2_ROUTER_ADDRESS);
 
-        IERC20 tokenOut = IERC20(output.tokenOut);
+        (, IPPrincipalToken PT,) = IPMarket(market).readTokens();
+        IERC20 pt = IERC20(address(PT));
+
+        pt.forceApprove(address(router), exactPtIn);
         (netTokenOut, netSyFee, netSyInterm) = router.swapExactPtForToken(receiver, market, exactPtIn, output, limit);
+        pt.forceApprove(address(router), 0);
         emit PendleV2FacetSwappedExactPtForToken(receiver, market, exactPtIn, netTokenOut, netSyFee, netSyInterm);
+    }
+
+    /// @notice Redeems Principal Tokens (PT) for tokens after the Pendle market has matured
+    /// @dev After expiry the market's `notExpired` guard blocks all swaps, so PT must be redeemed rather than traded.
+    /// Reverts if the market has not yet expired: pre-expiry `redeemPY` requires a matching YT balance, so redeeming
+    /// PT alone would transfer the PT into the YT contract without redeeming it.
+    /// @param receiver Address to receive the token output
+    /// @param market Address of the Pendle market
+    /// @param netPtIn Amount of PT to redeem
+    /// @param output Token output parameters including token address and minimum amount
+    /// @return totalTokenOut The net token amount received
+    /// @return params Breakdown of the redemption as reported by the Pendle router
+    function _pendleV2ExitPostExpToToken(
+        address receiver,
+        address market,
+        uint256 netPtIn,
+        TokenOutput calldata output
+    )
+        internal
+        returns (uint256 totalTokenOut, ExitPostExpReturnParams memory params)
+    {
+        if (!IPMarket(market).isExpired()) revert PendleV2Facet_MarketNotExpired();
+
+        IPAllActionV3 router = IPAllActionV3(PENDLE_V2_ROUTER_ADDRESS);
+
+        (, IPPrincipalToken PT,) = IPMarket(market).readTokens();
+        IERC20 pt = IERC20(address(PT));
+
+        pt.forceApprove(address(router), netPtIn);
+        // netLpIn is hardcoded to 0: gardens never hold Pendle LP.
+        (totalTokenOut, params) = router.exitPostExpToToken(receiver, market, netPtIn, 0, output);
+        pt.forceApprove(address(router), 0);
+        // Only totalSyOut is emitted from `params`: with netLpIn == 0 the remove-liquidity fields are always zero and
+        // netPtRedeem always equals netPtIn. totalSyOut is the SY intermediate, mirroring netSyInterm on the swap
+        // events.
+        emit PendleV2FacetExitPostExpiry(receiver, market, netPtIn, totalTokenOut, params.totalSyOut);
     }
 }
 
