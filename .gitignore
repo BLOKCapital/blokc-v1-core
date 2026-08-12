@@ -24,3 +24,6 @@ SECURITY_AUDIT_FINDINGS.md
 broadcast/*
 broadcast/*/31337/
 
+lib/ccip/
+lib/chainlink/
+lib/joe-v2/

@@ -12,6 +12,7 @@ import { UniswapV3Facet } from "src/garden/facets/utilityFacets/ethereum/uniswap
 import { SushiSwapV3Facet } from "src/garden/facets/utilityFacets/ethereum/sushiSwapV3/SushiSwapV3Facet.sol";
 import { BalancerV3Facet } from "src/garden/facets/utilityFacets/ethereum/balancerV3/BalancerV3Facet.sol";
 import { IBalancerV3 } from "src/garden/facets/utilityFacets/ethereum/balancerV3/IBalancerV3.sol";
+import { MorphoBlueFacet } from "src/garden/facets/utilityFacets/ethereum/morphoBlue/MorphoBlueFacet.sol";
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
@@ -126,6 +127,39 @@ contract RegisterUtilityFacets is BaseScript {
         }
         registry.upgradeModule(MODULE_DEX, dexCuts);
         console2.log("DEX module upgraded with UniswapV2, UniswapV3, BalancerV3 facets");
+
+        // =====================================================================
+        // YIELD module (Morpho Blue)
+        // =====================================================================
+        MorphoBlueFacet morphoBlueFacet = new MorphoBlueFacet();
+        bytes4[] memory morphoSelectors = new bytes4[](2);
+        morphoSelectors[0] = morphoBlueFacet.morphoBlueSupply.selector;
+        morphoSelectors[1] = morphoBlueFacet.morphoBlueWithdraw.selector;
+        console2.log("MorphoBlueFacet deployed at:", address(morphoBlueFacet));
+
+        IDiamondCut.FacetCut[] memory yieldCuts = new IDiamondCut.FacetCut[](1);
+        yieldCuts[0] = IDiamondCut.FacetCut({
+            facetAddress: address(morphoBlueFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: morphoSelectors
+        });
+
+        if (!registry.isModuleRegistered(MODULE_YIELD)) {
+            registry.registerModule(MODULE_YIELD);
+            console2.log("YIELD module registered");
+        }
+        registry.upgradeModule(MODULE_YIELD, yieldCuts);
+        console2.log("YIELD module upgraded with MorphoBlue facet");
+
+        // YIELD_GARDEN allowed modules: BASE (implicit), YIELD_MODULE, WITHDRAW_MODULE, DEX_MODULE
+        if (!registry.isGardenTypeRegistered(YIELD_GARDEN)) {
+            bytes32[] memory yieldGardenModules = new bytes32[](3);
+            yieldGardenModules[0] = MODULE_YIELD;
+            yieldGardenModules[1] = MODULE_WITHDRAW;
+            yieldGardenModules[2] = MODULE_DEX;
+            registry.addGardenType(YIELD_GARDEN, yieldGardenModules);
+            console2.log("YIELD_GARDEN type registered");
+        }
 
         // =====================================================================
         // INDEX module (IndexFacet)
