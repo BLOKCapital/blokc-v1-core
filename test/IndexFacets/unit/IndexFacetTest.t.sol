@@ -31,6 +31,7 @@ import {
     IndexFacet_IntentExpired,
     IndexFacet_ExcessiveValueLoss,
     IndexFacet_RebalanceReentrancy,
+    IndexFacet_IntentBlockDelayNotPassed,
     IndexFacet_ZeroTotalValue
 } from "../../../src/garden/facets/indexFacets/IndexBase.sol";
 
@@ -343,6 +344,10 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
         function forceSetRebalancing(bool v) external {
             IndexStorage.layout().rebalancing = v;
+        }
+
+        function forceSetLastIntentBlock(uint256 blockNum) external {
+            IndexStorage.layout().lastIntentBlock = blockNum;
         }
 
         function getIndexAddress() external view returns (address) {
@@ -819,6 +824,34 @@ contract MockERC20 is IERC20, IERC20Metadata {
             vm.warp(block.timestamp + IndexStorage.INTENT_EXPIRY + 1);
             vm.expectRevert(IndexFacet_IntentExpired.selector);
             h.rebalance(new SwapStep[](0));
+        }
+
+        // ── Block delay (flash loan protection)
+        // ────────────────────────────────────
+
+        function test_rebalance_revertsWhenBlockDelayNotPassed() public {
+            // Force lastIntentBlock to current block so MIN_INTENT_DELAY has not elapsed
+            h.forceSetLastIntentBlock(block.number);
+            vm.expectRevert(IndexFacet_IntentBlockDelayNotPassed.selector);
+            h.rebalance(new SwapStep[](0));
+        }
+
+        function test_rebalance_succeedsPastBlockDelay() public {
+            // Force lastIntentBlock to current block, then advance past MIN_INTENT_DELAY
+            h.forceSetLastIntentBlock(block.number);
+            vm.roll(block.number + IndexStorage.MIN_INTENT_DELAY);
+            // Should pass the block delay check (may revert later on value checks — that's fine,
+            // the point is it does NOT revert with IntentBlockDelayNotPassed)
+            // We can't easily assert a full rebalance success here without full portfolio setup,
+            // so just verify the block delay guard is no longer the failure reason.
+            try h.rebalance(new SwapStep[](0)) { }
+            catch (bytes memory reason) {
+                // Must not be the block delay error
+                assertTrue(
+                    keccak256(reason) != keccak256(abi.encodeWithSelector(IndexFacet_IntentBlockDelayNotPassed.selector)),
+                    "Should not revert with IntentBlockDelayNotPassed after sufficient block delay"
+                );
+            }
         }
     }
 
