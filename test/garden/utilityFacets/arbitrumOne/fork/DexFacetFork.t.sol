@@ -146,7 +146,12 @@ contract DexFacetForkTest is Test {
     // Setup — fresh protocol stack + real fork state
     // ========================================================================
     function setUp() public {
-        string memory rpcUrl = vm.envOr("RPC_URL_ARBITRUM", string("https://arb1.arbitrum.io/rpc"));
+        // Skip when no Arbitrum RPC is configured (e.g. plain `forge test` in CI).
+        // Run with: RPC_URL_ARBITRUM=<url> forge test --match-contract DexFacetForkTest -vvv
+        string memory rpcUrl = vm.envOr("RPC_URL_ARBITRUM", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            vm.skip(true, "RPC_URL_ARBITRUM not set - set an Arbitrum RPC to run fork tests");
+        }
         // ARBITRUM_FORK_BLOCK = 0 (default) -> fork at the latest block. The public RPC
         // prunes historical state, so a pinned block can only be used with an archive RPC
         // or shortly after it was mined. Quotes and swaps run against the same frozen fork
@@ -220,13 +225,14 @@ contract DexFacetForkTest is Test {
         _syncV2Pair(UNISWAP_V2_POOL);
 
         // Deterministic expectation via the facet's own quote (router getAmountsOut)
-        uint256 expected =
-            IUniswapV2(address(garden)).uniswapV2Quote(_quoteInstruction(UNISWAP_V2_POOL, amountIn));
+        uint256 expected = IUniswapV2(address(garden)).uniswapV2Quote(_quoteInstruction(UNISWAP_V2_POOL, amountIn));
         uint256 minOut = _applySlippage(expected);
 
         (uint256 outReceived, uint256 wethSpent) = _executeSwap(
             IUniswapV2.uniswapV2Swap.selector,
-            abi.encodeWithSelector(IUniswapV2.uniswapV2Swap.selector, _swapInstruction(UNISWAP_V2_POOL, amountIn, minOut, 0))
+            abi.encodeWithSelector(
+                IUniswapV2.uniswapV2Swap.selector, _swapInstruction(UNISWAP_V2_POOL, amountIn, minOut, 0)
+            )
         );
 
         _assertSwapOutcome(amountIn, wethSpent, minOut, outReceived, expected, "UniswapV2(deadline=0)");
@@ -238,8 +244,7 @@ contract DexFacetForkTest is Test {
         _fundGardenFromPool(UNISWAP_V2_POOL, amountIn);
         _syncV2Pair(UNISWAP_V2_POOL);
 
-        uint256 expected =
-            IUniswapV2(address(garden)).uniswapV2Quote(_quoteInstruction(UNISWAP_V2_POOL, amountIn));
+        uint256 expected = IUniswapV2(address(garden)).uniswapV2Quote(_quoteInstruction(UNISWAP_V2_POOL, amountIn));
         uint256 minOut = _applySlippage(expected);
 
         (uint256 outReceived, uint256 wethSpent) = _executeSwap(
@@ -260,9 +265,7 @@ contract DexFacetForkTest is Test {
 
         vm.expectRevert(bytes("UniswapV2Router: EXPIRED"));
         vm.prank(owner);
-        IUniswapV2(address(garden)).uniswapV2Swap(
-            _swapInstruction(UNISWAP_V2_POOL, amountIn, 1, block.timestamp - 1)
-        );
+        IUniswapV2(address(garden)).uniswapV2Swap(_swapInstruction(UNISWAP_V2_POOL, amountIn, 1, block.timestamp - 1));
     }
 
     // ========================================================================
@@ -275,13 +278,14 @@ contract DexFacetForkTest is Test {
         _fundGardenFromPool(UNISWAP_V3_POOL, amountIn);
 
         // Facet quote uses 30s TWAP; execution is at spot — 5% buffer absorbs the skew.
-        uint256 expected =
-            IUniswapV3(address(garden)).uniswapV3Quote(_quoteInstruction(UNISWAP_V3_POOL, amountIn));
+        uint256 expected = IUniswapV3(address(garden)).uniswapV3Quote(_quoteInstruction(UNISWAP_V3_POOL, amountIn));
         uint256 minOut = _applySlippage(expected);
 
         (uint256 outReceived, uint256 wethSpent) = _executeSwap(
             IUniswapV3.uniswapV3Swap.selector,
-            abi.encodeWithSelector(IUniswapV3.uniswapV3Swap.selector, _swapInstruction(UNISWAP_V3_POOL, amountIn, minOut, 0))
+            abi.encodeWithSelector(
+                IUniswapV3.uniswapV3Swap.selector, _swapInstruction(UNISWAP_V3_POOL, amountIn, minOut, 0)
+            )
         );
 
         _assertSwapOutcome(amountIn, wethSpent, minOut, outReceived, expected, "UniswapV3(deadline=0)");
@@ -292,8 +296,7 @@ contract DexFacetForkTest is Test {
         uint256 amountIn = WETH_AMOUNT;
         _fundGardenFromPool(UNISWAP_V3_POOL, amountIn);
 
-        uint256 expected =
-            IUniswapV3(address(garden)).uniswapV3Quote(_quoteInstruction(UNISWAP_V3_POOL, amountIn));
+        uint256 expected = IUniswapV3(address(garden)).uniswapV3Quote(_quoteInstruction(UNISWAP_V3_POOL, amountIn));
         uint256 minOut = _applySlippage(expected);
 
         (uint256 outReceived, uint256 wethSpent) = _executeSwap(
@@ -315,8 +318,7 @@ contract DexFacetForkTest is Test {
         uint256 amountIn = WETH_AMOUNT;
         _fundGardenFromPool(UNISWAP_V3_POOL, amountIn);
 
-        uint256 expected =
-            IUniswapV3(address(garden)).uniswapV3Quote(_quoteInstruction(UNISWAP_V3_POOL, amountIn));
+        uint256 expected = IUniswapV3(address(garden)).uniswapV3Quote(_quoteInstruction(UNISWAP_V3_POOL, amountIn));
         uint256 minOut = _applySlippage(expected);
 
         (uint256 outReceived, uint256 wethSpent) = _executeSwap(
@@ -327,7 +329,11 @@ contract DexFacetForkTest is Test {
             )
         );
 
-        assertGe(outReceived, minOut, "expired instruction deadline should still execute (facet overrides to block.timestamp)");
+        assertGe(
+            outReceived,
+            minOut,
+            "expired instruction deadline should still execute (facet overrides to block.timestamp)"
+        );
         console2.log("UniswapV3(expired instruction deadline): swap executed (deadline not enforced by facet)");
     }
 
@@ -342,13 +348,14 @@ contract DexFacetForkTest is Test {
         _fundGardenFromPool(CAMELOT_V2_POOL, amountIn);
         _syncV2Pair(CAMELOT_V2_POOL);
 
-        uint256 expected =
-            ICamelotV2(address(garden)).camelotV2Quote(_quoteInstruction(CAMELOT_V2_POOL, amountIn));
+        uint256 expected = ICamelotV2(address(garden)).camelotV2Quote(_quoteInstruction(CAMELOT_V2_POOL, amountIn));
         uint256 minOut = _applySlippage(expected);
 
         (uint256 outReceived, uint256 wethSpent) = _executeSwap(
             ICamelotV2.camelotV2Swap.selector,
-            abi.encodeWithSelector(ICamelotV2.camelotV2Swap.selector, _swapInstruction(CAMELOT_V2_POOL, amountIn, minOut, 0))
+            abi.encodeWithSelector(
+                ICamelotV2.camelotV2Swap.selector, _swapInstruction(CAMELOT_V2_POOL, amountIn, minOut, 0)
+            )
         );
 
         _assertSwapOutcome(amountIn, wethSpent, minOut, outReceived, expected, "CamelotV2(deadline=0)");
@@ -360,8 +367,7 @@ contract DexFacetForkTest is Test {
         _fundGardenFromPool(CAMELOT_V2_POOL, amountIn);
         _syncV2Pair(CAMELOT_V2_POOL);
 
-        uint256 expected =
-            ICamelotV2(address(garden)).camelotV2Quote(_quoteInstruction(CAMELOT_V2_POOL, amountIn));
+        uint256 expected = ICamelotV2(address(garden)).camelotV2Quote(_quoteInstruction(CAMELOT_V2_POOL, amountIn));
         uint256 minOut = _applySlippage(expected);
 
         (uint256 outReceived, uint256 wethSpent) = _executeSwap(
@@ -382,9 +388,7 @@ contract DexFacetForkTest is Test {
 
         vm.expectRevert(bytes("CamelotRouter: EXPIRED"));
         vm.prank(owner);
-        ICamelotV2(address(garden)).camelotV2Swap(
-            _swapInstruction(CAMELOT_V2_POOL, amountIn, 1, block.timestamp - 1)
-        );
+        ICamelotV2(address(garden)).camelotV2Swap(_swapInstruction(CAMELOT_V2_POOL, amountIn, 1, block.timestamp - 1));
     }
 
     // ========================================================================
@@ -405,7 +409,9 @@ contract DexFacetForkTest is Test {
 
         (uint256 outReceived, uint256 wethSpent) = _executeSwap(
             ICamelotV3.camelotV3Swap.selector,
-            abi.encodeWithSelector(ICamelotV3.camelotV3Swap.selector, _swapInstruction(CAMELOT_V3_POOL, amountIn, minOut, 0))
+            abi.encodeWithSelector(
+                ICamelotV3.camelotV3Swap.selector, _swapInstruction(CAMELOT_V3_POOL, amountIn, minOut, 0)
+            )
         );
 
         _assertSwapOutcome(amountIn, wethSpent, minOut, outReceived, expected, "CamelotV3(deadline=0)");
@@ -448,7 +454,11 @@ contract DexFacetForkTest is Test {
             )
         );
 
-        assertGe(outReceived, minOut, "expired instruction deadline should still execute (facet overrides to block.timestamp)");
+        assertGe(
+            outReceived,
+            minOut,
+            "expired instruction deadline should still execute (facet overrides to block.timestamp)"
+        );
         console2.log("CamelotV3(expired instruction deadline): swap executed (deadline not enforced by facet)");
     }
 
@@ -459,7 +469,13 @@ contract DexFacetForkTest is Test {
     /// @notice Executes a swap through the garden as the owner and returns the token deltas.
     /// @dev Uses a low-level call so the same helper works for all four facets. On revert the
     ///      original revert data is bubbled up so the failure reason is visible in test output.
-    function _executeSwap(bytes4 selector, bytes memory data) internal returns (uint256 usdcReceived, uint256 wethSpent) {
+    function _executeSwap(
+        bytes4 selector,
+        bytes memory data
+    )
+        internal
+        returns (uint256 usdcReceived, uint256 wethSpent)
+    {
         uint256 wethBefore = IERC20(WETH).balanceOf(address(garden));
         uint256 usdcBefore = IERC20(USDC).balanceOf(address(garden));
 
@@ -516,8 +532,16 @@ contract DexFacetForkTest is Test {
     function _camelotV3SpotQuote(address pool, uint256 amountIn) internal view returns (uint256 amountOut) {
         // The deployed pool's globalState is an 8-field struct (newer Algebra variant):
         // price, tick, fee, timepointIndex, communityFeeToken0, communityFeeToken1, extra, unlocked.
-        (uint160 sqrtPriceX96, int24 tick, uint16 fee, uint16 timepointIndex, uint16 communityFeeToken0, uint16 communityFeeToken1, uint256 extra, bool unlocked) =
-            IAlgebraPoolLike(pool).globalState();
+        (
+            uint160 sqrtPriceX96,
+            int24 tick,
+            uint16 fee,
+            uint16 timepointIndex,
+            uint16 communityFeeToken0,
+            uint16 communityFeeToken1,
+            uint256 extra,
+            bool unlocked
+        ) = IAlgebraPoolLike(pool).globalState();
         address token0 = IAlgebraPoolLike(pool).token0();
         address token1 = IAlgebraPoolLike(pool).token1();
 
@@ -564,12 +588,7 @@ contract DexFacetForkTest is Test {
         address[] memory pools = new address[](1);
         pools[0] = pool;
         si = SwapInstruction({
-            amountIn: amountIn,
-            amountOut: minOut,
-            tokens: tokens,
-            pools: pools,
-            exactOutput: false,
-            deadline: deadline
+            amountIn: amountIn, amountOut: minOut, tokens: tokens, pools: pools, exactOutput: false, deadline: deadline
         });
     }
 
@@ -622,11 +641,7 @@ contract DexFacetForkTest is Test {
             vm.store(targets[i], bytes32(0), bytes32(uint256(uint160(address(this)))));
             _wipeRegistryState(targets[i]);
 
-            assertEq(
-                LiquidityPoolRegistry(targets[i]).owner(),
-                address(this),
-                "fresh pool registry owner mismatch"
-            );
+            assertEq(LiquidityPoolRegistry(targets[i]).owner(), address(this), "fresh pool registry owner mismatch");
             assertEq(
                 LiquidityPoolRegistry(targets[i]).isDexRegistered(DEX_UNISWAP_V2),
                 false,

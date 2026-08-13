@@ -112,12 +112,12 @@ contract E2ESimulation is Test {
     address internal constant P_CAMV3_WETH_USDC = 0xB1026b8e7276e7AC75410F1fcbbe21796e8f7526;
 
     // Real token holders (impersonated on the fork to fund gardens)
-    address internal constant WHALE_UNIV3_WETH_USDC = 0xC6962004f452bE9203591991D15f6b388e09E8D0; // 13,254 WETH / 10.29M USDC
+    address internal constant WHALE_UNIV3_WETH_USDC = 0xC6962004f452bE9203591991D15f6b388e09E8D0; // 13,254 WETH /
+    // 10.29M USDC
     address internal constant WHALE_UNIV3_ARB_WETH = 0xC6F780497A95e246EB9449f5e4770916DCd6396A; // 13.29M ARB
 
     // Anvil dev account #0 (deployer/admin - 10000 ETH funded by anvil)
-    uint256 internal constant ANVIL_KEY0 =
-        0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+    uint256 internal constant ANVIL_KEY0 = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
     /// @notice Arbitrum block pinned by the anvil fork. NOTE: on Arbitrum, foundry maps
     ///         block.number to the L1 block number (see the fork notes in the report),
@@ -145,8 +145,7 @@ contract E2ESimulation is Test {
     // Custom-error selectors used in revert-assertion checks
     bytes4 internal constant ERR_INTERVAL_NOT_PASSED =
         bytes4(keccak256("Rebalancer_RebalanceIntervalNotPassed(bytes32,uint256,uint256)"));
-    bytes4 internal constant ERR_FEED_FROZEN =
-        bytes4(keccak256("IndexComponentRegistry__FeedFrozenError(address)"));
+    bytes4 internal constant ERR_FEED_FROZEN = bytes4(keccak256("IndexComponentRegistry__FeedFrozenError(address)"));
 
     // =========================================================================
     // Simulation parameters
@@ -219,10 +218,15 @@ contract E2ESimulation is Test {
         string memory rpc = vm.envOr("E2E_RPC_URL", string("http://localhost:8546"));
         // Skip gracefully when the anvil fork is not running (e.g. plain `forge test` in CI).
         // Run with: anvil --fork-url https://arb1.arbitrum.io/rpc --fork-block-number <FORK_PIN_BLOCK> --port 8546
-        try vm.createSelectFork(rpc) returns (uint256) {
-            // fork ok
-        } catch {
-            vm.skip(true, "E2E_RPC_URL anvil fork not reachable - start anvil --fork-url <arbitrum rpc> --port 8546 first");
+        try vm.createSelectFork(rpc) returns (
+            uint256
+        ) {
+        // fork ok
+        }
+        catch {
+            vm.skip(
+                true, "E2E_RPC_URL anvil fork not reachable - start anvil --fork-url <arbitrum rpc> --port 8546 first"
+            );
         }
         forkBlock = block.number;
         forkTimestamp = block.timestamp;
@@ -335,7 +339,8 @@ contract E2ESimulation is Test {
         addrOwnershipFacet = address(ownershipFacet);
         addrUpgradeFacet = address(upgradeFacet);
 
-        address[4] memory baseFacets = [addrDiamondCutFacet, addrDiamondLoupeFacet, addrOwnershipFacet, addrUpgradeFacet];
+        address[4] memory baseFacets =
+            [addrDiamondCutFacet, addrDiamondLoupeFacet, addrOwnershipFacet, addrUpgradeFacet];
 
         bytes4[][] memory baseSelectors = new bytes4[][](4);
         baseSelectors[0] = new bytes4[](1);
@@ -401,8 +406,12 @@ contract E2ESimulation is Test {
             addrIndexFacet = address(indexFacet);
         }
         console2.log("Deployed protocol: indexFactory=%s", addrIndexFactory);
-        console2.log("  compRegistry=%s poolRegistry=%s facetRegistry=%s", addrComponentRegistry,
-            addrLiquidityPoolRegistry, addrFacetRegistry);
+        console2.log(
+            "  compRegistry=%s poolRegistry=%s facetRegistry=%s",
+            addrComponentRegistry,
+            addrLiquidityPoolRegistry,
+            addrFacetRegistry
+        );
         console2.log("  rebalancer=%s", addrRebalancer);
     }
 
@@ -451,26 +460,30 @@ contract E2ESimulation is Test {
     // =========================================================================
     function _deployRebalancer() internal {
         vm.startPrank(deployer);
-        LiquidityPoolRegistry(addrLiquidityPoolRegistry).registerDex(
-            DEX_UNIV3,
-            UniswapV3Facet(addrUniswapV3Facet).uniswapV3Swap.selector,
-            UniswapV3Facet(addrUniswapV3Facet).uniswapV3Quote.selector
-        );
-        LiquidityPoolRegistry(addrLiquidityPoolRegistry).registerDex(
-            DEX_UNIV2,
-            UniswapV2Facet(addrUniswapV2Facet).uniswapV2Swap.selector,
-            UniswapV2Facet(addrUniswapV2Facet).uniswapV2Quote.selector
-        );
-        LiquidityPoolRegistry(addrLiquidityPoolRegistry).registerDex(
-            DEX_CAMV2,
-            CamelotV2Facet(addrCamelotV2Facet).camelotV2Swap.selector,
-            CamelotV2Facet(addrCamelotV2Facet).camelotV2Quote.selector
-        );
-        LiquidityPoolRegistry(addrLiquidityPoolRegistry).registerDex(
-            DEX_CAMV3,
-            CamelotV3Facet(addrCamelotV3Facet).camelotV3Swap.selector,
-            CamelotV3Facet(addrCamelotV3Facet).camelotV3Quote.selector
-        );
+        LiquidityPoolRegistry(addrLiquidityPoolRegistry)
+            .registerDex(
+                DEX_UNIV3,
+                UniswapV3Facet(addrUniswapV3Facet).uniswapV3Swap.selector,
+                UniswapV3Facet(addrUniswapV3Facet).uniswapV3Quote.selector
+            );
+        LiquidityPoolRegistry(addrLiquidityPoolRegistry)
+            .registerDex(
+                DEX_UNIV2,
+                UniswapV2Facet(addrUniswapV2Facet).uniswapV2Swap.selector,
+                UniswapV2Facet(addrUniswapV2Facet).uniswapV2Quote.selector
+            );
+        LiquidityPoolRegistry(addrLiquidityPoolRegistry)
+            .registerDex(
+                DEX_CAMV2,
+                CamelotV2Facet(addrCamelotV2Facet).camelotV2Swap.selector,
+                CamelotV2Facet(addrCamelotV2Facet).camelotV2Quote.selector
+            );
+        LiquidityPoolRegistry(addrLiquidityPoolRegistry)
+            .registerDex(
+                DEX_CAMV3,
+                CamelotV3Facet(addrCamelotV3Facet).camelotV3Swap.selector,
+                CamelotV3Facet(addrCamelotV3Facet).camelotV3Quote.selector
+            );
         vm.stopPrank();
     }
 
@@ -613,14 +626,12 @@ contract E2ESimulation is Test {
         address tokenB,
         bytes32 dexId,
         string memory pairName
-    ) internal {
+    )
+        internal
+    {
         registry.addPool(
             ILiquidityPoolRegistry.AddPoolParams({
-                poolAddress: pool,
-                tokenA: tokenA,
-                tokenB: tokenB,
-                dexId: dexId,
-                pairName: pairName
+                poolAddress: pool, tokenA: tokenA, tokenB: tokenB, dexId: dexId, pairName: pairName
             })
         );
     }
@@ -693,13 +704,11 @@ contract E2ESimulation is Test {
             gardens.push(garden);
 
             // Install INDEX + DEX + WITHDRAW modules via the two-step upgrade flow
-            (bool ok, bytes memory data) =
-                garden.staticcall(abi.encodeWithSignature("upgradeDetails()"));
+            (bool ok, bytes memory data) = garden.staticcall(abi.encodeWithSignature("upgradeDetails()"));
             require(ok, "upgradeDetails failed");
             (, bytes32 hashData) = abi.decode(data, (IDiamondCut.FacetCut[], bytes32));
             vm.prank(user);
-            (bool ok2, bytes memory err) =
-                garden.call(abi.encodeWithSignature("upgrade(bytes32)", hashData));
+            (bool ok2, bytes memory err) = garden.call(abi.encodeWithSignature("upgrade(bytes32)", hashData));
             if (!ok2) {
                 emit log_named_bytes("upgrade failed", err);
                 revert("garden upgrade failed");
@@ -727,8 +736,8 @@ contract E2ESimulation is Test {
         //  g1: WETH-heavy (80%)    g2: USDC-heavy (87%)    g3: ARB-heavy (28%)
         //  g4: balanced-ish        g5: balanced-ish        g6: WETH-heavy
         uint256[6] memory wethAmts = [uint256(25e18), 3e18, 2e18, 10e18, 8e18, 15e18];
-        uint256[6] memory usdcAmts = [uint256(8000e6), 42000e6, 8000e6, 10000e6, 15000e6, 6000e6];
-        uint256[6] memory arbAmts = [uint256(50000e18), 10000e18, 60000e18, 20000e18, 40000e18, 10000e18];
+        uint256[6] memory usdcAmts = [uint256(8000e6), 42_000e6, 8000e6, 10_000e6, 15_000e6, 6000e6];
+        uint256[6] memory arbAmts = [uint256(50_000e18), 10_000e18, 60_000e18, 20_000e18, 40_000e18, 10_000e18];
 
         // Pull from the real WETH/USDC UniV3 pool (13,254 WETH / 10.29M USDC)
         vm.startPrank(WHALE_UNIV3_WETH_USDC);
@@ -806,11 +815,13 @@ contract E2ESimulation is Test {
         _verifyRound(1, round1, valueBefore, totalBefore, tokensBefore);
 
         // ---- Cooldown rejection ----
-        (bool okCooldown, bytes memory errCooldown) =
-            address(addrRebalancer).call(abi.encodeWithSignature("cumulativeRebalance(bytes32,uint256)", INDEX_TYPE_ID, block.timestamp + 300));
+        (bool okCooldown, bytes memory errCooldown) = address(addrRebalancer)
+            .call(abi.encodeWithSignature("cumulativeRebalance(bytes32,uint256)", INDEX_TYPE_ID, block.timestamp + 300));
         assertFalse(okCooldown, "cooldown should have rejected the immediate re-call");
         assertTrue(_revertSelectorIs(errCooldown, ERR_INTERVAL_NOT_PASSED), "unexpected cooldown error");
-        console2.log("Cooldown rejection verified: immediate re-call reverted with Rebalancer_RebalanceIntervalNotPassed");
+        console2.log(
+            "Cooldown rejection verified: immediate re-call reverted with Rebalancer_RebalanceIntervalNotPassed"
+        );
 
         console2.log("");
         console2.log("########## ROUND 2 ##########");
@@ -834,11 +845,13 @@ contract E2ESimulation is Test {
 
         // ---- Round 3 attempt: feeds now stale (48h+ since mock refresh) ----
         vm.warp(block.timestamp + REBALANCE_INTERVAL + 1);
-        (bool okFrozen, bytes memory errFrozen) =
-            address(addrRebalancer).call(abi.encodeWithSignature("cumulativeRebalance(bytes32,uint256)", INDEX_TYPE_ID, block.timestamp + 300));
+        (bool okFrozen, bytes memory errFrozen) = address(addrRebalancer)
+            .call(abi.encodeWithSignature("cumulativeRebalance(bytes32,uint256)", INDEX_TYPE_ID, block.timestamp + 300));
         assertFalse(okFrozen, "round 3 should have reverted (stale feeds on static fork)");
         assertTrue(_revertSelectorIs(errFrozen, ERR_FEED_FROZEN), "unexpected round-3 error (expected FeedFrozenError)");
-        console2.log("Round 3 correctly reverted with IndexComponentRegistry__FeedFrozenError (static-fork artifact: feeds do not update on a fork; on a live chain feeds publish new rounds every ~1h)");
+        console2.log(
+            "Round 3 correctly reverted with IndexComponentRegistry__FeedFrozenError (static-fork artifact: feeds do not update on a fork; on a live chain feeds publish new rounds every ~1h)"
+        );
 
         // Cursor must remain 0 (fresh round never started)
         assertEq(Rebalancer(addrRebalancer).gardenCursor(INDEX_TYPE_ID), 0, "cursor should stay 0");
@@ -867,10 +880,13 @@ contract E2ESimulation is Test {
                 rec.cursorAfter = cursor;
             }
         }
-        console2.log("  batch %d: %d garden(s) processed, %d swap(s)", rec.batchIndex, rec.gardenCount,
-            rec.swaps);
-        console2.log("  cursor -> %d, pull value = $%d.%d", rec.cursorAfter, rec.totalValueUsd / 1e8,
-            (rec.totalValueUsd % 1e8) / 100);
+        console2.log("  batch %d: %d garden(s) processed, %d swap(s)", rec.batchIndex, rec.gardenCount, rec.swaps);
+        console2.log(
+            "  cursor -> %d, pull value = $%d.%d",
+            rec.cursorAfter,
+            rec.totalValueUsd / 1e8,
+            (rec.totalValueUsd % 1e8) / 100
+        );
     }
 
     function _checkCursor(uint256 expected, string memory label) internal view {
@@ -886,7 +902,9 @@ contract E2ESimulation is Test {
         uint256[] memory valueBefore,
         uint256 totalBefore,
         uint256[3] memory tokensBefore
-    ) internal {
+    )
+        internal
+    {
         console2.log("");
         console2.log("----- ROUND %d VERIFICATION -----", round);
 
@@ -925,9 +943,10 @@ contract E2ESimulation is Test {
 
         // (b) total value did not drop > MAX_VALUE_LOSS_BPS (0.5%)
         if (totalBefore > 0) {
-            uint256 minAcceptable = (totalBefore * 9950) / 10000;
+            uint256 minAcceptable = (totalBefore * 9950) / 10_000;
             bool bOk = totalAfter >= minAcceptable;
-            uint256 lossBps = totalBefore == 0 ? 0 : (totalBefore > totalAfter ? totalBefore - totalAfter : 0) * 10000 / totalBefore;
+            uint256 lossBps =
+                totalBefore == 0 ? 0 : (totalBefore > totalAfter ? totalBefore - totalAfter : 0) * 10_000 / totalBefore;
             console2.log("(b) valueBefore=$%d.%06d", totalBefore / 1e8, (totalBefore % 1e8) / 100);
             console2.log("(b) valueAfter=$%d.%06d", totalAfter / 1e8, (totalAfter % 1e8) / 100);
             console2.log("(b) loss=%d bps (max 50 bps) -> %s", lossBps, bOk ? "PASS" : "FAIL");
@@ -957,8 +976,9 @@ contract E2ESimulation is Test {
                 bool ok = actual + tol >= expected && expected + tol >= actual;
                 cOk = cOk && ok;
                 console2.log("(c) garden%d share=$%d.%06d", i + 1, actual / 1e8, (actual % 1e8) / 100);
-                console2.log("(c)   expected=$%d.%06d (%s)", expected / 1e8, (expected % 1e8) / 100,
-                    ok ? "PASS" : "FAIL");
+                console2.log(
+                    "(c)   expected=$%d.%06d (%s)", expected / 1e8, (expected % 1e8) / 100, ok ? "PASS" : "FAIL"
+                );
             }
             assertTrue(cOk, "proportional redistribution check failed");
         }
@@ -973,8 +993,7 @@ contract E2ESimulation is Test {
             console2.log("(d) after WETH=%d.%06d", tokensAfter[0] / 1e18, (tokensAfter[0] % 1e18) / 1e12);
             console2.log("(d) after USDC=%d.%06d", tokensAfter[1] / 1e6, tokensAfter[1] % 1e6);
             console2.log("(d) after ARB=%d.%06d", tokensAfter[2] / 1e18, (tokensAfter[2] % 1e18) / 1e12);
-            console2.log("(d) residual: WETH=%d wei USDC=%d uunits ARB=%d wei", residual[0], residual[1],
-                residual[2]);
+            console2.log("(d) residual: WETH=%d wei USDC=%d uunits ARB=%d wei", residual[0], residual[1], residual[2]);
         }
         console2.log("");
     }
@@ -1040,8 +1059,8 @@ contract E2ESimulation is Test {
     // =========================================================================
     function _writeMarker() internal {
         string memory json = "{";
-        json = string.concat(json, '"forkBlock":', _u2s(FORK_PIN_BLOCK), ',');
-        json = string.concat(json, '"l1BlockNumber":', _u2s(forkBlock), ',');
+        json = string.concat(json, '"forkBlock":', _u2s(FORK_PIN_BLOCK), ",");
+        json = string.concat(json, '"l1BlockNumber":', _u2s(forkBlock), ",");
         json = string.concat(json, '"indexFactory":"', vm.toString(addrIndexFactory), '",');
         json = string.concat(json, '"componentRegistry":"', vm.toString(addrComponentRegistry), '",');
         json = string.concat(json, '"liquidityPoolRegistry":"', vm.toString(addrLiquidityPoolRegistry), '",');
@@ -1076,7 +1095,9 @@ contract E2ESimulation is Test {
         uint256 end = _indexOf(json, '"', start);
         bytes memory b = bytes(json);
         bytes memory out = new bytes(end - start);
-        for (uint256 i = start; i < end; i++) out[i - start] = b[i];
+        for (uint256 i = start; i < end; i++) {
+            out[i - start] = b[i];
+        }
         return string(out);
     }
 
@@ -1106,10 +1127,25 @@ contract E2ESimulation is Test {
     // =========================================================================
     function _reportHeader() internal returns (string memory h) {
         h = "# BLOK v1 Core - BETA1 End-to-End Verification\n";
-        h = string.concat(h, "\n> Generated by `test/e2e/E2ESimulation.t.sol` against a fresh deployment on an anvil fork of Arbitrum One.\n");
-        h = string.concat(h, "\n## Fork\n\n- RPC: `http://localhost:8546` (anvil `--fork-url https://arb1.arbitrum.io/rpc --fork-block-number ", _u2s(FORK_PIN_BLOCK), "`)\n");
-        h = string.concat(h, "- Fork block (Arbitrum): `", _u2s(FORK_PIN_BLOCK), "`, timestamp ", _u2s(forkTimestamp), "\n");
-        h = string.concat(h, "- Note: foundry reports `block.number` = L1 block number on Arbitrum (", _u2s(forkBlock), "); the protocol uses `block.timestamp`, so this has no effect on the simulation.\n");
+        h = string.concat(
+            h,
+            "\n> Generated by `test/e2e/E2ESimulation.t.sol` against a fresh deployment on an anvil fork of Arbitrum One.\n"
+        );
+        h = string.concat(
+            h,
+            "\n## Fork\n\n- RPC: `http://localhost:8546` (anvil `--fork-url https://arb1.arbitrum.io/rpc --fork-block-number ",
+            _u2s(FORK_PIN_BLOCK),
+            "`)\n"
+        );
+        h = string.concat(
+            h, "- Fork block (Arbitrum): `", _u2s(FORK_PIN_BLOCK), "`, timestamp ", _u2s(forkTimestamp), "\n"
+        );
+        h = string.concat(
+            h,
+            "- Note: foundry reports `block.number` = L1 block number on Arbitrum (",
+            _u2s(forkBlock),
+            "); the protocol uses `block.timestamp`, so this has no effect on the simulation.\n"
+        );
         h = string.concat(h, "- Deployer/admin: anvil key #0 `", vm.toString(deployer), "`\n");
         h = string.concat(h, "\n## Fresh deployment addresses\n\n");
         h = string.concat(h, "| Contract | Address |\n|---|---|\n");
@@ -1138,38 +1174,89 @@ contract E2ESimulation is Test {
         h = string.concat(h, "- WETH/USD feed `", vm.toString(WETH_USD_FEED), "` price $", _usdStr(wethPrice), "\n");
         h = string.concat(h, "- ARB/USD feed `", vm.toString(ARB_USD_FEED), "` price $", _usdStr(arbPrice), "\n");
         h = string.concat(h, "- USDC/USD feed `", vm.toString(USDC_USD_FEED), "` price $", _usdStr(usdcPrice), "\n");
-        h = string.concat(h, "- Circulating supplies: WETH ", _u2s(SUPPLY_WETH), ", ARB ", _u2s(SUPPLY_ARB), ", USDC ", _u2s(SUPPLY_USDC), "\n");
-        h = string.concat(h, "- Real DEX pools registered: UniV3 WETH/USDC 0.05% & 0.3%, UniV3 ARB/WETH 0.05% & 0.3%, CamelotV2 WETH/USDC, CamelotV2 ARB/WETH, UniV2 WETH/USDC, CamelotV3 WETH/USDC\n");
-        h = string.concat(h, "- DEX configs on Rebalancer: UNISWAP_V3 (0x414bf389), UNISWAP_V2 (0x38ed1739), CAMELOT_V2 (0xac3893ba), CAMELOT_V3 (0xbc651188 - no pools registered; see notes)\n");
+        h = string.concat(
+            h,
+            "- Circulating supplies: WETH ",
+            _u2s(SUPPLY_WETH),
+            ", ARB ",
+            _u2s(SUPPLY_ARB),
+            ", USDC ",
+            _u2s(SUPPLY_USDC),
+            "\n"
+        );
+        h = string.concat(
+            h,
+            "- Real DEX pools registered: UniV3 WETH/USDC 0.05% & 0.3%, UniV3 ARB/WETH 0.05% & 0.3%, CamelotV2 WETH/USDC, CamelotV2 ARB/WETH, UniV2 WETH/USDC, CamelotV3 WETH/USDC\n"
+        );
+        h = string.concat(
+            h,
+            "- DEX configs on Rebalancer: UNISWAP_V3 (0x414bf389), UNISWAP_V2 (0x38ed1739), CAMELOT_V2 (0xac3893ba), CAMELOT_V3 (0xbc651188 - no pools registered; see notes)\n"
+        );
     }
 
     function _appendReportSimulation(BatchRecord[] memory round1, BatchRecord[] memory round2) internal {
         string memory h = report;
         h = string.concat(h, "\n## Gardens & initial balances (funded from real pool whales)\n\n");
-        h = string.concat(h, "| Garden | Owner | Initial WETH | Initial USDC | Initial ARB | Initial value (USD) |\n|---|---|---|---|---|---|\n");
+        h = string.concat(
+            h,
+            "| Garden | Owner | Initial WETH | Initial USDC | Initial ARB | Initial value (USD) |\n|---|---|---|---|---|---|\n"
+        );
         for (uint256 i = 0; i < GARDEN_COUNT; i++) {
-            uint256 initValue = (initWeth[i] * wethPrice) / 1e18 + (initUsdc[i] * usdcPrice) / 1e6
-                + (initArb[i] * arbPrice) / 1e18;
-            h = string.concat(h, "| garden", _u2s(i + 1), " | `", vm.toString(users[i]), "` | ",
-                _u2s(initWeth[i] / 1e18), " | ", _u2s(initUsdc[i] / 1e6), " | ", _u2s(initArb[i] / 1e18), " | $",
-                _usdStr(initValue), " |\n");
+            uint256 initValue =
+                (initWeth[i] * wethPrice) / 1e18 + (initUsdc[i] * usdcPrice) / 1e6 + (initArb[i] * arbPrice) / 1e18;
+            h = string.concat(
+                h,
+                "| garden",
+                _u2s(i + 1),
+                " | `",
+                vm.toString(users[i]),
+                "` | ",
+                _u2s(initWeth[i] / 1e18),
+                " | ",
+                _u2s(initUsdc[i] / 1e6),
+                " | ",
+                _u2s(initArb[i] / 1e18),
+                " | $",
+                _usdStr(initValue),
+                " |\n"
+            );
         }
         h = string.concat(h, "\n## Cumulative rebalance calls\n\n");
-        h = string.concat(h, "| Round | Batch | Gardens processed | Swaps executed | Pull value (USD) | Cursor after |\n|---|---|---|---|---|---|\n");
+        h = string.concat(
+            h,
+            "| Round | Batch | Gardens processed | Swaps executed | Pull value (USD) | Cursor after |\n|---|---|---|---|---|---|\n"
+        );
         h = _appendBatchRows(h, 1, round1);
         h = _appendBatchRows(h, 2, round2);
         report = h;
     }
 
-    function _appendBatchRows(string memory h, uint256 round, BatchRecord[] memory batches)
+    function _appendBatchRows(
+        string memory h,
+        uint256 round,
+        BatchRecord[] memory batches
+    )
         internal
         pure
         returns (string memory)
     {
         for (uint256 b = 0; b < batches.length; b++) {
-            h = string.concat(h, "| ", _u2s(round), " | ", _u2s(b + 1), " | ", _u2s(batches[b].gardenCount),
-                " | ", _u2s(batches[b].swaps), " | $", _usdStr(batches[b].totalValueUsd), " | ",
-                _u2s(batches[b].cursorAfter), " |\n");
+            h = string.concat(
+                h,
+                "| ",
+                _u2s(round),
+                " | ",
+                _u2s(b + 1),
+                " | ",
+                _u2s(batches[b].gardenCount),
+                " | ",
+                _u2s(batches[b].swaps),
+                " | $",
+                _usdStr(batches[b].totalValueUsd),
+                " | ",
+                _u2s(batches[b].cursorAfter),
+                " |\n"
+            );
         }
         return h;
     }
@@ -1184,8 +1271,20 @@ contract E2ESimulation is Test {
             uint256 wv = (IERC20(WETH).balanceOf(gardens[i]) * wethPrice) / 1e18;
             uint256 av = (IERC20(ARB).balanceOf(gardens[i]) * arbPrice) / 1e18;
             uint256 uv = (IERC20(USDC).balanceOf(gardens[i]) * usdcPrice) / 1e6;
-            h = string.concat(h, "| garden", _u2s(i + 1), " | $", _usdStr(wv), " | $", _usdStr(av), " | $", _usdStr(uv),
-                " | $", _usdStr(wv + av + uv), " |\n");
+            h = string.concat(
+                h,
+                "| garden",
+                _u2s(i + 1),
+                " | $",
+                _usdStr(wv),
+                " | $",
+                _usdStr(av),
+                " | $",
+                _usdStr(uv),
+                " | $",
+                _usdStr(wv + av + uv),
+                " |\n"
+            );
         }
         // ---- Verification summary ----
         uint256 totalBeforeR1 = 0;
@@ -1205,10 +1304,24 @@ contract E2ESimulation is Test {
             arbAfter += IERC20(ARB).balanceOf(gardens[i]);
         }
         h = string.concat(h, "\n## Verification results (round 1, with real numbers)\n\n");
-        h = string.concat(h, "- **(a) Per-garden balances within BALANCE_THRESHOLD_BPS (200 bps) of index weights**: PASS for all 6 gardens x 3 components (worst diff $19.76 vs $24,382.39 target on garden4 USDC = 0.08%, far below the 2% threshold; all 18 diffs were below 10 bps).\n");
-        h = string.concat(h, "- **(b) Total value preserved (MAX_VALUE_LOSS_BPS = 50 bps)**: valueBefore $", _usdStr(totalBeforeR1),
-            ", valueAfter $", _usdStr(totalAfterR1), ", loss ", _u2s(lossBps), " bps (fees + slippage only) -> PASS.\n");
-        h = string.concat(h, "- **(c) Proportional redistribution**: every garden's post-round value matches contribution-share x totalAfter within 1% (fees/slippage/rounding tolerance) -> PASS for all 6 gardens.\n");
+        h = string.concat(
+            h,
+            "- **(a) Per-garden balances within BALANCE_THRESHOLD_BPS (200 bps) of index weights**: PASS for all 6 gardens x 3 components (worst diff $19.76 vs $24,382.39 target on garden4 USDC = 0.08%, far below the 2% threshold; all 18 diffs were below 10 bps).\n"
+        );
+        h = string.concat(
+            h,
+            "- **(b) Total value preserved (MAX_VALUE_LOSS_BPS = 50 bps)**: valueBefore $",
+            _usdStr(totalBeforeR1),
+            ", valueAfter $",
+            _usdStr(totalAfterR1),
+            ", loss ",
+            _u2s(lossBps),
+            " bps (fees + slippage only) -> PASS.\n"
+        );
+        h = string.concat(
+            h,
+            "- **(c) Proportional redistribution**: every garden's post-round value matches contribution-share x totalAfter within 1% (fees/slippage/rounding tolerance) -> PASS for all 6 gardens.\n"
+        );
         uint256 wethBefore;
         uint256 usdcBefore;
         uint256 arbBefore;
@@ -1217,20 +1330,50 @@ contract E2ESimulation is Test {
             usdcBefore += initUsdc[i];
             arbBefore += initArb[i];
         }
-        h = string.concat(h, "- **(d) Token conservation** (across gardens, before vs after round 1; swap proceeds converted the excess USDC/ARB into WETH; rebalancer residual dust = 0 wei for all three tokens):\n");
+        h = string.concat(
+            h,
+            "- **(d) Token conservation** (across gardens, before vs after round 1; swap proceeds converted the excess USDC/ARB into WETH; rebalancer residual dust = 0 wei for all three tokens):\n"
+        );
         h = string.concat(h, "  - WETH: ", _u2s(wethBefore / 1e18), " -> ", _u2s(wethAfter / 1e18), "\n");
         h = string.concat(h, "  - USDC: ", _u2s(usdcBefore / 1e6), " -> ", _u2s(usdcAfter / 1e6), "\n");
         h = string.concat(h, "  - ARB: ", _u2s(arbBefore / 1e18), " -> ", _u2s(arbAfter / 1e18), "\n");
-        h = string.concat(h, "- **(e) Cursor behavior**: batch1 -> 2, batch2 -> 4, batch3 -> 0 (round complete); round 2 identical (2/4/0). Cursor verified via `gardenCursor(keccak256(\"E2E-INDEX\"))` after every batch -> PASS.\n");
-        h = string.concat(h, "- **24h cooldown**: immediate re-call after round 1 reverted with `Rebalancer_RebalanceIntervalNotPassed` -> PASS.\n");
-        h = string.concat(h, "- **Round 3 (static-fork artifact)**: after two 24h-apart rounds the feeds are stale beyond the 26h heartbeat; `cumulativeRebalance` reverted with `IndexComponentRegistry__FeedFrozenError` (expected on a static fork - feeds never publish new rounds; on a live chain they update every ~1h) -> documented, not a protocol failure.\n");
+        h = string.concat(
+            h,
+            "- **(e) Cursor behavior**: batch1 -> 2, batch2 -> 4, batch3 -> 0 (round complete); round 2 identical (2/4/0). Cursor verified via `gardenCursor(keccak256(\"E2E-INDEX\"))` after every batch -> PASS.\n"
+        );
+        h = string.concat(
+            h,
+            "- **24h cooldown**: immediate re-call after round 1 reverted with `Rebalancer_RebalanceIntervalNotPassed` -> PASS.\n"
+        );
+        h = string.concat(
+            h,
+            "- **Round 3 (static-fork artifact)**: after two 24h-apart rounds the feeds are stale beyond the 26h heartbeat; `cumulativeRebalance` reverted with `IndexComponentRegistry__FeedFrozenError` (expected on a static fork - feeds never publish new rounds; on a live chain they update every ~1h) -> documented, not a protocol failure.\n"
+        );
         h = string.concat(h, "\n## Notes\n\n");
-        h = string.concat(h, "1. **IndexStorage constants**: `src/garden/facets/indexFacets/IndexStorage.sol` hardcodes the OLD mainnet deployment addresses (`INDEX_FACTORY_ADDRESS 0x91da26...`, `INDEX_COMPONENT_REGISTRY_ADDRESS 0x3F8291...`, `POOL_REGISTRY_ADDRESS 0xA31782...`). For this simulation the three constants were temporarily patched to the fresh addresses above and restored afterwards (`git checkout`). **These constants MUST be updated before any real deployment** - otherwise garden IndexFacet calls (`connectToIndex`, `rebalance`) target the old protocol.\n");
-        h = string.concat(h, "2. **DEX facet registry constants**: `POOL_REGISTRY_ADDRESS` in `UniswapV2Base.sol`, `UniswapV3Base.sol`, `CamelotV2Base.sol`, `CamelotV3Base.sol` (arbitrumOne) is likewise hardcoded to the old `0xA31782...`. These were also temporarily patched (the Rebalancer's quoting path calls the facet's quote functions, which validate `isPoolRegistered` against that constant) and restored afterwards. Must be updated before real deployment.\n");
-        h = string.concat(h, "3. **Feed liveness on a static fork**: Chainlink feeds never publish new rounds on a forked chain, so the registry's (correct) staleness guard would revert the first rebalance after the 24h cooldown. The simulation installs a `latestRoundData()` mock on the three real feeds that bumps `roundId` by one and sets `updatedAt = forkTimestamp + 24h` while returning the **real on-chain answers** (all prices in this report are the real oracle prices). This simulates feeds publishing new rounds between rebalances; all protocol logic (staleness, EMA, deviation, caching) runs unmodified.\n");
-        h = string.concat(h, "4. **CamelotV3 pools**: the Rebalancer's `_swapV3Style` encodes the UniV3 8-param `exactInputSingle` while CamelotV3's router uses the 7-param struct (selector `0xbc651188`). A CamelotV3 route would therefore fail at execution. Only the CamelotV3 WETH/USDC pool is registered (it never wins the quote competition at simulation sizes); no CamelotV3 ARB/USDC pool is registered so the ARB/USDC pair cannot route through the broken encoding. Production config (DeployRebalancer.s.sol) sets CamelotV3 the same way - flagging for the team: either the config should use a compatible selector/encoding or CamelotV3 pools should not be registered.\n");
-        h = string.concat(h, "5. **Round 3 is impossible on a static fork**: after two rounds the stored oracle timestamps exceed the 26h heartbeat and `fetchPrice` reverts with `IndexComponentRegistry__FeedFrozenError` (verified in the simulation). On a live chain feeds update every ~1h, so this is a fork artifact, not a protocol issue.\n");
-        h = string.concat(h, "6. Heartbeats registered at 26h (registry max) instead of production values (24h/1h) so the feeds stay readable across the 24h warps on the static fork.\n");
+        h = string.concat(
+            h,
+            "1. **IndexStorage constants**: `src/garden/facets/indexFacets/IndexStorage.sol` hardcodes the OLD mainnet deployment addresses (`INDEX_FACTORY_ADDRESS 0x91da26...`, `INDEX_COMPONENT_REGISTRY_ADDRESS 0x3F8291...`, `POOL_REGISTRY_ADDRESS 0xA31782...`). For this simulation the three constants were temporarily patched to the fresh addresses above and restored afterwards (`git checkout`). **These constants MUST be updated before any real deployment** - otherwise garden IndexFacet calls (`connectToIndex`, `rebalance`) target the old protocol.\n"
+        );
+        h = string.concat(
+            h,
+            "2. **DEX facet registry constants**: `POOL_REGISTRY_ADDRESS` in `UniswapV2Base.sol`, `UniswapV3Base.sol`, `CamelotV2Base.sol`, `CamelotV3Base.sol` (arbitrumOne) is likewise hardcoded to the old `0xA31782...`. These were also temporarily patched (the Rebalancer's quoting path calls the facet's quote functions, which validate `isPoolRegistered` against that constant) and restored afterwards. Must be updated before real deployment.\n"
+        );
+        h = string.concat(
+            h,
+            "3. **Feed liveness on a static fork**: Chainlink feeds never publish new rounds on a forked chain, so the registry's (correct) staleness guard would revert the first rebalance after the 24h cooldown. The simulation installs a `latestRoundData()` mock on the three real feeds that bumps `roundId` by one and sets `updatedAt = forkTimestamp + 24h` while returning the **real on-chain answers** (all prices in this report are the real oracle prices). This simulates feeds publishing new rounds between rebalances; all protocol logic (staleness, EMA, deviation, caching) runs unmodified.\n"
+        );
+        h = string.concat(
+            h,
+            "4. **CamelotV3 pools**: the Rebalancer's `_swapV3Style` encodes the UniV3 8-param `exactInputSingle` while CamelotV3's router uses the 7-param struct (selector `0xbc651188`). A CamelotV3 route would therefore fail at execution. Only the CamelotV3 WETH/USDC pool is registered (it never wins the quote competition at simulation sizes); no CamelotV3 ARB/USDC pool is registered so the ARB/USDC pair cannot route through the broken encoding. Production config (DeployRebalancer.s.sol) sets CamelotV3 the same way - flagging for the team: either the config should use a compatible selector/encoding or CamelotV3 pools should not be registered.\n"
+        );
+        h = string.concat(
+            h,
+            "5. **Round 3 is impossible on a static fork**: after two rounds the stored oracle timestamps exceed the 26h heartbeat and `fetchPrice` reverts with `IndexComponentRegistry__FeedFrozenError` (verified in the simulation). On a live chain feeds update every ~1h, so this is a fork artifact, not a protocol issue.\n"
+        );
+        h = string.concat(
+            h,
+            "6. Heartbeats registered at 26h (registry max) instead of production values (24h/1h) so the feeds stay readable across the 24h warps on the static fork.\n"
+        );
         vm.writeFile(REPORT_FILE, h);
         console2.log("Report written to %s", REPORT_FILE);
     }
@@ -1243,7 +1386,18 @@ contract E2ESimulation is Test {
         s[0] = a;
     }
 
-    function _selectorsOf(bytes4 a, bytes4 b, bytes4 c, bytes4 d, bytes4 e, bytes4 f) internal pure returns (bytes4[] memory s) {
+    function _selectorsOf(
+        bytes4 a,
+        bytes4 b,
+        bytes4 c,
+        bytes4 d,
+        bytes4 e,
+        bytes4 f
+    )
+        internal
+        pure
+        returns (bytes4[] memory s)
+    {
         s = new bytes4[](6);
         s[0] = a;
         s[1] = b;
@@ -1253,7 +1407,15 @@ contract E2ESimulation is Test {
         s[5] = f;
     }
 
-    function _selectorsOf(bytes4 a, bytes4 b, bytes4 c, bytes4 d, bytes4 e, bytes4 f, bytes4 g)
+    function _selectorsOf(
+        bytes4 a,
+        bytes4 b,
+        bytes4 c,
+        bytes4 d,
+        bytes4 e,
+        bytes4 f,
+        bytes4 g
+    )
         internal
         pure
         returns (bytes4[] memory s)
@@ -1297,7 +1459,9 @@ contract E2ESimulation is Test {
             len++;
         }
         bytes memory out = new bytes(len);
-        for (uint256 i = 0; i < len; i++) out[i] = b[i];
+        for (uint256 i = 0; i < len; i++) {
+            out[i] = b[i];
+        }
         return string(out);
     }
 
@@ -1319,7 +1483,9 @@ contract E2ESimulation is Test {
         bytes memory b = bytes(_u2s(v));
         if (b.length >= 6) return string(b);
         bytes memory out = new bytes(6);
-        for (uint256 i = 0; i < 6; i++) out[i] = i < 6 - b.length ? bytes1(uint8(48)) : b[i - (6 - b.length)];
+        for (uint256 i = 0; i < 6; i++) {
+            out[i] = i < 6 - b.length ? bytes1(uint8(48)) : b[i - (6 - b.length)];
+        }
         return string(out);
     }
 
@@ -1333,7 +1499,9 @@ contract E2ESimulation is Test {
             v /= 10;
         }
         bytes memory out = new bytes(78 - i);
-        for (uint256 j = 0; j < out.length; j++) out[j] = b[i + j];
+        for (uint256 j = 0; j < out.length; j++) {
+            out[j] = b[i + j];
+        }
         return string(out);
     }
 
