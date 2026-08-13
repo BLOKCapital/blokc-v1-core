@@ -11,7 +11,7 @@ pragma solidity ^0.8.31;
 ################################################################################*/
 
 /// @notice Standardised swap instruction used by all DEX facet swap wrappers.
-///         The CRE / frontend passes the same struct regardless of DEX — each facet
+///         Callers / frontends pass the same struct regardless of DEX — each facet
 ///         derives DEX-specific parameters (fee tiers, bin steps, coin indices, etc.)
 ///         on-chain from the pool contracts.
 /// @param amountIn    exactOutput=false: exact spend amount.
@@ -21,12 +21,14 @@ pragma solidity ^0.8.31;
 /// @param tokens      Ordered token path: [tokenIn, ..intermediaries.., tokenOut]
 /// @param pools       One pool address per hop (pools.length == tokens.length - 1)
 /// @param exactOutput False for exact-input swaps, true for exact-output swaps
+/// @param deadline    Deadline timestamp after which the swap should not execute; 0 = no limit.
 struct SwapInstruction {
     uint256 amountIn;
     uint256 amountOut;
     address[] tokens;
     address[] pools;
     bool exactOutput;
+    uint256 deadline;
 }
 
 /// @notice Standardised quote instruction used by all DEX facet quote functions.

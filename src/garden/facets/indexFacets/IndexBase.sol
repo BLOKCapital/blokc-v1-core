@@ -106,11 +106,12 @@ abstract contract IndexBase {
         if (!IndexFactory(IndexStorage.INDEX_FACTORY_ADDRESS).isIndexRegistered(indexAddress)) {
             revert IndexFacet_IndexNotRegistered(indexAddress);
         }
-        Index(indexAddress).connectGardenToIndex();
 
-        // Store the connected index address
+        // Store the connected index address (state writes before external call — checks-effects-interactions)
         IndexStorage.layout().indexAddress = indexAddress;
         LibDiamond.layout().isConnectedToIndex = true;
+
+        Index(indexAddress).connectGardenToIndex();
         emit IIndex.IndexConnected(indexAddress);
     }
 
@@ -119,14 +120,15 @@ abstract contract IndexBase {
         IndexStorage.Layout storage s = IndexStorage.layout();
         address indexAddress = s.indexAddress;
         if (indexAddress == address(0)) revert IndexFacet_NotConnectedToIndex();
-        Index(indexAddress).disconnectGardenFromIndex();
 
         // Clear pending intent so a stale intent cannot be executed after reconnecting to a different index
         s.pendingIntent.active = false;
 
-        // Clear the connected index address
+        // Clear the connected index address (state writes before external call — checks-effects-interactions)
         s.indexAddress = address(0);
         LibDiamond.layout().isConnectedToIndex = false;
+
+        Index(indexAddress).disconnectGardenFromIndex();
         emit IIndex.IndexDisconnected(indexAddress);
     }
 
@@ -140,8 +142,9 @@ abstract contract IndexBase {
             revert IndexFacet_NotConnectedToIndex();
         }
 
-        // Check intent interval
-        if (block.timestamp < s.lastIntentTimestamp + IndexStorage.INTENT_EXPIRY) {
+        // Check intent interval (INTENT_INTERVAL > INTENT_EXPIRY so a still-valid pending
+        // intent can never be overwritten at the expiry boundary)
+        if (block.timestamp < s.lastIntentTimestamp + IndexStorage.INTENT_INTERVAL) {
             revert IndexFacet_IntentIntervalNotPassed();
         }
 
@@ -174,7 +177,7 @@ abstract contract IndexBase {
     }
 
     /// @notice Execute rebalance by calling DEX facets directly
-    /// @dev CRE provides swap steps with dexId + SwapInstruction. The selector is resolved
+    /// @dev Callers provide swap steps with dexId + SwapInstruction. The selector is resolved
     ///      from the PoolRegistry at execution time. Uses a custom rebalancing flag instead
     ///      of OZ ReentrancyGuard to avoid conflicts with nonReentrant on DEX facets.
     /// @param steps Array of swap steps to execute

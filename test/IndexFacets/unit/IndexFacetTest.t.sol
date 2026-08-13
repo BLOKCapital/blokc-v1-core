@@ -524,7 +524,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
         /// @dev Advance time past both cooldowns and create a valid pending intent.
         function _createIntent() internal {
-            vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_EXPIRY + 1);
+            vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_INTERVAL + 1);
             h.rebalanceIntent();
             vm.roll(block.number + 1); // advance past flash-loan protection block delay
         }
@@ -644,7 +644,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             super.setUp();
             _connect();
             // Advance past both cooldowns
-            vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_EXPIRY + 1);
+            vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_INTERVAL + 1);
         }
 
         function test_intent_revertsWhenNotConnected() public {
@@ -655,7 +655,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
         function test_intent_revertsWhenIntentIntervalNotPassed() public {
             h.rebalanceIntent(); // first — advances lastIntentTimestamp
-            // Only 1 second passes — well within INTENT_EXPIRY
+            // Only 1 second passes — well within INTENT_INTERVAL
             vm.warp(block.timestamp + 1);
             vm.expectRevert(IndexFacet_IntentIntervalNotPassed.selector);
             h.rebalanceIntent();
@@ -739,8 +739,9 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_intent_overwritesPreviousIntent() public {
             h.rebalanceIntent();
 
-            // Advance past intent expiry to allow a second intent
-            vm.warp(block.timestamp + IndexStorage.INTENT_EXPIRY + 1);
+            // Advance past the intent interval (INTENT_INTERVAL > INTENT_EXPIRY, so the
+            // previous intent is fully expired) to allow a second intent
+            vm.warp(block.timestamp + IndexStorage.INTENT_INTERVAL + 1);
             // Also advance past rebalance interval
             vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL);
 
@@ -852,7 +853,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             steps[0] = SwapStep({
                 dexId: keccak256("TEST_DEX"),
                 instruction: SwapInstruction({
-                    amountIn: 0, amountOut: 0, tokens: tokens, pools: pools, exactOutput: false
+                    amountIn: 0, amountOut: 0, tokens: tokens, pools: pools, exactOutput: false, deadline: 0
                 })
             });
         }
@@ -952,7 +953,12 @@ contract MockERC20 is IERC20, IERC20Metadata {
             return SwapStep({
                 dexId: dexId,
                 instruction: SwapInstruction({
-                    amountIn: amountIn, amountOut: amountOut, tokens: tokens, pools: pools, exactOutput: false
+                    amountIn: amountIn,
+                    amountOut: amountOut,
+                    tokens: tokens,
+                    pools: pools,
+                    exactOutput: false,
+                    deadline: 0
                 })
             });
         }
@@ -1038,7 +1044,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function setUp() public override {
             super.setUp();
             _connect();
-            vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_EXPIRY + 1);
+            vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_INTERVAL + 1);
         }
 
         function test_usdc_includedInTotalValueWhenNotComponent() public {

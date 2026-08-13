@@ -94,7 +94,7 @@ abstract contract CamelotV2Base {
                 instruction.tokens,
                 address(this),
                 address(0), // referrer
-                block.timestamp
+                instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline
             );
 
         // Compute actual output from balance delta

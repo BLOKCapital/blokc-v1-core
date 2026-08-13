@@ -44,6 +44,7 @@ error Rebalancer_InsufficientSwapOutput(address tokenOut, uint256 received, uint
 error Rebalancer_DexNotConfigured(bytes32 dexId);
 error Rebalancer_DexTypeNotSupported(uint8 dexType);
 error Rebalancer_InvalidConfig();
+error Rebalancer_UnapprovedSwapSelector(bytes4 selector);
 error Rebalancer_DeadlineExpired(uint256 deadline, uint256 blockTimestamp);
 error Rebalancer_BatchSizeNotSet(bytes32 indexTypeId);
 
@@ -78,6 +79,18 @@ contract Rebalancer is Ownable {
     uint256 public constant REBALANCE_INTERVAL = 24 hours;
     bytes32 private constant _USDC_SYMBOL = bytes32("USDC");
 
+    /// @notice Router swap selectors permitted in setDexConfig. Restricts the DAO-configurable
+    ///         routerSwapSelector to known DEX router swap functions so a compromised owner
+    ///         cannot set an arbitrary selector (e.g. IERC20.transfer.selector on the USDC
+    ///         contract) and drain all pooled tokens on the next rebalance.
+    ///
+    ///         Whitelisted selectors (router swap functions):
+    ///         0x38ed1739 — swapExactTokensForTokens (Uniswap V2, SushiSwap V2, Trader Joe V2)
+    ///         0xac3893ba — swapExactTokensForTokensSupportingFeeOnTransferTokens (Camelot V2)
+    ///         0x6c42f2b1 — swapExactTokensForTokensSupportingFeeOnTransferTokensV2 (Camelot V2 router)
+    ///         0x414bf389 — exactInputSingle (Uniswap V3, SushiSwap V3)
+    ///         0xbc651188 — exactInputSingle (Camelot V3, 7-param variant)
+
     // ========================================================================
     // DexType enum — determines how the router is called
     // ========================================================================
@@ -98,6 +111,17 @@ contract Rebalancer is Ownable {
         address quoteFacet; // DEX facet address for generic quoting (via quoteSelector)
         bytes4 routerSwapSelector; // Router's own swap function selector (e.g. swapExactTokensForTokens.selector)
         DexType dexType; // How to encode the calldata (V2 vs V3 parameter layout)
+    }
+
+    /// @notice Oracle prices cached once at the start of cumulativeRebalance and reused for
+    ///         every valuation and amount conversion in the transaction, so valueBefore and
+    ///         valueAfter are computed against the SAME snapshot.
+    struct PriceSnapshot {
+        /// @dev Prices parallel to the index component `symbols` array (Chainlink raw units, 8 decimals).
+        uint256[] components;
+        /// @dev Cached USDC/USD price (8 decimals). 0 when USDC is neither an index component
+        ///      nor registered in the ComponentRegistry (no USDC feed available).
+        uint256 usdc;
     }
 
     // ========================================================================
@@ -222,6 +246,13 @@ contract Rebalancer is Ownable {
         // Validate the router address has code (is a contract, not an EOA)
         if (router.code.length == 0 || quoteFacet.code.length == 0) revert Rebalancer_InvalidConfig();
 
+        // Only allow known DEX router swap functions. Without this, a compromised owner
+        // could set router = a token contract and routerSwapSelector = its transfer selector,
+        // causing the next rebalance's forceApprove + router.call to move all pooled tokens.
+        if (!_isApprovedSwapSelector(routerSwapSelector)) {
+            revert Rebalancer_UnapprovedSwapSelector(routerSwapSelector);
+        }
+
         dexConfigs[dexId] = DexConfig({
             router: router, quoteFacet: quoteFacet, routerSwapSelector: routerSwapSelector, dexType: dexType
         });
@@ -325,17 +356,17 @@ contract Rebalancer is Ownable {
 
         bool usdcIsComponent = _isSymbolInSet(symbols, _USDC_SYMBOL);
 
-        bytes32[] memory allSymbols = symbols;
-        if (!usdcIsComponent) {
-            allSymbols = new bytes32[](symbols.length + 1);
-            for (uint256 i = 0; i < symbols.length; i++) {
-                allSymbols[i] = symbols[i];
-            }
-            allSymbols[symbols.length] = _USDC_SYMBOL;
-        }
+        // Cache every price once before any valuation or swap so that valueBefore and
+        // valueAfter (and all amount conversions) use the SAME oracle snapshot. Without
+        // this, a Chainlink round updating between the pre-swap and post-swap reads makes
+        // the MAX_VALUE_LOSS_BPS guard compare inconsistently-priced values — it could
+        // falsely pass (masking loss) or falsely revert (M4 fix, mirrors IndexBase).
+        // fetchPrice is non-view (writes the oracle cache) so it is called exactly once
+        // per symbol, before any swaps execute.
+        PriceSnapshot memory snapshot = _cachePrices(symbols, usdcIsComponent);
 
         (uint256[] memory contributions, uint256 totalValueUsd) =
-            _snapshotAndPullTokens(batch, symbols, usdcIsComponent);
+            _snapshotAndPullTokens(batch, symbols, usdcIsComponent, snapshot);
 
         if (totalValueUsd == 0) revert Rebalancer_ZeroTotalValue(indexTypeId);
 
@@ -343,29 +374,9 @@ contract Rebalancer is Ownable {
             emit CumulativeRebalanceStarted(indexTypeId, totalGardens, totalValueUsd);
         }
 
-        (uint256[] memory currentValues, uint256[] memory targetValues, uint256 totalValueAfterPull) =
-            _computeCumulativeState(symbols, weights, totalValueUsd, usdcIsComponent);
+        _executeBatchRebalance(symbols, weights, usdcIsComponent, snapshot, totalValueUsd, deadline);
 
-        uint256 valueBefore = totalValueAfterPull;
-
-        (TokenExcess[] memory excess, TokenDeficit[] memory deficit) =
-            _identifyExcessAndDeficit(symbols, currentValues, targetValues);
-
-        if (deficit.length > 0) {
-            if (excess.length > 0) {
-                _executeSwaps(excess, deficit, deadline);
-            } else {
-                _sweepUsdcToDeficits(deficit, deadline);
-            }
-        }
-
-        uint256 valueAfter = _computeTotalValue(symbols, usdcIsComponent);
-        uint256 minAcceptable = Math.mulDiv(valueBefore, 10_000 - MAX_VALUE_LOSS_BPS, 10_000, Math.Rounding.Floor);
-        if (valueAfter < minAcceptable) {
-            revert Rebalancer_ExcessiveValueLoss(valueBefore, valueAfter);
-        }
-
-        _redistribute(batch, allSymbols, contributions, totalValueUsd);
+        _redistribute(batch, symbols, usdcIsComponent, contributions, totalValueUsd);
 
         // Advance cursor or complete round (before dropping lock for defense-in-depth)
         if (end >= totalGardens) {
@@ -459,10 +470,37 @@ contract Rebalancer is Ownable {
         }
     }
 
+    /// @notice Fetches every oracle price needed by the rebalance exactly once and returns
+    ///         them as a snapshot. All subsequent valuations reuse this snapshot.
+    /// @param symbols The index component symbols (all registered components).
+    /// @param usdcIsComponent Whether USDC is one of the index components.
+    function _cachePrices(
+        bytes32[] memory symbols,
+        bool usdcIsComponent
+    )
+        private
+        returns (PriceSnapshot memory snapshot)
+    {
+        snapshot.components = new uint256[](symbols.length);
+        snapshot.usdc = 0;
+
+        for (uint256 i = 0; i < symbols.length; i++) {
+            snapshot.components[i] = COMPONENT_REGISTRY.fetchPrice(symbols[i]);
+            if (usdcIsComponent && symbols[i] == _USDC_SYMBOL) snapshot.usdc = snapshot.components[i];
+        }
+
+        // USDC is not an index component but its value still counts toward the portfolio
+        // (and it funds deficit purchases). Cache its price too when a feed is registered.
+        if (!usdcIsComponent && COMPONENT_REGISTRY.isComponentRegistered(_USDC_SYMBOL)) {
+            snapshot.usdc = COMPONENT_REGISTRY.fetchPrice(_USDC_SYMBOL);
+        }
+    }
+
     function _snapshotAndPullTokens(
         address[] memory gardens,
         bytes32[] memory symbols,
-        bool usdcIsComponent
+        bool usdcIsComponent,
+        PriceSnapshot memory snapshot
     )
         private
         returns (uint256[] memory contributions, uint256 totalValueUsd)
@@ -476,17 +514,16 @@ contract Rebalancer is Ownable {
                 address token = COMPONENT_REGISTRY.getComponentAddress(symbols[j]);
                 uint256 balance = IERC20(token).balanceOf(gardens[i]);
                 if (balance > 0) {
-                    uint256 price = COMPONENT_REGISTRY.fetchPrice(symbols[j]);
+                    uint256 price = snapshot.components[j];
                     uint8 decimals = IERC20Metadata(token).decimals();
                     gardenTotal += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
                 }
             }
-            if (!usdcIsComponent) {
+            if (!usdcIsComponent && snapshot.usdc > 0) {
                 uint256 usdcBalance = IERC20(USDC).balanceOf(gardens[i]);
-                if (usdcBalance > 0 && COMPONENT_REGISTRY.isComponentRegistered(_USDC_SYMBOL)) {
-                    uint256 usdcPrice = COMPONENT_REGISTRY.fetchPrice(_USDC_SYMBOL);
+                if (usdcBalance > 0) {
                     uint8 usdcDecimals = IERC20Metadata(USDC).decimals();
-                    gardenTotal += Math.mulDiv(usdcBalance, usdcPrice, 10 ** usdcDecimals, Math.Rounding.Floor);
+                    gardenTotal += Math.mulDiv(usdcBalance, snapshot.usdc, 10 ** usdcDecimals, Math.Rounding.Floor);
                 }
             }
             contributions[i] = gardenTotal;
@@ -517,7 +554,8 @@ contract Rebalancer is Ownable {
         bytes32[] memory symbols,
         uint256[] memory weights,
         uint256 totalValueUsd,
-        bool usdcIsComponent
+        bool usdcIsComponent,
+        PriceSnapshot memory snapshot
     )
         private
         returns (uint256[] memory currentValues, uint256[] memory targetValues, uint256 recomputedTotal)
@@ -529,18 +567,17 @@ contract Rebalancer is Ownable {
         for (uint256 i = 0; i < symbols.length; i++) {
             address token = COMPONENT_REGISTRY.getComponentAddress(symbols[i]);
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = COMPONENT_REGISTRY.fetchPrice(symbols[i]);
+            uint256 price = snapshot.components[i];
             uint8 decimals = IERC20Metadata(token).decimals();
             currentValues[i] = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
             recomputedTotal += currentValues[i];
         }
 
-        if (!usdcIsComponent) {
+        if (!usdcIsComponent && snapshot.usdc > 0) {
             uint256 usdcBalance = IERC20(USDC).balanceOf(address(this));
-            if (usdcBalance > 0 && COMPONENT_REGISTRY.isComponentRegistered(_USDC_SYMBOL)) {
-                uint256 usdcPrice = COMPONENT_REGISTRY.fetchPrice(_USDC_SYMBOL);
+            if (usdcBalance > 0) {
                 uint8 usdcDecimals = IERC20Metadata(USDC).decimals();
-                recomputedTotal += Math.mulDiv(usdcBalance, usdcPrice, 10 ** usdcDecimals, Math.Rounding.Floor);
+                recomputedTotal += Math.mulDiv(usdcBalance, snapshot.usdc, 10 ** usdcDecimals, Math.Rounding.Floor);
             }
         }
 
@@ -550,24 +587,64 @@ contract Rebalancer is Ownable {
         }
     }
 
-    function _computeTotalValue(bytes32[] memory symbols, bool usdcIsComponent) private returns (uint256 total) {
+    function _computeTotalValue(
+        bytes32[] memory symbols,
+        bool usdcIsComponent,
+        PriceSnapshot memory snapshot
+    )
+        private
+        returns (uint256 total)
+    {
         total = 0;
         for (uint256 i = 0; i < symbols.length; i++) {
             address token = COMPONENT_REGISTRY.getComponentAddress(symbols[i]);
             uint256 balance = IERC20(token).balanceOf(address(this));
             if (balance > 0) {
-                uint256 price = COMPONENT_REGISTRY.fetchPrice(symbols[i]);
+                uint256 price = snapshot.components[i];
                 uint8 decimals = IERC20Metadata(token).decimals();
                 total += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
             }
         }
-        if (!usdcIsComponent) {
+        if (!usdcIsComponent && snapshot.usdc > 0) {
             uint256 usdcBalance = IERC20(USDC).balanceOf(address(this));
-            if (usdcBalance > 0 && COMPONENT_REGISTRY.isComponentRegistered(_USDC_SYMBOL)) {
-                uint256 usdcPrice = COMPONENT_REGISTRY.fetchPrice(_USDC_SYMBOL);
+            if (usdcBalance > 0) {
                 uint8 usdcDecimals = IERC20Metadata(USDC).decimals();
-                total += Math.mulDiv(usdcBalance, usdcPrice, 10 ** usdcDecimals, Math.Rounding.Floor);
+                total += Math.mulDiv(usdcBalance, snapshot.usdc, 10 ** usdcDecimals, Math.Rounding.Floor);
             }
+        }
+    }
+
+    /// @notice Runs the post-pull phase of a cumulative rebalance: computes the current
+    ///         state, executes the surplus/deficit swaps, and enforces the MAX_VALUE_LOSS_BPS
+    ///         guard (reverting on excessive loss). Isolated so cumulativeRebalance stays
+    ///         within EVM stack limits; all pricing uses the cached snapshot.
+    function _executeBatchRebalance(
+        bytes32[] memory symbols,
+        uint256[] memory weights,
+        bool usdcIsComponent,
+        PriceSnapshot memory snapshot,
+        uint256 totalValueUsd,
+        uint256 deadline
+    )
+        private
+    {
+        (uint256[] memory currentValues, uint256[] memory targetValues, uint256 totalValueAfterPull) =
+            _computeCumulativeState(symbols, weights, totalValueUsd, usdcIsComponent, snapshot);
+
+        (TokenExcess[] memory excess, TokenDeficit[] memory deficit) =
+            _identifyExcessAndDeficit(symbols, currentValues, targetValues, snapshot);
+
+        if (deficit.length > 0) {
+            if (excess.length > 0) {
+                _executeSwaps(excess, deficit, deadline, snapshot.usdc);
+            } else {
+                _sweepUsdcToDeficits(deficit, deadline, snapshot.usdc);
+            }
+        }
+
+        uint256 valueAfter = _computeTotalValue(symbols, usdcIsComponent, snapshot);
+        if (valueAfter < Math.mulDiv(totalValueAfterPull, 10_000 - MAX_VALUE_LOSS_BPS, 10_000, Math.Rounding.Floor)) {
+            revert Rebalancer_ExcessiveValueLoss(totalValueAfterPull, valueAfter);
         }
     }
 
@@ -580,18 +657,21 @@ contract Rebalancer is Ownable {
         address token;
         uint256 sellAmount;
         uint256 sellValueUsd;
+        uint256 price; // cached oracle price (same snapshot as valueBefore/valueAfter)
     }
 
     struct TokenDeficit {
         bytes32 symbol;
         address token;
         uint256 buyValueUsd;
+        uint256 price; // cached oracle price (same snapshot as valueBefore/valueAfter)
     }
 
     function _identifyExcessAndDeficit(
         bytes32[] memory symbols,
         uint256[] memory currentValues,
-        uint256[] memory targetValues
+        uint256[] memory targetValues,
+        PriceSnapshot memory snapshot
     )
         private
         returns (TokenExcess[] memory excess, TokenDeficit[] memory deficit)
@@ -615,18 +695,19 @@ contract Rebalancer is Ownable {
             if (currentValues[i] > targetValues[i] + threshold) {
                 uint256 sellValueUsd = currentValues[i] - targetValues[i];
                 address token = COMPONENT_REGISTRY.getComponentAddress(symbols[i]);
-                uint256 price = COMPONENT_REGISTRY.fetchPrice(symbols[i]);
+                uint256 price = snapshot.components[i];
                 uint8 decimals = IERC20Metadata(token).decimals();
                 uint256 sellAmount = Math.mulDiv(sellValueUsd, 10 ** decimals, price, Math.Rounding.Floor);
                 excess[ei++] = TokenExcess({
-                    symbol: symbols[i], token: token, sellAmount: sellAmount, sellValueUsd: sellValueUsd
+                    symbol: symbols[i], token: token, sellAmount: sellAmount, sellValueUsd: sellValueUsd, price: price
                 });
             } else if (currentValues[i] + threshold < targetValues[i]) {
                 uint256 buyValueUsd = targetValues[i] - currentValues[i];
                 deficit[di++] = TokenDeficit({
                     symbol: symbols[i],
                     token: COMPONENT_REGISTRY.getComponentAddress(symbols[i]),
-                    buyValueUsd: buyValueUsd
+                    buyValueUsd: buyValueUsd,
+                    price: snapshot.components[i]
                 });
             }
         }
@@ -645,11 +726,19 @@ contract Rebalancer is Ownable {
         uint256 expectedOut;
     }
 
-    function _executeSwaps(TokenExcess[] memory excess, TokenDeficit[] memory deficit, uint256 deadline) private {
+    function _executeSwaps(
+        TokenExcess[] memory excess,
+        TokenDeficit[] memory deficit,
+        uint256 deadline,
+        uint256 usdcPrice
+    )
+        private
+    {
         // Phase 1: Direct swaps — excess → deficit via direct pools only
         for (uint256 ei = 0; ei < excess.length; ei++) {
             uint256 remainingSellAmount = excess[ei].sellAmount;
             uint256 remainingSellValue = excess[ei].sellValueUsd;
+            uint256 sellPrice = excess[ei].price;
 
             for (uint256 di = 0; di < deficit.length; di++) {
                 if (remainingSellAmount == 0) break;
@@ -658,7 +747,6 @@ contract Rebalancer is Ownable {
                 address[] memory directPools = POOL_REGISTRY.getPoolsForPair(excess[ei].token, deficit[di].token);
                 if (directPools.length == 0) continue;
 
-                uint256 sellPrice = COMPONENT_REGISTRY.fetchPrice(excess[ei].symbol);
                 uint8 sellDecimals = IERC20Metadata(excess[ei].token).decimals();
                 uint256 swapValueUsd =
                     remainingSellValue < deficit[di].buyValueUsd ? remainingSellValue : deficit[di].buyValueUsd;
@@ -675,7 +763,7 @@ contract Rebalancer is Ownable {
                 remainingSellAmount -= route.amountIn;
                 remainingSellValue -= Math.mulDiv(route.amountIn, sellPrice, 10 ** sellDecimals, Math.Rounding.Floor);
 
-                uint256 buyPrice = COMPONENT_REGISTRY.fetchPrice(deficit[di].symbol);
+                uint256 buyPrice = deficit[di].price;
                 uint8 buyDecimals = IERC20Metadata(deficit[di].token).decimals();
                 uint256 boughtValueUsd = Math.mulDiv(actualAmountOut, buyPrice, 10 ** buyDecimals, Math.Rounding.Floor);
                 if (boughtValueUsd < deficit[di].buyValueUsd) {
@@ -701,18 +789,32 @@ contract Rebalancer is Ownable {
         }
 
         // Phase 3: Buy deficits with USDC
-        _sweepUsdcToDeficits(deficit, deadline);
+        _sweepUsdcToDeficits(deficit, deadline, usdcPrice);
     }
 
-    function _sweepUsdcToDeficits(TokenDeficit[] memory deficit, uint256 deadline) private {
+    function _sweepUsdcToDeficits(TokenDeficit[] memory deficit, uint256 deadline, uint256 usdcPrice) private {
         uint256 usdcBalance = IERC20(USDC).balanceOf(address(this));
         if (usdcBalance == 0) return;
+
+        uint8 usdcDecimals = IERC20Metadata(USDC).decimals();
 
         for (uint256 di = 0; di < deficit.length; di++) {
             if (usdcBalance == 0) break;
             if (deficit[di].buyValueUsd == 0 || deficit[di].token == USDC) continue;
 
-            uint256 usdcNeeded = deficit[di].buyValueUsd / 100;
+            uint256 usdcNeeded;
+            if (usdcPrice > 0) {
+                // Convert the 8-decimal USD deficit value into USDC token units using the
+                // actual cached USDC/USD oracle price. Fixes the hardcoded /100 assumption
+                // (USDC == exactly $1.00), which under-covers deficits during any depeg.
+                usdcNeeded = Math.mulDiv(deficit[di].buyValueUsd, 10 ** usdcDecimals, usdcPrice, Math.Rounding.Ceil);
+            } else {
+                // No USDC/USD feed registered in the ComponentRegistry — fall back to the
+                // legacy assumption that 1 USDC == $1.00 (8-decimal USD value / 100 == USDC
+                // units). Only reachable when USDC is neither an index component nor a
+                // registered component.
+                usdcNeeded = deficit[di].buyValueUsd / 100;
+            }
             uint256 swapAmount = usdcBalance < usdcNeeded ? usdcBalance : usdcNeeded;
             if (swapAmount == 0) continue;
 
@@ -722,7 +824,7 @@ contract Rebalancer is Ownable {
             uint256 minOut = Math.mulDiv(route.expectedOut, 95, 100);
             uint256 actualAmountOut = _executeSwapRoute(route, minOut, deadline);
 
-            uint256 buyPrice = COMPONENT_REGISTRY.fetchPrice(deficit[di].symbol);
+            uint256 buyPrice = deficit[di].price;
             uint8 buyDecimals = IERC20Metadata(deficit[di].token).decimals();
             uint256 boughtValueUsd = Math.mulDiv(actualAmountOut, buyPrice, 10 ** buyDecimals, Math.Rounding.Floor);
             if (boughtValueUsd < deficit[di].buyValueUsd) {
@@ -967,12 +1069,22 @@ contract Rebalancer is Ownable {
 
     function _redistribute(
         address[] memory gardens,
-        bytes32[] memory allSymbols,
+        bytes32[] memory symbols,
+        bool usdcIsComponent,
         uint256[] memory contributions,
         uint256 totalValueUsd
     )
         private
     {
+        bytes32[] memory allSymbols = symbols;
+        if (!usdcIsComponent) {
+            allSymbols = new bytes32[](symbols.length + 1);
+            for (uint256 i = 0; i < symbols.length; i++) {
+                allSymbols[i] = symbols[i];
+            }
+            allSymbols[symbols.length] = _USDC_SYMBOL;
+        }
+
         address[] memory tokenAddrs = new address[](allSymbols.length);
         for (uint256 j = 0; j < allSymbols.length; j++) {
             if (allSymbols[j] == _USDC_SYMBOL) {
@@ -1018,5 +1130,14 @@ contract Rebalancer is Ownable {
             if (symbols[i] == target) return true;
         }
         return false;
+    }
+
+    /// @dev Returns true if the selector matches a known DEX router swap function.
+    function _isApprovedSwapSelector(bytes4 selector) private pure returns (bool) {
+        return selector == bytes4(0x38ed1739) // swapExactTokensForTokens
+            || selector == bytes4(0xac3893ba) // swapExactTokensForTokensSupportingFeeOnTransferTokens
+            || selector == bytes4(0x6c42f2b1) // swapExactTokensForTokensSupportingFeeOnTransferTokensV2
+            || selector == bytes4(0x414bf389) // exactInputSingle (Uniswap V3 struct)
+            || selector == bytes4(0xbc651188); // exactInputSingle (Camelot V3 7-param struct)
     }
 }

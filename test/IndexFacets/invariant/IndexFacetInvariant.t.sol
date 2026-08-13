@@ -47,7 +47,7 @@ contract IndexTimestampActor is IndexFacetTestBase {
 
     function createIntent() external {
         if (
-            block.timestamp >= IndexStorage.layout().lastIntentTimestamp + IndexStorage.INTENT_EXPIRY
+            block.timestamp >= IndexStorage.layout().lastIntentTimestamp + IndexStorage.INTENT_INTERVAL
                 && block.timestamp >= IndexStorage.layout().lastRebalanceTimestamp + IndexStorage.REBALANCE_INTERVAL
         ) {
             try h.rebalanceIntent() {

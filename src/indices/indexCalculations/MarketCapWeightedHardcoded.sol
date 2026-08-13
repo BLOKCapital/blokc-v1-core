@@ -31,9 +31,6 @@ error MarketCapWeightedHardcoded_MarketCapOverflow();
 /// @notice Thrown when a component's market cap exceeds the sanity bound (likely supply unit error)
 error MarketCapWeightedHardcoded_MarketCapExceedsSanityBound();
 
-/// @notice Thrown when a component's calculated weight is below the minimum threshold
-error MarketCapWeightedHardcoded_ComponentWeightBelowMinimum();
-
 /// @notice Thrown when an unsupported symbol is provided
 error MarketCapWeightedHardcoded_UnsupportedSymbol(bytes32 symbol);
 
@@ -85,9 +82,25 @@ contract MarketCapWeightedHardcoded is IIndexCalculation {
 
         if (totalMarketCap == 0) revert MarketCapWeightedHardcoded_InvalidTotalMarketCap();
 
+        // Second pass: calculate weights from cached market caps.
+        // Components below MIN_WEIGHT are capped at the minimum instead of reverting —
+        // a declining component would otherwise permanently brick every garden connected
+        // to the index, since index components are immutable once deployed.
+        uint256 totalWeight;
         for (uint256 i = 0; i < len; i++) {
             weights[i] = IndexMath.calculateWeight(marketCaps[i], totalMarketCap);
-            if (weights[i] < IndexMath.MIN_WEIGHT) revert MarketCapWeightedHardcoded_ComponentWeightBelowMinimum();
+            if (weights[i] < IndexMath.MIN_WEIGHT) {
+                weights[i] = IndexMath.MIN_WEIGHT;
+            }
+            totalWeight += weights[i];
+        }
+
+        // Capping can push the sum above 100%; scale proportionally so the sum stays
+        // within the Index contract's accepted tolerance (1e18 ± 1e14).
+        if (totalWeight > IndexMath.PRECISION) {
+            for (uint256 i = 0; i < len; i++) {
+                weights[i] = Math.mulDiv(weights[i], IndexMath.PRECISION, totalWeight, Math.Rounding.Floor);
+            }
         }
     }
 

@@ -16,6 +16,14 @@
   src = "src"
   test = "test"
   via_ir = true
+  # E2E simulation (test/e2e/E2ESimulation.t.sol) writes its phase marker
+  # (test/e2e/.e2e-addresses.json) and the verification report (docs/BETA1_E2E_VERIFICATION.md)
+  fs_permissions = [
+    { access = "read", path = "test/e2e" },
+    { access = "read", path = "docs" },
+    { access = "write", path = "test/e2e" },
+    { access = "write", path = "docs" },
+  ]
 
 [profile.ci]
   fuzz = { runs = 1_000 }

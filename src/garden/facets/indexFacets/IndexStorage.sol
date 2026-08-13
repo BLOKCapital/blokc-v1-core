@@ -62,14 +62,23 @@ library IndexStorage {
     ///      allocations. Industry standard for multi-token index rebalancing.
     uint256 internal constant BALANCE_THRESHOLD_BPS = 200;
 
-    /// @notice Minimum cooldown between consecutive rebalance executions (1 hour).
-    uint256 internal constant REBALANCE_INTERVAL = 1 hours;
+    /// @notice Minimum cooldown between consecutive rebalance executions (24 hours).
+    /// @dev Rate-limits permissionless rebalance triggering: with MAX_VALUE_LOSS_BPS capping
+    ///      loss per execution at 0.5%, a daily interval bounds worst-case extraction.
+    uint256 internal constant REBALANCE_INTERVAL = 1 days;
 
     /// @notice Maximum allowed total value loss during rebalance (0.5% = 50 bps)
     uint256 internal constant MAX_VALUE_LOSS_BPS = 50;
 
     /// @notice Intent expiry duration - intents become invalid after this period
     uint256 internal constant INTENT_EXPIRY = 10 minutes;
+    /// @notice Minimum interval between intent creations (11 minutes).
+    /// @dev MUST be strictly greater than INTENT_EXPIRY. Using the expiry duration as the
+    ///      creation cooldown would allow a new intent to overwrite a still-valid pending
+    ///      intent at the exact `lastIntentTimestamp + INTENT_EXPIRY` boundary (off-by-one),
+    ///      enabling front-running/griefing of in-flight rebalances. By requiring a strictly
+    ///      longer interval, a live intent can never be overwritten before it expires.
+    uint256 internal constant INTENT_INTERVAL = 11 minutes;
 
     /// @notice Minimum block delay between intent creation and rebalance execution
     /// @dev Prevents flash loan attacks where intent + rebalance occur in the same block
