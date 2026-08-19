@@ -47,13 +47,13 @@ contract RebalanceIntentFuzzTest is IndexFacetTestBase {
 
     /// @dev Any timestamp within the intent interval must revert.
     function testFuzz_intentInterval_alwaysRevertsBeforeExpiry(uint256 elapsed) public {
-        elapsed = bound(elapsed, 0, IndexStorage.INTENT_EXPIRY - 1);
+        elapsed = bound(elapsed, 0, IndexStorage.INTENT_INTERVAL - 1);
 
         // First intent to set lastIntentTimestamp
-        vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_EXPIRY + 1);
+        vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_INTERVAL + 1);
         h.rebalanceIntent();
 
-        // Advance by less than INTENT_EXPIRY
+        // Advance by less than INTENT_INTERVAL
         vm.warp(block.timestamp + elapsed);
         vm.expectRevert(IndexFacet_IntentIntervalNotPassed.selector);
         h.rebalanceIntent();
@@ -66,9 +66,9 @@ contract RebalanceIntentFuzzTest is IndexFacetTestBase {
         elapsed = bound(elapsed, 0, IndexStorage.REBALANCE_INTERVAL - 1);
 
         // Push lastIntentTimestamp far into the past so the intent interval check passes.
-        // INTENT_EXPIRY = 10 min. Setting to 0 means timestamp must be > 600 to pass.
+        // INTENT_INTERVAL = 11 min. Setting to 0 means timestamp must be > 660 to pass.
         // After setUp the default Forge timestamp is 1, so warp enough to clear it.
-        vm.warp(block.timestamp + IndexStorage.INTENT_EXPIRY + 1);
+        vm.warp(block.timestamp + IndexStorage.INTENT_INTERVAL + 1);
         h.forceSetLastIntentTimestamp(0); // treated as "very long ago" → passes intent check
 
         // Now set the rebalance timestamp to NOW and advance by less than the interval.
@@ -103,7 +103,7 @@ contract SwapOutputFuzzTest is IndexFacetTestBase {
         steps[0] = SwapStep({
             dexId: keccak256("TEST_DEX"),
             instruction: SwapInstruction({
-                amountIn: 0, amountOut: minOut, tokens: tokens, pools: pools, exactOutput: false
+                amountIn: 0, amountOut: minOut, tokens: tokens, pools: pools, exactOutput: false, deadline: 0
             })
         });
         vm.expectRevert();

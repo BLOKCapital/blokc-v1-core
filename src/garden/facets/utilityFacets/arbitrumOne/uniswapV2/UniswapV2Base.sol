@@ -21,6 +21,7 @@ import { IUniswapV2 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 import { DexPoolValidator } from "src/garden/libraries/DexPoolValidator.sol";
+import { ArbitrumOneAddresses } from "src/garden/libraries/ArbitrumOneAddresses.sol";
 
 // ============================================================================
 // Errors
@@ -53,7 +54,7 @@ abstract contract UniswapV2Base {
     /// @notice Uniswap V2 Router02 address on Arbitrum One
     address internal constant UNISWAP_V2_ROUTER_ADDRESS = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
     /// @notice Pool Registry address on Arbitrum One
-    address internal constant POOL_REGISTRY_ADDRESS = 0xA3178280c191dD46c551b91c651F337E47594d85;
+    address public constant POOL_REGISTRY_ADDRESS = ArbitrumOneAddresses.POOL_REGISTRY_ADDRESS;
     /// @notice Uniswap V2 Factory address on Arbitrum One
     address internal constant UNISWAP_V2_FACTORY_ADDRESS = 0xf1D7CC64Fb4452F05c498126312eBE29f30Fbcf9;
 
@@ -92,7 +93,7 @@ abstract contract UniswapV2Base {
                     amountOutMin: instruction.amountOut,
                     path: instruction.tokens,
                     to: address(this),
-                    deadline: block.timestamp
+                    deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline
                 })
             );
         } else {
@@ -103,7 +104,7 @@ abstract contract UniswapV2Base {
                     amountInMax: instruction.amountIn,
                     path: instruction.tokens,
                     to: address(this),
-                    deadline: block.timestamp
+                    deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline
                 })
             );
         }

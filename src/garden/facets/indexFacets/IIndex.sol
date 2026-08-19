@@ -12,7 +12,7 @@ pragma solidity ^0.8.31;
 
 import { SwapInstruction } from "src/interfaces/ISwapInstruction.sol";
 
-/// @notice A single swap step provided by the CRE to rebalance the garden.
+/// @notice A single swap step used to rebalance the garden.
 ///         The dexId is used to resolve the swap selector from the PoolRegistry at execution time.
 /// @param dexId DEX identifier (e.g. keccak256("UNISWAP_V3")) — resolved to a selector on-chain
 /// @param instruction The universal SwapInstruction containing tokens, pools, amounts
@@ -37,7 +37,7 @@ struct PendingIntent {
 /// @author BLOK Capital DAO
 /// @notice Interface for Index Facet operations, enabling gardens to connect to indices for automated rebalancing
 /// @dev Defines events and functions for managing index connections, creating rebalance intents, and executing
-///      rebalances with CRE-provided swap calls
+///      rebalances with caller-provided swap calls
 interface IIndex {
     // ========================================================================
     // Events
@@ -88,14 +88,14 @@ interface IIndex {
     function disconnectFromIndex() external;
 
     /// @notice Create a rebalance intent - calculates target allocations
-    /// @dev Can be called by anyone (primarily CRE automation)
+    /// @dev Can be called by anyone (permissionless)
     function rebalanceIntent() external;
 
-    /// @notice Execute rebalance with CRE-provided swap steps
-    /// @dev Can be called by anyone (primarily CRE automation).
+    /// @notice Execute rebalance with caller-provided swap steps
+    /// @dev Can be called by anyone (permissionless).
     ///      Each SwapStep contains a dexId (resolved to a selector on-chain via PoolRegistry)
     ///      and a universal SwapInstruction with tokens, pools, and amounts.
-    /// @param steps Array of swap steps from CRE
+    /// @param steps Array of swap steps from the caller
     function rebalance(SwapStep[] calldata steps) external;
 
     /// @notice Check if the garden is connected to an index

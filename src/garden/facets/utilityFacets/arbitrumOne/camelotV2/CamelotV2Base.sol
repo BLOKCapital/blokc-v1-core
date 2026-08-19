@@ -17,6 +17,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 import { DexPoolValidator } from "src/garden/libraries/DexPoolValidator.sol";
+import { ArbitrumOneAddresses } from "src/garden/libraries/ArbitrumOneAddresses.sol";
 
 interface ICamelotV2PairLike {
     function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
@@ -53,7 +54,7 @@ abstract contract CamelotV2Base {
     address internal constant CAMELOT_V2_FACTORY_ADDRESS = 0x6EcCab422D763aC031210895C81787E87B43A652;
 
     /// @notice Liquidity pool registry address on Arbitrum One
-    address internal constant POOL_REGISTRY_ADDRESS = 0xA3178280c191dD46c551b91c651F337E47594d85;
+    address public constant POOL_REGISTRY_ADDRESS = ArbitrumOneAddresses.POOL_REGISTRY_ADDRESS;
 
     /// @notice Emitted when a Camelot V2 swap is successfully executed
     /// @param tokenIn The input token address
@@ -94,7 +95,7 @@ abstract contract CamelotV2Base {
                 instruction.tokens,
                 address(this),
                 address(0), // referrer
-                block.timestamp
+                instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline
             );
 
         // Compute actual output from balance delta

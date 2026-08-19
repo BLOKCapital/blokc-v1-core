@@ -12,8 +12,7 @@ import {
     MarketCapWeighted_ZeroAddress,
     MarketCapWeighted_InvalidTotalMarketCap,
     MarketCapWeighted_MarketCapOverflow,
-    MarketCapWeighted_MarketCapExceedsSanityBound,
-    MarketCapWeighted_ComponentWeightBelowMinimum
+    MarketCapWeighted_MarketCapExceedsSanityBound
 } from "../../../src/indices/indexCalculations/MarketCapWeighted.sol";
 import { IndexMath } from "src/indices/libraries/IndexMath.sol";
 
@@ -254,8 +253,20 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
         cirSupply.updateBatch(syms, supplies);
         vm.stopPrank();
 
-        vm.expectRevert(MarketCapWeighted_ComponentWeightBelowMinimum.selector);
-        marketCapWeighted.getWeights(syms);
+        // A declining component must NOT brick the index — weight is capped at
+        // MIN_WEIGHT (then proportionally scaled) instead of reverting.
+        uint256[] memory weights = marketCapWeighted.getWeights(syms);
+
+        // Tiny component is capped at (or near) the minimum weight
+        assertLt(weights[0], IndexMath.MIN_WEIGHT * 1000, "tiny component should stay tiny");
+        assertGe(weights[0], IndexMath.MIN_WEIGHT / 10, "tiny component should be capped, not zero");
+
+        // Dominant component absorbs nearly all weight
+        assertGt(weights[1], IndexMath.PRECISION - IndexMath.MIN_WEIGHT * 10, "dominant component should dominate");
+
+        // Sum stays within the Index contract's accepted tolerance (1e18 ± 1e14)
+        uint256 weightSum = weights[0] + weights[1];
+        assertApproxEqAbs(weightSum, IndexMath.PRECISION, IndexMath.MIN_WEIGHT, "weights must sum to ~100%");
     }
 
     function test_getWeights_emptyArray() public {

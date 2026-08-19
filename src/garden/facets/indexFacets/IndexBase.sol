@@ -79,6 +79,13 @@ error IndexFacet_ZeroTotalValue();
 /// @notice Thrown when rebalance is attempted in the same block as intent creation (flash loan protection)
 error IndexFacet_IntentBlockDelayNotPassed();
 
+/// @notice Thrown when the index module's protocol addresses have not been configured
+error IndexFacet_ModuleNotConfigured();
+
+/// @notice Thrown when configureIndexModule is called while the garden is connected to an index
+///         or has a pending intent — re-pointing must happen on a disconnected garden
+error IndexFacet_ConfigureRequiresDisconnected();
+
 /**
  * @title IndexBase
  * @author BLOK Capital DAO
@@ -100,17 +107,59 @@ abstract contract IndexBase {
     /// @dev Cached bytes32 symbol for USDC — used for gas-efficient comparison.
     bytes32 private constant _USDC_SYMBOL = bytes32("USDC");
 
+    /// @notice Reads the deployer-configured protocol addresses, reverting loudly if the
+    ///         module was never configured instead of silently calling address(0).
+    function _protocolAddresses()
+        internal
+        view
+        returns (address indexFactory, address indexComponentRegistry, address poolRegistry)
+    {
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        indexFactory = s.indexFactory;
+        indexComponentRegistry = s.indexComponentRegistry;
+        poolRegistry = s.poolRegistry;
+        if (indexFactory == address(0) || indexComponentRegistry == address(0) || poolRegistry == address(0)) {
+            revert IndexFacet_ModuleNotConfigured();
+        }
+    }
+
+    /// @notice Sets the protocol addresses the index module talks to. Owner-only (see IndexFacet),
+    ///         called once by the deployer right after the facet is cut in. Re-configuring is only
+    ///         allowed on a disconnected, intent-free garden so a live one can never be silently
+    ///         re-pointed at different protocol components.
+    function _configureIndexModule(
+        address indexFactory,
+        address indexComponentRegistry,
+        address poolRegistry
+    )
+        internal
+    {
+        if (indexFactory == address(0) || indexComponentRegistry == address(0) || poolRegistry == address(0)) {
+            revert IndexFacet_ModuleNotConfigured();
+        }
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        if (s.indexAddress != address(0) || s.pendingIntent.active) {
+            revert IndexFacet_ConfigureRequiresDisconnected();
+        }
+        s._storageLayoutVersion = IndexStorage.STORAGE_LAYOUT_VERSION;
+        s.indexFactory = indexFactory;
+        s.indexComponentRegistry = indexComponentRegistry;
+        s.poolRegistry = poolRegistry;
+    }
+
     /// @notice Connects the garden to an index for automated rebalancing.
     /// @param indexAddress The address of the index contract to connect to.
     function _connectToIndex(address indexAddress) internal {
-        if (!IndexFactory(IndexStorage.INDEX_FACTORY_ADDRESS).isIndexRegistered(indexAddress)) {
+        (address indexFactory,,) = _protocolAddresses();
+        if (!IndexFactory(indexFactory).isIndexRegistered(indexAddress)) {
             revert IndexFacet_IndexNotRegistered(indexAddress);
         }
-        Index(indexAddress).connectGardenToIndex();
 
-        // Store the connected index address
+        // Store the connected index address (state writes before external call — checks-effects-interactions)
         IndexStorage.layout().indexAddress = indexAddress;
         LibDiamond.layout().isConnectedToIndex = true;
+
+        Index(indexAddress).connectGardenToIndex();
         emit IIndex.IndexConnected(indexAddress);
     }
 
@@ -119,14 +168,15 @@ abstract contract IndexBase {
         IndexStorage.Layout storage s = IndexStorage.layout();
         address indexAddress = s.indexAddress;
         if (indexAddress == address(0)) revert IndexFacet_NotConnectedToIndex();
-        Index(indexAddress).disconnectGardenFromIndex();
 
         // Clear pending intent so a stale intent cannot be executed after reconnecting to a different index
         s.pendingIntent.active = false;
 
-        // Clear the connected index address
+        // Clear the connected index address (state writes before external call — checks-effects-interactions)
         s.indexAddress = address(0);
         LibDiamond.layout().isConnectedToIndex = false;
+
+        Index(indexAddress).disconnectGardenFromIndex();
         emit IIndex.IndexDisconnected(indexAddress);
     }
 
@@ -140,8 +190,9 @@ abstract contract IndexBase {
             revert IndexFacet_NotConnectedToIndex();
         }
 
-        // Check intent interval
-        if (block.timestamp < s.lastIntentTimestamp + IndexStorage.INTENT_EXPIRY) {
+        // Check intent interval (INTENT_INTERVAL > INTENT_EXPIRY so a still-valid pending
+        // intent can never be overwritten at the expiry boundary)
+        if (block.timestamp < s.lastIntentTimestamp + IndexStorage.INTENT_INTERVAL) {
             revert IndexFacet_IntentIntervalNotPassed();
         }
 
@@ -150,7 +201,8 @@ abstract contract IndexBase {
             revert IndexFacet_RebalanceIntervalNotPassed();
         }
 
-        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
+        (, address componentRegistryAddress,) = _protocolAddresses();
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(componentRegistryAddress);
 
         // Get target weights from index
         (bytes32[] memory symbols, uint256[] memory weights) = Index(s.indexAddress).getWeights();
@@ -174,7 +226,7 @@ abstract contract IndexBase {
     }
 
     /// @notice Execute rebalance by calling DEX facets directly
-    /// @dev CRE provides swap steps with dexId + SwapInstruction. The selector is resolved
+    /// @dev Callers provide swap steps with dexId + SwapInstruction. The selector is resolved
     ///      from the PoolRegistry at execution time. Uses a custom rebalancing flag instead
     ///      of OZ ReentrancyGuard to avoid conflicts with nonReentrant on DEX facets.
     /// @param steps Array of swap steps to execute
@@ -210,7 +262,8 @@ abstract contract IndexBase {
             revert IndexFacet_IntentExpired();
         }
 
-        IndexComponentRegistry componentRegistry = IndexComponentRegistry(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS);
+        (, address componentRegistryAddress,) = _protocolAddresses();
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(componentRegistryAddress);
 
         // Cache all component prices once to ensure valueBefore and valueAfter
         // use the same oracle snapshot. This prevents a Chainlink round update
@@ -253,7 +306,8 @@ abstract contract IndexBase {
     ///      Output token balance is verified after each swap.
     /// @param steps Array of swap steps to execute
     function _executeSwapSteps(SwapStep[] calldata steps) internal {
-        ILiquidityPoolRegistry poolReg = ILiquidityPoolRegistry(IndexStorage.POOL_REGISTRY_ADDRESS);
+        (,, address poolRegistryAddress) = _protocolAddresses();
+        ILiquidityPoolRegistry poolReg = ILiquidityPoolRegistry(poolRegistryAddress);
 
         for (uint256 i = 0; i < steps.length; i++) {
             // Resolve selector from PoolRegistry
