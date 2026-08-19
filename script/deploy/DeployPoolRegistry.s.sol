@@ -9,6 +9,7 @@ import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV
 import { IUniswapV2 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV2/IUniswapV2.sol";
 import { ICamelotV3 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/ICamelotV3.sol";
 import { ICamelotV2 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/ICamelotV2.sol";
+import { ArbitrumOneAddresses } from "src/garden/libraries/ArbitrumOneAddresses.sol";
 import { console2 } from "forge-std/console2.sol";
 
 contract DeployLiquidityPoolRegistry is BaseScript {
@@ -16,6 +17,16 @@ contract DeployLiquidityPoolRegistry is BaseScript {
         setUp();
         LiquidityPoolRegistry liquidityPoolRegistry = new LiquidityPoolRegistry{ salt: salt }(deployer);
         console2.log("LiquidityPoolRegistry deployed at:", address(liquidityPoolRegistry));
+
+        // Hard gate: the four arbitrumOne DEX bases reach this registry through the compile-time
+        // ArbitrumOneAddresses.POOL_REGISTRY_ADDRESS constant (re-exported by each base). Stale
+        // constants would deploy successfully while pointing the facets at the old protocol — abort.
+        // (The IndexFacet's registry address is deployer-configured at install via
+        // configureIndexModule, so no constant to gate there.)
+        require(
+            ArbitrumOneAddresses.POOL_REGISTRY_ADDRESS == address(liquidityPoolRegistry),
+            "stale POOL_REGISTRY_ADDRESS constant: update ArbitrumOneAddresses to the fresh address"
+        );
 
         // =====================================================================
         // Token Addresses (Arbitrum One)

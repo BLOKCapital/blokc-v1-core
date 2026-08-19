@@ -21,7 +21,10 @@ pragma solidity ^0.8.31;
 /// @param tokens      Ordered token path: [tokenIn, ..intermediaries.., tokenOut]
 /// @param pools       One pool address per hop (pools.length == tokens.length - 1)
 /// @param exactOutput False for exact-input swaps, true for exact-output swaps
-/// @param deadline    Deadline timestamp after which the swap should not execute; 0 = no limit.
+/// @param deadline    Deadline timestamp after which the swap reverts; 0 = no limit. When 0, every
+///                    facet substitutes block.timestamp + 30 minutes — always in the future for the
+///                    executing transaction — so protection is only meaningful with an explicit
+///                    caller-supplied deadline.
 struct SwapInstruction {
     uint256 amountIn;
     uint256 amountOut;

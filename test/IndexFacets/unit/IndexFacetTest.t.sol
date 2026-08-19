@@ -31,7 +31,9 @@ import {
     IndexFacet_IntentExpired,
     IndexFacet_ExcessiveValueLoss,
     IndexFacet_RebalanceReentrancy,
-    IndexFacet_ZeroTotalValue
+    IndexFacet_ZeroTotalValue,
+    IndexFacet_ModuleNotConfigured,
+    IndexFacet_ConfigureRequiresDisconnected
 } from "../../../src/garden/facets/indexFacets/IndexBase.sol";
 
 // =============================================================================
@@ -284,6 +286,16 @@ contract MockERC20 is IERC20, IERC20Metadata {
         MockERC20 public usdc;
 
         // Public wrappers for internal functions
+        function configureIndexModule(
+            address indexFactory,
+            address indexComponentRegistry,
+            address poolRegistry
+        )
+            external
+        {
+            _configureIndexModule(indexFactory, indexComponentRegistry, poolRegistry);
+        }
+
         function connectToIndex(address idx) external {
             _connectToIndex(idx);
         }
@@ -347,6 +359,18 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
         function getIndexAddress() external view returns (address) {
             return IndexStorage.layout().indexAddress;
+        }
+
+        function getConfiguredIndexFactory() external view returns (address) {
+            return IndexStorage.layout().indexFactory;
+        }
+
+        function getConfiguredComponentRegistry() external view returns (address) {
+            return IndexStorage.layout().indexComponentRegistry;
+        }
+
+        function getConfiguredPoolRegistry() external view returns (address) {
+            return IndexStorage.layout().poolRegistry;
         }
 
         function getLastRebalanceTimestamp() external view returns (uint256) {
@@ -443,12 +467,9 @@ contract MockERC20 is IERC20, IERC20Metadata {
             // Deploy harness
             h = new IndexFacetHarness();
 
-            // Wire storage — bypass code-address constants by using vm.store
-            // to overwrite the hardcoded addresses in IndexStorage.
-            // We etch mock code at the exact mainnet addresses IndexStorage uses.
-            _etchMockAt(IndexStorage.INDEX_FACTORY_ADDRESS, address(factory));
-            _etchMockAt(IndexStorage.INDEX_COMPONENT_REGISTRY_ADDRESS, address(componentRegistry));
-            _etchMockAt(IndexStorage.POOL_REGISTRY_ADDRESS, address(poolRegistry));
+            // Wire storage — the module's protocol addresses are diamond-storage config,
+            // set at install via configureIndexModule (no compile-time constants anymore).
+            h.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
             _etchMockAt(IndexStorage.USDC_ADDRESS, address(usdc));
             _etchMockAt(IndexStorage.WETH_ADDRESS, address(weth));
 
@@ -498,9 +519,9 @@ contract MockERC20 is IERC20, IERC20Metadata {
         // ── Helpers
         // ──────────────────────────────────────────────
 
-        /// @dev Etch a CallForwarder at `target` so all calls from IndexBase's
-        ///      hardcoded constant addresses are forwarded via CALL to `mockSource`,
-        ///      executing inside mockSource's own storage context.
+        /// @dev Etch a CallForwarder at `target` so calls to the remaining
+        ///      compile-time constant addresses (USDC/WETH) are forwarded via CALL
+        ///      to `mockSource`, executing inside mockSource's own storage context.
         ///
         ///      Why CALL and not delegatecall:
         ///        delegatecall runs impl bytecode in TARGET's storage → empty
@@ -527,6 +548,46 @@ contract MockERC20 is IERC20, IERC20Metadata {
             vm.warp(block.timestamp + IndexStorage.REBALANCE_INTERVAL + IndexStorage.INTENT_INTERVAL + 1);
             h.rebalanceIntent();
             vm.roll(block.number + 1); // advance past flash-loan protection block delay
+        }
+    }
+
+    // =============================================================================
+    //  configureIndexModule (diamond-storage protocol addresses)
+    // =============================================================================
+
+    contract ConfigureIndexModuleTest is IndexFacetTestBase {
+        function test_configure_setsProtocolAddresses() public {
+            assertEq(h.getConfiguredIndexFactory(), address(factory), "indexFactory stored");
+            assertEq(h.getConfiguredComponentRegistry(), address(componentRegistry), "componentRegistry stored");
+            assertEq(h.getConfiguredPoolRegistry(), address(poolRegistry), "poolRegistry stored");
+            // And the configured addresses are actually used: connecting works
+            h.connectToIndex(address(index));
+            assertEq(h.getIndexAddress(), address(index));
+        }
+
+        function test_configure_revertsWhenZeroAddress() public {
+            vm.expectRevert(IndexFacet_ModuleNotConfigured.selector);
+            h.configureIndexModule(address(0), address(componentRegistry), address(poolRegistry));
+        }
+
+        function test_configure_revertsWhenConnected() public {
+            _connect();
+            vm.expectRevert(IndexFacet_ConfigureRequiresDisconnected.selector);
+            h.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
+        }
+
+        function test_configure_revertsWhenPendingIntentActive() public {
+            _connect();
+            _createIntent();
+            vm.expectRevert(IndexFacet_ConfigureRequiresDisconnected.selector);
+            h.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
+        }
+
+        function test_unconfigured_revertsOnConnect() public {
+            // Fresh harness with no configure call — fails loudly instead of calling address(0)
+            IndexFacetHarness fresh = new IndexFacetHarness();
+            vm.expectRevert(IndexFacet_ModuleNotConfigured.selector);
+            fresh.connectToIndex(address(index));
         }
     }
 

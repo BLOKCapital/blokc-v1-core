@@ -16,18 +16,22 @@
   src = "src"
   test = "test"
   via_ir = true
-  # E2E simulation (test/e2e/E2ESimulation.t.sol) writes its phase marker
-  # (test/e2e/.e2e-addresses.json) and the verification report (docs/BETA1_E2E_VERIFICATION.md)
-  fs_permissions = [
-    { access = "read", path = "test/e2e" },
-    { access = "read", path = "docs" },
-    { access = "write", path = "test/e2e" },
-    { access = "write", path = "docs" },
-  ]
 
 [profile.ci]
   fuzz = { runs = 1_000 }
   verbosity = 2
+
+# E2E simulation (test/e2e/E2ESimulation.t.sol) writes its phase marker
+# (test/e2e/.e2e-addresses.json) and the verification report (docs/BETA1_E2E_VERIFICATION.md).
+# Scoped to its own profile so CI (`ci`) never grants tests filesystem write access.
+# Run with: forge test --profile e2e --match-path test/e2e/E2ESimulation.t.sol
+[profile.e2e]
+  fuzz = { runs = 1_000 }
+  fs_permissions = [
+    { access = "read", path = "test/e2e" },
+    { access = "write", path = "test/e2e" },
+    { access = "write", path = "docs" },
+  ]
 
 remappings = [
     "@uniswap/v2-periphery/=lib/v2-periphery/"

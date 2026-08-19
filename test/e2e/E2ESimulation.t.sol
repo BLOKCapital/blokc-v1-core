@@ -9,35 +9,35 @@ pragma solidity ^0.8.31;
     HOW THIS WORKS (two-phase - DO NOT modify):
     ---------------------------------------------------------------------------
     Phase 1 (run once, with ORIGINAL constants in src/):
-      forge test --match-path test/e2e/E2ESimulation.t.sol -vvv
+      forge test --profile e2e --match-path test/e2e/E2ESimulation.t.sol -vvv
       Deploys the whole protocol EXCEPT the DEX facets / IndexFacet, validates
       the components/feeds/index against the fork, and writes the fresh
       registry addresses to test/e2e/.e2e-addresses.json.
 
     [Between runs - the constants dance]
-      The IndexStorage.sol constants (INDEX_FACTORY_ADDRESS,
-      INDEX_COMPONENT_REGISTRY_ADDRESS, POOL_REGISTRY_ADDRESS) and the
-      POOL_REGISTRY_ADDRESS constants in the four arbitrumOne DEX base
-      contracts (UniswapV2Base, UniswapV3Base, CamelotV2Base, CamelotV3Base)
-      are compile-time constants pointing at the OLD mainnet deployment.
-      They MUST be temporarily patched to the fresh addresses from
-      .e2e-addresses.json, then rebuilt.
+      Only ONE constant remains compile-time and pointing at the OLD mainnet
+      deployment: POOL_REGISTRY_ADDRESS in
+      src/garden/libraries/ArbitrumOneAddresses.sol (re-exported by the four
+      arbitrumOne DEX bases — UniswapV2Base, UniswapV3Base, CamelotV2Base,
+      CamelotV3Base). It MUST be temporarily patched to the fresh LiquidityPoolRegistry
+      address from .e2e-addresses.json, then rebuilt. (The IndexFacet's registry
+      addresses are NO LONGER constants — each garden diamond gets them via
+      configureIndexModule at install, so no patching is needed for the index module.)
 
     Phase 2 (run again after the patch):
-      forge test --match-path test/e2e/E2ESimulation.t.sol -vvv
+      forge test --profile e2e --match-path test/e2e/E2ESimulation.t.sol -vvv
       Redeploys the protocol deterministically (identical addresses), this
-      time including the DEX facets and the IndexFacet compiled against the
-      patched constants. Creates 6 gardens, funds them from real pool whales,
-      connects them to the index, and runs TWO full cumulative-rebalance
-      rounds (3 batches each, batch size 2) with the 24h cooldown enforced
-      via vm.warp, verifying every calculation with real numbers. Writes
-      docs/BETA1_E2E_VERIFICATION.md.
+      time including the DEX facets compiled against the patched constant.
+      Creates 6 gardens, configures each one's index module via
+      configureIndexModule (diamond storage), connects them to the index,
+      and runs TWO full cumulative-rebalance rounds (3 batches each, batch
+      size 2) with the 24h cooldown enforced via vm.warp, verifying every
+      calculation with real numbers. Writes docs/BETA1_E2E_VERIFICATION.md.
 
     [After phase 2]
-      Restore the original constant values (revert the address edits in the five
-      files listed above - do NOT `git checkout` them wholesale: IndexStorage.sol,
-      UniswapV2Base.sol and CamelotV2Base.sol carry uncommitted working-tree changes
-      in this repo that must be preserved) and delete test/e2e/.e2e-addresses.json
+      Restore the original constant value (revert the address edit in
+      ArbitrumOneAddresses.sol - do NOT `git checkout` it wholesale: it may carry
+      uncommitted working-tree changes) and delete test/e2e/.e2e-addresses.json
       (recreated on the next fresh run).
 ################################################################################*/
 
@@ -272,8 +272,8 @@ contract E2ESimulation is Test {
 
         _writeMarker();
         phase1Only = true;
-        console2.log("=== E2E PHASE 1 COMPLETE: marker written. Patch the IndexStorage + DEX-base");
-        console2.log("    constants to the addresses in test/e2e/.e2e-addresses.json, rebuild, and rerun. ===");
+        console2.log("=== E2E PHASE 1 COMPLETE: marker written. Patch the ArbitrumOneAddresses");
+        console2.log("    POOL_REGISTRY_ADDRESS to the address in test/e2e/.e2e-addresses.json, rebuild, rerun. ===");
     }
 
     // =========================================================================
@@ -550,6 +550,7 @@ contract E2ESimulation is Test {
             facetAddress: addrIndexFacet,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _selectorsOf(
+                IndexFacet(addrIndexFacet).configureIndexModule.selector,
                 IndexFacet(addrIndexFacet).connectToIndex.selector,
                 IndexFacet(addrIndexFacet).disconnectFromIndex.selector,
                 IndexFacet(addrIndexFacet).rebalanceIntent.selector,
@@ -712,6 +713,23 @@ contract E2ESimulation is Test {
             if (!ok2) {
                 emit log_named_bytes("upgrade failed", err);
                 revert("garden upgrade failed");
+            }
+
+            // Point the index module at the freshly deployed protocol components — the
+            // addresses live in diamond storage (IndexStorage.Layout), configured by the
+            // owner at install instead of being compile-time constants
+            vm.prank(user);
+            (bool ok4, bytes memory err4) = garden.call(
+                abi.encodeWithSignature(
+                    "configureIndexModule(address,address,address)",
+                    addrIndexFactory,
+                    addrComponentRegistry,
+                    addrLiquidityPoolRegistry
+                )
+            );
+            if (!ok4) {
+                emit log_named_bytes("configureIndexModule failed", err4);
+                revert("configureIndexModule failed");
             }
 
             // Connect to the index
@@ -1352,11 +1370,11 @@ contract E2ESimulation is Test {
         h = string.concat(h, "\n## Notes\n\n");
         h = string.concat(
             h,
-            "1. **IndexStorage constants**: `src/garden/facets/indexFacets/IndexStorage.sol` hardcodes the OLD mainnet deployment addresses (`INDEX_FACTORY_ADDRESS 0x91da26...`, `INDEX_COMPONENT_REGISTRY_ADDRESS 0x3F8291...`, `POOL_REGISTRY_ADDRESS 0xA31782...`). For this simulation the three constants were temporarily patched to the fresh addresses above and restored afterwards (`git checkout`). **These constants MUST be updated before any real deployment** - otherwise garden IndexFacet calls (`connectToIndex`, `rebalance`) target the old protocol.\n"
+            "1. **Index module addresses are deployer-configured, not constants**: the IndexFacet stores its protocol addresses (`IndexFactory`, `IndexComponentRegistry`, `LiquidityPoolRegistry`) in diamond storage (`IndexStorage.Layout`), set per garden via `configureIndexModule` right after the module is cut in. The values in this report are the freshly deployed protocol components from this simulation. No source edits or recompiles are needed when these components are redeployed - only a `configureIndexModule` call by the garden owner.\n"
         );
         h = string.concat(
             h,
-            "2. **DEX facet registry constants**: `POOL_REGISTRY_ADDRESS` in `UniswapV2Base.sol`, `UniswapV3Base.sol`, `CamelotV2Base.sol`, `CamelotV3Base.sol` (arbitrumOne) is likewise hardcoded to the old `0xA31782...`. These were also temporarily patched (the Rebalancer's quoting path calls the facet's quote functions, which validate `isPoolRegistered` against that constant) and restored afterwards. Must be updated before real deployment.\n"
+            "2. **DEX facet registry constant**: `POOL_REGISTRY_ADDRESS` in `src/garden/libraries/ArbitrumOneAddresses.sol` (re-exported by `UniswapV2Base.sol`, `UniswapV3Base.sol`, `CamelotV2Base.sol`, `CamelotV3Base.sol` on arbitrumOne) is likewise hardcoded to the old `0xA31782...`. It was also temporarily patched (the Rebalancer's quoting path calls the facet's quote functions, which validate `isPoolRegistered` against that constant) and restored afterwards. Must be updated before real deployment.\n"
         );
         h = string.concat(
             h,
@@ -1414,13 +1432,14 @@ contract E2ESimulation is Test {
         bytes4 d,
         bytes4 e,
         bytes4 f,
-        bytes4 g
+        bytes4 g,
+        bytes4 h
     )
         internal
         pure
         returns (bytes4[] memory s)
     {
-        s = new bytes4[](7);
+        s = new bytes4[](8);
         s[0] = a;
         s[1] = b;
         s[2] = c;
@@ -1428,6 +1447,7 @@ contract E2ESimulation is Test {
         s[4] = e;
         s[5] = f;
         s[6] = g;
+        s[7] = h;
     }
 
     function _selectorsOf(bytes4 a, bytes4 b, bytes4 c, bytes4 d) internal pure returns (bytes4[] memory s) {

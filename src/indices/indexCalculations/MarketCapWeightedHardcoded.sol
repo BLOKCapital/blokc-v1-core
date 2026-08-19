@@ -83,7 +83,7 @@ contract MarketCapWeightedHardcoded is IIndexCalculation {
         if (totalMarketCap == 0) revert MarketCapWeightedHardcoded_InvalidTotalMarketCap();
 
         // Second pass: calculate weights from cached market caps.
-        // Components below MIN_WEIGHT are capped at the minimum instead of reverting —
+        // Components below MIN_WEIGHT are floored up to the minimum instead of reverting —
         // a declining component would otherwise permanently brick every garden connected
         // to the index, since index components are immutable once deployed.
         uint256 totalWeight;
@@ -95,8 +95,10 @@ contract MarketCapWeightedHardcoded is IIndexCalculation {
             totalWeight += weights[i];
         }
 
-        // Capping can push the sum above 100%; scale proportionally so the sum stays
-        // within the Index contract's accepted tolerance (1e18 ± 1e14).
+        // Floored weights can push the sum above 100%; scale proportionally so the sum stays
+        // within the Index contract's accepted tolerance (1e18 ± 1e14). Note: the Floor
+        // rounding of the rescale shaves the just-floored component back below MIN_WEIGHT —
+        // the floor guarantees survival of the component, not a per-weight minimum.
         if (totalWeight > IndexMath.PRECISION) {
             for (uint256 i = 0; i < len; i++) {
                 weights[i] = Math.mulDiv(weights[i], IndexMath.PRECISION, totalWeight, Math.Rounding.Floor);

@@ -93,7 +93,7 @@ abstract contract UniswapV2Base {
                     amountOutMin: instruction.amountOut,
                     path: instruction.tokens,
                     to: address(this),
-                    deadline: block.timestamp
+                    deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline
                 })
             );
         } else {
@@ -104,7 +104,7 @@ abstract contract UniswapV2Base {
                     amountInMax: instruction.amountIn,
                     path: instruction.tokens,
                     to: address(this),
-                    deadline: block.timestamp
+                    deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline
                 })
             );
         }
