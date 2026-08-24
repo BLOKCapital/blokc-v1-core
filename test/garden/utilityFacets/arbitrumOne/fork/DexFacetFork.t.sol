@@ -314,27 +314,25 @@ contract DexFacetForkTest is Test {
     ///         instruction deadline entirely — the router deadline is hardcoded to
     ///         block.timestamp. An expired instruction deadline therefore does NOT
     ///         revert; the swap executes normally. (V2 facets do enforce the deadline.)
-    function testFork_UniswapV3_ExpiredInstructionDeadlineNotEnforced() public {
+    /// @notice Real WETH -> USDC swap on the canonical Uniswap V3 pool with an expired
+    ///         instruction deadline. The facet maps a zero instruction deadline to
+    ///         block.timestamp + 30 minutes but passes non-zero deadlines through, so
+    ///         the router's deadline enforcement rejects the swap — intended secure
+    ///         behavior (deadline pass-through, not enforcement-bypass).
+    function testFork_UniswapV3_ExpiredInstructionDeadlineReverts() public {
         uint256 amountIn = WETH_AMOUNT;
         _fundGardenFromPool(UNISWAP_V3_POOL, amountIn);
 
         uint256 expected = IUniswapV3(address(garden)).uniswapV3Quote(_quoteInstruction(UNISWAP_V3_POOL, amountIn));
         uint256 minOut = _applySlippage(expected);
 
-        (uint256 outReceived, uint256 wethSpent) = _executeSwap(
-            IUniswapV3.uniswapV3Swap.selector,
+        _assertSwapRevertsWithDeadline(
             abi.encodeWithSelector(
                 IUniswapV3.uniswapV3Swap.selector,
                 _swapInstruction(UNISWAP_V3_POOL, amountIn, minOut, block.timestamp - 1)
-            )
+            ),
+            "Transaction too old"
         );
-
-        assertGe(
-            outReceived,
-            minOut,
-            "expired instruction deadline should still execute (facet overrides to block.timestamp)"
-        );
-        console2.log("UniswapV3(expired instruction deadline): swap executed (deadline not enforced by facet)");
     }
 
     // ========================================================================
@@ -436,30 +434,25 @@ contract DexFacetForkTest is Test {
         _assertSwapOutcome(amountIn, wethSpent, minOut, outReceived, expected, "CamelotV3(explicit deadline)");
     }
 
-    /// @notice DOCUMENTS CURRENT FACET BEHAVIOR: CamelotV3Base._camelotV3Swap also ignores the
-    ///         instruction deadline (router deadline hardcoded to block.timestamp). An expired
-    ///         instruction deadline does NOT revert; the swap executes normally.
-    function testFork_CamelotV3_ExpiredInstructionDeadlineNotEnforced() public {
+    /// @notice Real WETH -> USDC swap on the canonical Camelot V3 pool with an expired
+    ///         instruction deadline. CamelotV3Base maps a zero instruction deadline to
+    ///         block.timestamp + 30 minutes but passes non-zero deadlines through, so
+    ///         the Algebra router's deadline enforcement rejects the swap — intended
+    ///         secure behavior (deadline pass-through, not enforcement-bypass).
+    function testFork_CamelotV3_ExpiredInstructionDeadlineReverts() public {
         uint256 amountIn = WETH_AMOUNT;
         _fundGardenFromPool(CAMELOT_V3_POOL, amountIn);
 
         uint256 expected = _camelotV3SpotQuote(CAMELOT_V3_POOL, amountIn);
         uint256 minOut = _applySlippage(expected);
 
-        (uint256 outReceived, uint256 wethSpent) = _executeSwap(
-            ICamelotV3.camelotV3Swap.selector,
+        _assertSwapRevertsWithDeadline(
             abi.encodeWithSelector(
                 ICamelotV3.camelotV3Swap.selector,
                 _swapInstruction(CAMELOT_V3_POOL, amountIn, minOut, block.timestamp - 1)
-            )
+            ),
+            "Transaction too old"
         );
-
-        assertGe(
-            outReceived,
-            minOut,
-            "expired instruction deadline should still execute (facet overrides to block.timestamp)"
-        );
-        console2.log("CamelotV3(expired instruction deadline): swap executed (deadline not enforced by facet)");
     }
 
     // ========================================================================
@@ -490,6 +483,21 @@ contract DexFacetForkTest is Test {
 
         wethSpent = wethBefore - IERC20(WETH).balanceOf(address(garden));
         usdcReceived = IERC20(USDC).balanceOf(address(garden)) - usdcBefore;
+    }
+
+    /// @notice Asserts a garden swap call reverts with the router's deadline error.
+    /// @dev Manual low-level catch instead of vm.expectRevert — expectRevert would be
+    ///      consumed by the leading balanceOf reads inside _executeSwap, not the swap.
+    /// @param data Fully-encoded calldata for the garden (selector + encoded instruction).
+    function _assertSwapRevertsWithDeadline(bytes memory data, string memory expectedReason) internal {
+        vm.prank(owner);
+        (bool ok, bytes memory returndata) = address(garden).call(data);
+        assertFalse(ok, "swap must revert with an expired deadline");
+        assertEq(
+            keccak256(returndata),
+            keccak256(abi.encodeWithSignature("Error(string)", expectedReason)),
+            "router must reject with the deadline error"
+        );
     }
 
     /// @notice Asserts the swap outcome: exact input spent, output >= minOut, accounting consistent.

@@ -10,10 +10,12 @@ import { MarketCapWeighted } from "src/indices/indexCalculations/MarketCapWeight
 import { HardcodedCirculatingSupply } from "src/indices/HardcodedCirculatingSupply.sol";
 
 contract DeployIndex is BaseScript {
-    address gardenFactoryAddress = 0xA6c558f50c435896aEDe997091bD06ef6cAd3603;
-
     function run() public broadcaster {
         setUp();
+
+        // No baked-in deployment addresses: the fresh GardenFactory comes from the
+        // environment (GARDEN_FACTORY_ADDRESS).
+        address gardenFactoryAddress = vm.envAddress("GARDEN_FACTORY_ADDRESS");
         IndexComponentRegistry indexComponentRegistry = new IndexComponentRegistry(deployer);
         console2.log("IndexComponentRegistry deployed at:", address(indexComponentRegistry));
 
@@ -21,7 +23,7 @@ contract DeployIndex is BaseScript {
         // 13 Components: BTC, ETH, USDC + BLOKC-10 altcoins
         // (LINK, UNI, ARB, AAVE, GMX, PENDLE, GRT, CRV, RDNT, DAI)
         // =====================================================================
-        IndexComponentRegistry.Component[] memory components = new IndexComponentRegistry.Component[](16);
+        IndexComponentRegistry.Component[] memory components = new IndexComponentRegistry.Component[](13);
 
         // --- Core assets ---
         components[0] = IndexComponentRegistry.Component({
@@ -147,8 +149,8 @@ contract DeployIndex is BaseScript {
         supplies[8] = 10_776_016_812;
         supplySymbols[9] = bytes32("CRV");
         supplies[9] = 1_496_145_688;
-        supplySymbols[10] = bytes32("RDNT");
-        supplies[10] = 1_292_073_967;
+        supplySymbols[10] = bytes32("ZRO");
+        supplies[10] = 353_310_000;
         supplySymbols[11] = bytes32("DAI");
         supplies[11] = 4_413_758_153;
 
@@ -195,7 +197,7 @@ contract DeployIndex is BaseScript {
         symbols10[5] = bytes32("PENDLE");
         symbols10[6] = bytes32("GRT");
         symbols10[7] = bytes32("CRV");
-        symbols10[8] = bytes32("RDNT");
+        symbols10[8] = bytes32("ZRO");
         symbols10[9] = bytes32("DAI");
         indexFactory.deployIndex("BLOKC10", address(marketCapWeighted), symbols10);
     }
