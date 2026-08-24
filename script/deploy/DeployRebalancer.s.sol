@@ -32,7 +32,15 @@ contract DeployRebalancer is BaseScript {
         address componentRegistry = vm.envAddress("INDEX_COMPONENT_REGISTRY_ADDRESS");
         address poolRegistry = vm.envAddress("POOL_REGISTRY_ADDRESS");
         address facetRegistry = vm.envAddress("FACET_REGISTRY_ADDRESS");
-        address dexQuoteFacet = vm.envAddress("DEX_QUOTE_FACET_ADDRESS");
+
+        // Per-DEX quote facets: each DEX's registered quoteSelector (from the pool
+        // registry) is dispatched to its own facet. A facet that lacks a DEX's
+        // selector would silently skip every pool of that DEX, so each setDexConfig
+        // below gets the matching freshly-deployed facet.
+        address uniswapV3QuoteFacet = vm.envAddress("UNISWAP_V3_QUOTE_FACET_ADDRESS");
+        address uniswapV2QuoteFacet = vm.envAddress("UNISWAP_V2_QUOTE_FACET_ADDRESS");
+        address camelotV3QuoteFacet = vm.envAddress("CAMELOT_V3_QUOTE_FACET_ADDRESS");
+        address camelotV2QuoteFacet = vm.envAddress("CAMELOT_V2_QUOTE_FACET_ADDRESS");
 
         // =====================================================================
         // Token Addresses (Arbitrum One)
@@ -53,7 +61,7 @@ contract DeployRebalancer is BaseScript {
         rebalancer.setDexConfig(
             keccak256("UNISWAP_V3"),
             0xE592427A0AEce92De3Edee1F18E0157C05861564, // router
-            dexQuoteFacet, // DEX facet (for quoting)
+            uniswapV3QuoteFacet, // DEX facet (for quoting)
             bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
@@ -63,7 +71,7 @@ contract DeployRebalancer is BaseScript {
         rebalancer.setDexConfig(
             keccak256("CAMELOT_V2"),
             0xc873fEcbd354f5A56E00E710B90EF4201db2448d, // router
-            dexQuoteFacet, // DEX facet (for quoting)
+            camelotV2QuoteFacet, // DEX facet (for quoting)
             bytes4(
                 keccak256(
                     "swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,address,uint256)"
@@ -77,7 +85,7 @@ contract DeployRebalancer is BaseScript {
         rebalancer.setDexConfig(
             keccak256("CAMELOT_V3"),
             0x1F721E2E82F6676FCE4eA07A5958cF098D339e18, // router
-            dexQuoteFacet, // DEX facet (for quoting)
+            camelotV3QuoteFacet, // DEX facet (for quoting)
             bytes4(keccak256("exactInputSingle((address,address,address,uint256,uint256,uint256,uint160))")),
             Rebalancer.DexType.V3_CONCENTRATED
         );
@@ -87,7 +95,7 @@ contract DeployRebalancer is BaseScript {
         rebalancer.setDexConfig(
             keccak256("UNISWAP_V2"),
             0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24, // router
-            dexQuoteFacet, // DEX facet (for quoting)
+            uniswapV2QuoteFacet, // DEX facet (for quoting)
             bytes4(keccak256("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)")),
             Rebalancer.DexType.V2_STANDARD
         );
