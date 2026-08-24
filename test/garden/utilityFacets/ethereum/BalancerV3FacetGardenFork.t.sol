@@ -138,7 +138,12 @@ contract BalancerV3FacetGardenForkTest is Test {
         pools[0] = BALANCER_POOL;
 
         instruction = SwapInstruction({
-            amountIn: amountIn, amountOut: amountOut, tokens: tokens, pools: pools, exactOutput: exactOutput
+            amountIn: amountIn,
+            amountOut: amountOut,
+            tokens: tokens,
+            pools: pools,
+            exactOutput: exactOutput,
+            deadline: 0
         });
     }
 

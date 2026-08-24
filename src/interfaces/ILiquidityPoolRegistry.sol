@@ -15,7 +15,7 @@ pragma solidity ^0.8.31;
 /// @notice Interface for the Liquidity Pool Registry that tracks DEXes and their pools.
 /// @dev DEXes are registered explicitly (mirroring the FacetRegistry module pattern) and pools
 ///      are scoped to registered DEXes. Each DEX carries swap and quote selector metadata so the
-///      CRE orchestration layer can discover available protocols without hardcoding selectors.
+///      cumulative rebalancer can discover available protocols without hardcoding selectors.
 ///      DEX-specific pool parameters (fee tiers, bin steps, coin indices) are NOT stored here —
 ///      they live in the pool contracts and are derived on-chain by DEX facets at swap time.
 interface ILiquidityPoolRegistry {

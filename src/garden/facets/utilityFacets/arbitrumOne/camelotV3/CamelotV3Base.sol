@@ -20,6 +20,7 @@ import { SafeERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/util
 import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { DexPoolValidator } from "src/garden/libraries/DexPoolValidator.sol";
+import { ArbitrumOneAddresses } from "src/garden/libraries/ArbitrumOneAddresses.sol";
 
 /// @notice Thrown when the factory poolByPair call returns an invalid pool address
 error CamelotV3Facet_InvalidPoolAddress();
@@ -49,7 +50,7 @@ abstract contract CamelotV3Base {
     address internal constant CAMELOT_V3_FACTORY_ADDRESS = 0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B;
 
     /// @notice Liquidity pool registry address on Arbitrum One
-    address internal constant POOL_REGISTRY_ADDRESS = 0xA3178280c191dD46c551b91c651F337E47594d85;
+    address public constant POOL_REGISTRY_ADDRESS = ArbitrumOneAddresses.POOL_REGISTRY_ADDRESS;
 
     /// @notice Emitted when a Camelot V3 swap is successfully executed
     event CamelotV3FacetTokensSwapped(
@@ -74,7 +75,7 @@ abstract contract CamelotV3Base {
                         tokenIn: instruction.tokens[0],
                         tokenOut: instruction.tokens[1],
                         recipient: address(this),
-                        deadline: block.timestamp,
+                        deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         amountIn: instruction.amountIn,
                         amountOutMinimum: instruction.amountOut,
                         limitSqrtPrice: 0
@@ -86,7 +87,7 @@ abstract contract CamelotV3Base {
                         tokenIn: instruction.tokens[0],
                         tokenOut: instruction.tokens[1],
                         recipient: address(this),
-                        deadline: block.timestamp,
+                        deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         amountOut: instruction.amountOut,
                         amountInMaximum: instruction.amountIn,
                         limitSqrtPrice: 0
@@ -99,7 +100,7 @@ abstract contract CamelotV3Base {
                     ICamelotV3.CamelotV3ExactInputParams({
                         path: instruction.tokens,
                         recipient: address(this),
-                        deadline: block.timestamp,
+                        deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         amountIn: instruction.amountIn,
                         amountOutMinimum: instruction.amountOut
                     })
@@ -109,7 +110,7 @@ abstract contract CamelotV3Base {
                     ICamelotV3.CamelotV3ExactOutputParams({
                         path: instruction.tokens,
                         recipient: address(this),
-                        deadline: block.timestamp,
+                        deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         amountOut: instruction.amountOut,
                         amountInMaximum: instruction.amountIn
                     })

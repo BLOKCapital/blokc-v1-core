@@ -37,19 +37,6 @@ library IndexStorage {
     address internal constant WETH_PRICE_FEED_ADDRESS = 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612;
 
     // ========================================================================
-    // Registry Addresses (Arbitrum One)
-    // ========================================================================
-
-    /// @notice IndexFactory contract address
-    address internal constant INDEX_FACTORY_ADDRESS = 0x91da26BF1a4adDa42355B80502785d3F026d7074;
-
-    /// @notice IndexComponentRegistry contract address
-    address internal constant INDEX_COMPONENT_REGISTRY_ADDRESS = 0x3F8291D2Fb3f5C4391DDbc36C4Ee0B1F48274977;
-
-    /// @notice LiquidityPoolRegistry contract address (for DEX selector resolution)
-    address internal constant POOL_REGISTRY_ADDRESS = 0xA3178280c191dD46c551b91c651F337E47594d85;
-
-    // ========================================================================
     // Rebalancing Parameters
     // ========================================================================
 
@@ -62,14 +49,23 @@ library IndexStorage {
     ///      allocations. Industry standard for multi-token index rebalancing.
     uint256 internal constant BALANCE_THRESHOLD_BPS = 200;
 
-    /// @notice Minimum cooldown between consecutive rebalance executions (1 hour).
-    uint256 internal constant REBALANCE_INTERVAL = 1 hours;
+    /// @notice Minimum cooldown between consecutive rebalance executions (24 hours).
+    /// @dev Rate-limits permissionless rebalance triggering: with MAX_VALUE_LOSS_BPS capping
+    ///      loss per execution at 0.5%, a daily interval bounds worst-case extraction.
+    uint256 internal constant REBALANCE_INTERVAL = 1 days;
 
     /// @notice Maximum allowed total value loss during rebalance (0.5% = 50 bps)
     uint256 internal constant MAX_VALUE_LOSS_BPS = 50;
 
     /// @notice Intent expiry duration - intents become invalid after this period
     uint256 internal constant INTENT_EXPIRY = 10 minutes;
+    /// @notice Minimum interval between intent creations (11 minutes).
+    /// @dev MUST be strictly greater than INTENT_EXPIRY. Using the expiry duration as the
+    ///      creation cooldown would allow a new intent to overwrite a still-valid pending
+    ///      intent at the exact `lastIntentTimestamp + INTENT_EXPIRY` boundary (off-by-one),
+    ///      enabling front-running/griefing of in-flight rebalances. By requiring a strictly
+    ///      longer interval, a live intent can never be overwritten before it expires.
+    uint256 internal constant INTENT_INTERVAL = 11 minutes;
 
     /// @notice Minimum block delay between intent creation and rebalance execution
     /// @dev Prevents flash loan attacks where intent + rebalance occur in the same block
@@ -78,7 +74,7 @@ library IndexStorage {
     /// @notice Module identifier for DEX facets; only selectors in this module are allowed during rebalance.
     bytes32 internal constant DEX_MODULE_ID = keccak256("DEX");
 
-    uint256 internal constant STORAGE_LAYOUT_VERSION = 1;
+    uint256 internal constant STORAGE_LAYOUT_VERSION = 2;
 
     /// @notice Storage layout for index-related state
     struct Layout {
@@ -94,6 +90,12 @@ library IndexStorage {
         PendingIntent pendingIntent;
         // Flash loan protection: block number when intent was created (appended for storage safety)
         uint256 lastIntentBlock;
+        // Own-protocol registry addresses (appended in v2). Deployer-configured at install via
+        // configureIndexModule — not compile-time constants, so redeploying the protocol
+        // components does not require recompiling or re-cutting the facets.
+        address indexFactory;
+        address indexComponentRegistry;
+        address poolRegistry;
     }
 
     /// @notice Returns a pointer to the index storage layout

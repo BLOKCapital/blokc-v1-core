@@ -22,6 +22,7 @@ import { IUniswapV3 } from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 import { DexPoolValidator } from "src/garden/libraries/DexPoolValidator.sol";
+import { ArbitrumOneAddresses } from "src/garden/libraries/ArbitrumOneAddresses.sol";
 
 // Local Libraries
 import { TickMath } from "src/garden/libraries/TickMath.sol";
@@ -75,7 +76,7 @@ abstract contract UniswapV3Base {
     /// @notice Uniswap V3 Router address on Arbitrum One
     address internal constant UNISWAP_V3_ROUTER_ADDRESS = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
     /// @notice Pool Registry address on Arbitrum One
-    address internal constant POOL_REGISTRY_ADDRESS = 0xA3178280c191dD46c551b91c651F337E47594d85;
+    address public constant POOL_REGISTRY_ADDRESS = ArbitrumOneAddresses.POOL_REGISTRY_ADDRESS;
     /// @notice Uniswap V3 Factory address on Arbitrum One
     address internal constant UNISWAP_FACTORY_ADDRESS = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
@@ -246,7 +247,7 @@ abstract contract UniswapV3Base {
                     IUniswapV3.UniswapV3ExactInputSingleParams({
                         amountIn: instruction.amountIn,
                         amountOutMinimum: instruction.amountOut,
-                        deadline: block.timestamp,
+                        deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         tokenIn: instruction.tokens[0],
                         tokenOut: instruction.tokens[1],
                         swapFee: fee
@@ -257,7 +258,7 @@ abstract contract UniswapV3Base {
                     IUniswapV3.UniswapV3ExactOutputSingleParams({
                         amountOut: instruction.amountOut,
                         amountInMaximum: instruction.amountIn,
-                        deadline: block.timestamp,
+                        deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         tokenIn: instruction.tokens[0],
                         tokenOut: instruction.tokens[1],
                         swapFee: fee
@@ -280,7 +281,7 @@ abstract contract UniswapV3Base {
                 _uniswapV3ExactInput(
                     IUniswapV3.UniswapV3ExactInputParams({
                         pathWithFees: pathWithFees,
-                        deadline: block.timestamp,
+                        deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         amountIn: instruction.amountIn,
                         amountOutMin: instruction.amountOut
                     })
@@ -289,7 +290,7 @@ abstract contract UniswapV3Base {
                 _uniswapV3ExactOutput(
                     IUniswapV3.UniswapV3ExactOutputParams({
                         pathWithFees: pathWithFees,
-                        deadline: block.timestamp,
+                        deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         amountOut: instruction.amountOut,
                         amountInMaximum: instruction.amountIn
                     })

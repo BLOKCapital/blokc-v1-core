@@ -3,6 +3,7 @@ pragma solidity ^0.8.31;
 
 import { DiamondTestBase } from "../../../../../base/DiamondTestBase.sol";
 import { IERC173 } from "src/interfaces/IERC173.sol";
+import { OwnershipBase_InvalidNewOwner } from "src/garden/facets/baseFacets/ownership/OwnershipBase.sol";
 
 contract OwnershipFacetTest is DiamondTestBase {
     address public garden;
@@ -47,11 +48,14 @@ contract OwnershipFacetTest is DiamondTestBase {
         assertEq(IERC173(garden).owner(), bob);
     }
 
-    function test_transferOwnership_canTransferToZero() public {
-        // Renounce ownership by transferring to address(0)
+    function test_transferOwnership_revertsWhenTransferringToZero() public {
+        // Transferring to address(0) would permanently brick the garden — all
+        // onlyGardenOwner functions would be locked with no recoverable owner.
         vm.prank(gardenOwner);
+        vm.expectRevert(abi.encodeWithSelector(OwnershipBase_InvalidNewOwner.selector, address(0)));
         IERC173(garden).transferOwnership(address(0));
-        assertEq(IERC173(garden).owner(), address(0));
+        // Owner is unchanged
+        assertEq(IERC173(garden).owner(), gardenOwner);
     }
 
     function test_transferOwnership_oldOwnerLosesAccess() public {

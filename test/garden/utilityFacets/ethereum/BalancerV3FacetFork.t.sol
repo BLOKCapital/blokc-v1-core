@@ -126,8 +126,9 @@ contract BalancerV3FacetForkTest is Test {
         pools[0] = BALANCER_POOL;
         pools[1] = address(0xbeef);
 
-        SwapInstruction memory inst =
-            SwapInstruction({ amountIn: 1_000_000, amountOut: 1, tokens: tokens, pools: pools, exactOutput: false });
+        SwapInstruction memory inst = SwapInstruction({
+            amountIn: 1_000_000, amountOut: 1, tokens: tokens, pools: pools, exactOutput: false, deadline: 0
+        });
 
         vm.expectRevert(BalancerV3Facet_MultiHopUnsupported.selector);
         this.callSwap(inst);
@@ -142,8 +143,9 @@ contract BalancerV3FacetForkTest is Test {
         address[] memory pools = new address[](1);
         pools[0] = BALANCER_POOL;
 
-        SwapInstruction memory inst =
-            SwapInstruction({ amountIn: 1_000_000, amountOut: 1, tokens: tokens, pools: pools, exactOutput: false });
+        SwapInstruction memory inst = SwapInstruction({
+            amountIn: 1_000_000, amountOut: 1, tokens: tokens, pools: pools, exactOutput: false, deadline: 0
+        });
 
         vm.expectRevert(BalancerV3Facet_InvalidPath.selector);
         this.callSwap(inst);
@@ -243,7 +245,12 @@ contract BalancerV3FacetForkTest is Test {
         pools[0] = BALANCER_POOL;
 
         instruction = SwapInstruction({
-            amountIn: amountIn, amountOut: amountOut, tokens: tokens, pools: pools, exactOutput: exactOutput
+            amountIn: amountIn,
+            amountOut: amountOut,
+            tokens: tokens,
+            pools: pools,
+            exactOutput: exactOutput,
+            deadline: 0
         });
     }
 

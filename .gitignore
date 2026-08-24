@@ -9,6 +9,8 @@ build-info
 # files
 *.env
 *.log
+# E2E phase marker (recreated on every fresh E2E run)
+test/e2e/.e2e-addresses.json
 .DS_Store
 .pnp.*
 lcov.info

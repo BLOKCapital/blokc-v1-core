@@ -250,7 +250,7 @@ abstract contract UniswapV3Base {
                     IUniswapV3.UniswapV3ExactInputSingleParams({
                         amountIn: inst.amountIn,
                         amountOutMinimum: inst.amountOut,
-                        deadline: block.timestamp,
+                        deadline: inst.deadline == 0 ? block.timestamp + 30 minutes : inst.deadline,
                         tokenIn: inst.tokens[0],
                         tokenOut: inst.tokens[1],
                         swapFee: fee
@@ -261,7 +261,7 @@ abstract contract UniswapV3Base {
                     IUniswapV3.UniswapV3ExactOutputSingleParams({
                         amountOut: inst.amountOut,
                         amountInMaximum: inst.amountIn,
-                        deadline: block.timestamp,
+                        deadline: inst.deadline == 0 ? block.timestamp + 30 minutes : inst.deadline,
                         tokenIn: inst.tokens[0],
                         tokenOut: inst.tokens[1],
                         swapFee: fee
@@ -279,7 +279,7 @@ abstract contract UniswapV3Base {
                 _uniswapV3ExactInput(
                     IUniswapV3.UniswapV3ExactInputParams({
                         pathWithFees: pathWithFees,
-                        deadline: block.timestamp,
+                        deadline: inst.deadline == 0 ? block.timestamp + 30 minutes : inst.deadline,
                         amountIn: inst.amountIn,
                         amountOutMin: inst.amountOut
                     })
@@ -288,7 +288,7 @@ abstract contract UniswapV3Base {
                 _uniswapV3ExactOutput(
                     IUniswapV3.UniswapV3ExactOutputParams({
                         pathWithFees: pathWithFees,
-                        deadline: block.timestamp,
+                        deadline: inst.deadline == 0 ? block.timestamp + 30 minutes : inst.deadline,
                         amountOut: inst.amountOut,
                         amountInMaximum: inst.amountIn
                     })

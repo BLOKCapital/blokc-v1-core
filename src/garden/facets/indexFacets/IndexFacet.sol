@@ -28,6 +28,22 @@ import { IndexBase } from "src/garden/facets/indexFacets/IndexBase.sol";
  *      to these calculations and will not be protected during swaps.
  */
 contract IndexFacet is IIndex, IndexBase, Facet {
+    /// @notice Configures the protocol addresses the index module talks to (IndexFactory,
+    ///         IndexComponentRegistry, LiquidityPoolRegistry). Owner-only, called by the deployer
+    ///         right after the facet is cut in — the addresses live in diamond storage, so a
+    ///         protocol-component redeploy needs no facet recompile. Re-configuring requires a
+    ///         disconnected, intent-free garden (see IndexBase._configureIndexModule).
+    function configureIndexModule(
+        address indexFactory,
+        address indexComponentRegistry,
+        address poolRegistry
+    )
+        external
+        onlyGardenOwner
+    {
+        _configureIndexModule(indexFactory, indexComponentRegistry, poolRegistry);
+    }
+
     /// @inheritdoc IIndex
     function connectToIndex(address indexAddress) external nonReentrant onlyGardenOwner ifIndexNotConnected {
         _connectToIndex(indexAddress);
