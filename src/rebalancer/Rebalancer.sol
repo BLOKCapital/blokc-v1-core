@@ -1019,9 +1019,10 @@ contract Rebalancer is Ownable {
      *      Encodes as exactInputSingle(tokenIn, tokenOut, fee, recipient, deadline,
      *      amountIn, minOut, sqrtPriceLimitX96). Fee is read from the pool on-chain.
      *      Works for any DEX that follows Uniswap V3's exactInputSingle struct layout
-     *      (8 params with uint24 fee). For DEXs with a different struct (e.g. Camelot V3's
-     *      7-param variant), the DAO should configure a V2_CONSTANT_PRODUCT type and provide
-     *      the correct selector + encoding via routerSwapSelector.
+     *      (8 params with uint24 fee). Camelot V3 uses a 7-param variant
+     *      (0xbc651188): (tokenIn, tokenOut, recipient, deadline, amountIn, minOut,
+     *      sqrtPriceLimitX96) — no fee tier in the params, so the fee lookup is
+     *      skipped and the shorter struct is encoded.
      */
     function _swapV3Style(
         address router,
@@ -1033,28 +1034,39 @@ contract Rebalancer is Ownable {
         private
         returns (uint256 amountOut)
     {
-        // Read fee tier from the pool on-chain (works for V3-style pools; reverts on failure)
-        (bool feeOk, bytes memory feeData) = route.pool.staticcall(abi.encodeWithSignature("fee()"));
-        if (!feeOk || feeData.length < 32) {
-            revert Rebalancer_SwapFailed(route.tokenIn, route.tokenOut, "V3 pool fee() lookup failed");
-        }
-        uint24 fee = abi.decode(feeData, (uint24));
-
         uint256 balanceBefore = IERC20(route.tokenOut).balanceOf(address(this));
 
-        (bool success, bytes memory ret) = router.call(
-            abi.encodeWithSelector(
-                selector,
-                route.tokenIn,
-                route.tokenOut,
-                fee,
-                address(this),
-                deadline,
-                route.amountIn,
-                minOut,
-                uint160(0)
-            )
-        );
+        bool success;
+        bytes memory ret;
+        if (selector == bytes4(0xbc651188)) {
+            // Camelot V3 exactInputSingle — 7-param struct, no fee tier
+            (success, ret) = router.call(
+                abi.encodeWithSelector(
+                    selector, route.tokenIn, route.tokenOut, address(this), deadline, route.amountIn, minOut, uint160(0)
+                )
+            );
+        } else {
+            // Read fee tier from the pool on-chain (works for V3-style pools; reverts on failure)
+            (bool feeOk, bytes memory feeData) = route.pool.staticcall(abi.encodeWithSignature("fee()"));
+            if (!feeOk || feeData.length < 32) {
+                revert Rebalancer_SwapFailed(route.tokenIn, route.tokenOut, "V3 pool fee() lookup failed");
+            }
+            uint24 fee = abi.decode(feeData, (uint24));
+
+            (success, ret) = router.call(
+                abi.encodeWithSelector(
+                    selector,
+                    route.tokenIn,
+                    route.tokenOut,
+                    fee,
+                    address(this),
+                    deadline,
+                    route.amountIn,
+                    minOut,
+                    uint160(0)
+                )
+            );
+        }
         if (!success) {
             bytes memory reason = ret.length > 0 ? ret : bytes("V3 swap failed");
             revert Rebalancer_SwapFailed(route.tokenIn, route.tokenOut, reason);

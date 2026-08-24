@@ -17,8 +17,6 @@ import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
 contract RegisterUtilityFacets is BaseScript {
-    address constant FACET_REGISTRY = 0x1e237507bb8520a253300b9e22bFccCd396E45cF;
-
     // Module IDs
     bytes32 constant MODULE_WITHDRAW = keccak256("WITHDRAW");
     bytes32 constant MODULE_DEX = keccak256("DEX");
@@ -32,7 +30,9 @@ contract RegisterUtilityFacets is BaseScript {
     function run() public broadcaster {
         setUp();
 
-        IFacetRegistry registry = IFacetRegistry(FACET_REGISTRY);
+        // No baked-in deployment addresses: the fresh FacetRegistry comes from the
+        // environment (FACET_REGISTRY_ADDRESS).
+        IFacetRegistry registry = IFacetRegistry(vm.envAddress("FACET_REGISTRY_ADDRESS"));
 
         // =====================================================================
         // Withdraw module
@@ -160,14 +160,15 @@ contract RegisterUtilityFacets is BaseScript {
         // INDEX module (IndexFacet)
         // =====================================================================
         IndexFacet indexFacet = new IndexFacet();
-        bytes4[] memory indexSelectors = new bytes4[](7);
-        indexSelectors[0] = indexFacet.connectToIndex.selector;
-        indexSelectors[1] = indexFacet.disconnectFromIndex.selector;
-        indexSelectors[2] = indexFacet.rebalanceIntent.selector;
-        indexSelectors[3] = indexFacet.rebalance.selector;
-        indexSelectors[4] = indexFacet.isConnectedToIndex.selector;
-        indexSelectors[5] = indexFacet.getConnectedIndex.selector;
-        indexSelectors[6] = indexFacet.hasPendingIntent.selector;
+        bytes4[] memory indexSelectors = new bytes4[](8);
+        indexSelectors[0] = indexFacet.configureIndexModule.selector;
+        indexSelectors[1] = indexFacet.connectToIndex.selector;
+        indexSelectors[2] = indexFacet.disconnectFromIndex.selector;
+        indexSelectors[3] = indexFacet.rebalanceIntent.selector;
+        indexSelectors[4] = indexFacet.rebalance.selector;
+        indexSelectors[5] = indexFacet.isConnectedToIndex.selector;
+        indexSelectors[6] = indexFacet.getConnectedIndex.selector;
+        indexSelectors[7] = indexFacet.hasPendingIntent.selector;
         console2.log("IndexFacet deployed at:", address(indexFacet));
 
         IDiamondCut.FacetCut[] memory indexCuts = new IDiamondCut.FacetCut[](1);

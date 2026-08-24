@@ -422,6 +422,95 @@ contract MockRouter {
     }
 }
 
+/// @notice Router mirroring Camelot V3's exactInputSingle — 7-param struct, no fee tier
+///         (selector 0xbc651188). Records the last call so tests can assert the encoding.
+contract CamelotV3MockRouter {
+    mapping(bytes32 => uint256) public rates;
+
+    address internal _lastTokenIn;
+    address internal _lastTokenOut;
+    address internal _lastRecipient;
+    uint256 internal _lastDeadline;
+    uint256 internal _lastAmountIn;
+    uint256 internal _lastMinOut;
+    uint160 internal _lastLimit;
+
+    function setRate(address tokenIn, address tokenOut, uint256 rate) external {
+        rates[keccak256(abi.encode(tokenIn, tokenOut))] = rate;
+    }
+
+    function _executeSwap(
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountIn,
+        address _recipient
+    )
+        internal
+        returns (uint256 amountOut)
+    {
+        IERC20(_tokenIn).transferFrom(msg.sender, address(this), _amountIn);
+        MockERC20(_tokenIn).setBalance(address(this), 0);
+        uint256 rate = rates[keccak256(abi.encode(_tokenIn, _tokenOut))];
+        amountOut = _amountIn * rate / 1e18;
+        MockERC20(_tokenOut).mint(_recipient, amountOut);
+    }
+
+    // ─── Camelot V3 exactInputSingle — 7-param struct (selector 0xbc651188) ──
+    // Mirrors the real CamelotV3 router: takes a struct so the selector matches
+    // the whitelisted 0xbc651188 (flat 7-arg encoding would differ).
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        address recipient;
+        uint256 deadline;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 limitSqrtPrice;
+    }
+
+    function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256 amountOut) {
+        _lastTokenIn = params.tokenIn;
+        _lastTokenOut = params.tokenOut;
+        _lastRecipient = params.recipient;
+        _lastDeadline = params.deadline;
+        _lastAmountIn = params.amountIn;
+        _lastMinOut = params.amountOutMinimum;
+        _lastLimit = params.limitSqrtPrice;
+        return _executeSwap(params.tokenIn, params.tokenOut, params.amountIn, params.recipient);
+    }
+
+    function lastCall()
+        external
+        view
+        returns (
+            address tokenIn,
+            address tokenOut,
+            address recipient,
+            uint256 deadline,
+            uint256 amountIn,
+            uint256 amountOutMinimum,
+            uint160 limitSqrtPrice
+        )
+    {
+        return (_lastTokenIn, _lastTokenOut, _lastRecipient, _lastDeadline, _lastAmountIn, _lastMinOut, _lastLimit);
+    }
+
+    function quoteOut(QuoteInstruction calldata inst) external view returns (uint256 amountOut) {
+        uint256 rate = rates[keccak256(abi.encode(inst.tokens[0], inst.tokens[1]))];
+        if (rate == 0) return 0;
+        amountOut = inst.amount * rate / 1e18;
+    }
+}
+
+/// @notice Camelot V3 pool: reverts on `fee()`. The V3-style fee lookup must be
+///         skipped for the CamelotV3 selector — any implementation that calls
+///         `fee()` on this pool fails, so this doubles as a behavioral guard.
+contract CamelotV3MockPool {
+    function fee() external pure returns (uint24) {
+        revert("camelot-v3-fee-lookup-not-expected");
+    }
+}
+
 // =============================================================================
 // TEST BASE
 // =============================================================================
@@ -1564,5 +1653,93 @@ contract BatchTest is RebalancerTestBase {
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
         assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
         assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
+    }
+}
+
+// =============================================================================
+// 9. CAMELOT V3 SWAP ENCODING TESTS
+// =============================================================================
+// Regression: the Rebalancer must encode CamelotV3's exactInputSingle as a
+// 7-param struct (tokenIn, tokenOut, recipient, deadline, amountIn, minOut,
+// limitSqrtPrice) — no fee tier — and must NOT do the UniV3-style fee() pool
+// lookup for the CamelotV3 selector.
+
+contract CamelotV3SwapTest is RebalancerTestBase {
+    bytes32 internal constant DEX_CAMELOT_V3 = keccak256("CAMELOT_V3");
+
+    function setUp() public override {
+        super.setUp();
+        _warpPastInterval();
+    }
+
+    function test_swap_executesViaCamelotV3_sevenParamEncoding() public {
+        // CamelotV3 router with a slightly better USDC→WETH rate than the
+        // CamelotV2 pool so the route finder picks the CamelotV3 pool for that leg.
+        CamelotV3MockRouter camelotRouter = new CamelotV3MockRouter();
+        camelotRouter.setRate(address(weth), address(usdc), 3000 * 1e6);
+        camelotRouter.setRate(address(usdc), address(weth), 3.4e26); // vs CamelotV2's ~3.3333e26
+
+        // CamelotV3 pool whose fee() reverts — any fee() lookup must fail the swap.
+        CamelotV3MockPool camelotPool = new CamelotV3MockPool();
+
+        poolRegistry.setDexRegistered(DEX_CAMELOT_V3, true);
+        poolRegistry.setDexActive(DEX_CAMELOT_V3, true);
+        poolRegistry.setQuoteSelector(DEX_CAMELOT_V3, camelotRouter.quoteOut.selector);
+        poolRegistry.addPool(address(camelotPool), DEX_CAMELOT_V3, "WETH/USDC", address(usdc), address(weth));
+
+        vm.startPrank(owner);
+        rebalancer.setDexConfig(
+            DEX_CAMELOT_V3,
+            address(camelotRouter),
+            address(camelotRouter),
+            camelotRouter.exactInputSingle.selector,
+            Rebalancer.DexType.V3_CONCENTRATED
+        );
+        vm.stopPrank();
+
+        _fundGarden(alice, 1e18, 10_000_000, 0);
+        _fundGarden(bob, 0.5e18, 5_000_000, 0);
+
+        uint256 deadline = block.timestamp + 300;
+        rebalancer.cumulativeRebalance(INDEX_TYPE, deadline);
+
+        // The USDC→WETH leg must have gone through the CamelotV3 router (better rate)
+        uint256 totalWethAfter = weth.balanceOf(alice) + weth.balanceOf(bob);
+        assertGt(totalWethAfter, 1.5e18, "Total WETH should increase via CamelotV3 route");
+
+        // Assert the 7-param encoding layout: recipient = rebalancer, deadline slot
+        (,, address recipient, uint256 callDeadline,,,) = camelotRouter.lastCall();
+        assertEq(recipient, address(rebalancer), "CamelotV3 recipient must be the rebalancer");
+        assertEq(callDeadline, deadline, "CamelotV3 deadline slot must carry the caller deadline");
+    }
+
+    function test_swap_camelotV3_zeroRateFallsBackToOtherDex() public {
+        // No rate set → CamelotV3 quote returns 0 → route finder must skip it
+        // and still complete the rebalance via CamelotV2/UniV2 pools.
+        CamelotV3MockRouter camelotRouter = new CamelotV3MockRouter();
+        CamelotV3MockPool camelotPool = new CamelotV3MockPool();
+
+        poolRegistry.setDexRegistered(DEX_CAMELOT_V3, true);
+        poolRegistry.setDexActive(DEX_CAMELOT_V3, true);
+        poolRegistry.setQuoteSelector(DEX_CAMELOT_V3, camelotRouter.quoteOut.selector);
+        poolRegistry.addPool(address(camelotPool), DEX_CAMELOT_V3, "WETH/USDC", address(usdc), address(weth));
+
+        vm.startPrank(owner);
+        rebalancer.setDexConfig(
+            DEX_CAMELOT_V3,
+            address(camelotRouter),
+            address(camelotRouter),
+            camelotRouter.exactInputSingle.selector,
+            Rebalancer.DexType.V3_CONCENTRATED
+        );
+        vm.stopPrank();
+
+        _fundGarden(alice, 1e18, 10_000_000, 0);
+        _fundGarden(bob, 0.5e18, 5_000_000, 0);
+
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        uint256 totalWethAfter = weth.balanceOf(alice) + weth.balanceOf(bob);
+        assertGt(totalWethAfter, 1.5e18, "Rebalance should complete via the fallback DEX pools");
     }
 }

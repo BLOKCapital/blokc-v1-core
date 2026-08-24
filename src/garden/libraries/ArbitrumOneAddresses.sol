@@ -11,5 +11,5 @@ pragma solidity ^0.8.31;
  */
 library ArbitrumOneAddresses {
     /// @notice LiquidityPoolRegistry contract address (for DEX selector resolution)
-    address internal constant POOL_REGISTRY_ADDRESS = 0xA3178280c191dD46c551b91c651F337E47594d85;
+    address internal constant POOL_REGISTRY_ADDRESS = 0xF0F7B0a68B777539Ff7d416eEAC56E0FB3e8B30C;
 }
