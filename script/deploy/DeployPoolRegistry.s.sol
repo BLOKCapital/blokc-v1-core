@@ -166,8 +166,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
         // 23. DAI/WETH - 0.3% swapFee
         _addPool(liquidityPoolRegistry, 0xA961F0473dA4864C5eD28e00FcC53a3AAb056c1b, dai, weth, uniswapV3, "DAI/WETH");
 
-        // 24. LINK/USDC - 0.05% swapFee (direct leg for the BLOKC10 index)
-        _addPool(liquidityPoolRegistry, 0x655C1607F8c2E73D5b4ddAbCe9Ba8792b87592B6, link, usdc, uniswapV3, "LINK/USDC");
+        // 24. LINK/USDC - 0.3% swapFee (direct leg for the BLOKC5/BLOKC10 indices)
+        // NOTE: the canonical 0.05% pool (factory fee tier 500) carries ~$35 of liquidity on
+        // Arbitrum — the rebalancer's spot-price quote is liquidity-blind, so it selected that
+        // dust pool and the swap reverted (router "Too little received"). Use the 0.3% tier.
+        _addPool(liquidityPoolRegistry, 0xbBe36e6f0331C6a36AB44Bc8421E28E1a1871C1e, link, usdc, uniswapV3, "LINK/USDC");
 
         // 25. UNI/USDC - 0.3% swapFee (direct leg for the BLOKC10 index)
         _addPool(liquidityPoolRegistry, 0x05477c22a5349ceE601500Da0489daD137fd6BfA, uni, usdc, uniswapV3, "UNI/USDC");
