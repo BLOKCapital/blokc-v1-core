@@ -36,7 +36,9 @@ contract DeployRebalancer is BaseScript {
         // Per-DEX quote facets: each DEX's registered quoteSelector (from the pool
         // registry) is dispatched to its own facet. A facet that lacks a DEX's
         // selector would silently skip every pool of that DEX, so each setDexConfig
-        // below gets the matching freshly-deployed facet.
+        // below gets the matching freshly-deployed facet. For Uniswap V3, pass the
+        // liquidity-aware UniswapV3DepthQuoteFacet (price-only quoting selects
+        // factory-canonical-but-empty pools and the router reverts at execution).
         address uniswapV3QuoteFacet = vm.envAddress("UNISWAP_V3_QUOTE_FACET_ADDRESS");
         address uniswapV2QuoteFacet = vm.envAddress("UNISWAP_V2_QUOTE_FACET_ADDRESS");
         address camelotV3QuoteFacet = vm.envAddress("CAMELOT_V3_QUOTE_FACET_ADDRESS");
@@ -100,6 +102,16 @@ contract DeployRebalancer is BaseScript {
             Rebalancer.DexType.V2_STANDARD
         );
         console2.log("Configured Uniswap V2");
+
+        // =====================================================================
+        // Batch sizes per index type (env-driven, default 10 — pools the whole
+        // index type into one rebalance pass so no leg falls under the dust floor)
+        // =====================================================================
+        uint256 defaultBatch = vm.envOr("MAX_GARDENS_PER_BATCH", uint256(10));
+        rebalancer.setMaxGardensPerBatch(keccak256("BLOKC2"), defaultBatch);
+        rebalancer.setMaxGardensPerBatch(keccak256("BLOKC5"), defaultBatch);
+        rebalancer.setMaxGardensPerBatch(keccak256("BLOKC10"), defaultBatch);
+        console2.log("Configured max gardens per batch:", defaultBatch);
 
         console2.log("");
         console2.log("Next steps:");
