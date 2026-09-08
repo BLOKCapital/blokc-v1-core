@@ -180,6 +180,35 @@ contract Rebalancer is Ownable {
     event MaxGardensPerBatchSet(bytes32 indexed indexTypeId, uint256 batchSize);
     event BatchRebalanceCompleted(bytes32 indexed indexTypeId, uint256 cursor, uint256 totalGardens);
 
+    /// @notice Why a route/pool was not used for a swap leg. Every previously-silent skip in the
+    ///         routing path now emits SwapRouteSkipped with one of these reasons.
+    enum SkipReason {
+        EmptyPools, // no pool registered for the pair
+        DexInactive, // the pool's DEX is registered but inactive
+        NoQuoteSelector, // the DEX has no quote selector registered
+        NoQuoteFacet, // the DEX has no quote facet configured
+        QuoteReverted, // the quote facet staticcall failed (detail carries the revert data)
+        ZeroQuote, // the quote returned 0
+        NoViablePool // pools existed for the pair but none produced a usable quote
+    }
+
+    /// @notice Emitted whenever a swap leg is skipped instead of executed, so incomplete
+    ///         rebalances are observable off-chain rather than visible only as missing swaps.
+    /// @param tokenIn Input token of the skipped leg
+    /// @param tokenOut Output token of the skipped leg
+    /// @param pool The pool skipped (address(0) for pair-level skips)
+    /// @param amountIn The amount that would have been swapped
+    /// @param reason Why the leg was skipped
+    /// @param detail Truncated revert data (QuoteReverted only, else empty)
+    event SwapRouteSkipped(
+        address indexed tokenIn,
+        address indexed tokenOut,
+        address indexed pool,
+        uint256 amountIn,
+        SkipReason reason,
+        bytes detail
+    );
+
     // ========================================================================
     // Constructor
     // ========================================================================
@@ -744,9 +773,6 @@ contract Rebalancer is Ownable {
                 if (remainingSellAmount == 0) break;
                 if (deficit[di].buyValueUsd == 0) continue;
 
-                address[] memory directPools = POOL_REGISTRY.getPoolsForPair(excess[ei].token, deficit[di].token);
-                if (directPools.length == 0) continue;
-
                 uint8 sellDecimals = IERC20Metadata(excess[ei].token).decimals();
                 uint256 swapValueUsd =
                     remainingSellValue < deficit[di].buyValueUsd ? remainingSellValue : deficit[di].buyValueUsd;
@@ -754,8 +780,21 @@ contract Rebalancer is Ownable {
                 if (swapAmountIn > remainingSellAmount) swapAmountIn = remainingSellAmount;
                 if (swapAmountIn == 0) continue;
 
+                address[] memory directPools = POOL_REGISTRY.getPoolsForPair(excess[ei].token, deficit[di].token);
+                if (directPools.length == 0) {
+                    emit SwapRouteSkipped(
+                        excess[ei].token, deficit[di].token, address(0), swapAmountIn, SkipReason.EmptyPools, ""
+                    );
+                    continue;
+                }
+
                 SwapRoute memory route = _evaluatePools(directPools, excess[ei].token, deficit[di].token, swapAmountIn);
-                if (route.pool == address(0)) continue;
+                if (route.pool == address(0)) {
+                    emit SwapRouteSkipped(
+                        excess[ei].token, deficit[di].token, address(0), swapAmountIn, SkipReason.NoViablePool, ""
+                    );
+                    continue;
+                }
 
                 uint256 minOut = Math.mulDiv(route.expectedOut, 95, 100);
                 uint256 actualAmountOut = _executeSwapRoute(route, minOut, deadline);
@@ -783,6 +822,10 @@ contract Rebalancer is Ownable {
                     if (usdcRoute.pool != address(0)) {
                         uint256 minOut = Math.mulDiv(usdcRoute.expectedOut, 95, 100);
                         _executeSwapRoute(usdcRoute, minOut, deadline);
+                    } else {
+                        emit SwapRouteSkipped(
+                            excess[ei].token, USDC, address(0), sellAmount, SkipReason.NoViablePool, ""
+                        );
                     }
                 }
             }
@@ -819,7 +862,10 @@ contract Rebalancer is Ownable {
             if (swapAmount == 0) continue;
 
             SwapRoute memory route = _findBestSwapRoute(USDC, deficit[di].token, swapAmount);
-            if (route.pool == address(0)) continue;
+            if (route.pool == address(0)) {
+                emit SwapRouteSkipped(USDC, deficit[di].token, address(0), swapAmount, SkipReason.NoViablePool, "");
+                continue;
+            }
 
             uint256 minOut = Math.mulDiv(route.expectedOut, 95, 100);
             uint256 actualAmountOut = _executeSwapRoute(route, minOut, deadline);
@@ -847,7 +893,6 @@ contract Rebalancer is Ownable {
         uint256 amountIn
     )
         private
-        view
         returns (SwapRoute memory bestRoute)
     {
         address[] memory pools = POOL_REGISTRY.getPoolsForPair(tokenIn, tokenOut);
@@ -863,6 +908,7 @@ contract Rebalancer is Ownable {
      * @dev Evaluates pools by calling each DEX's generic quote function via the
      *      quoteSelector from the LiquidityPoolRegistry. Fully modular — works
      *      with any DEX that registers a quoteSelector with a QuoteInstruction interface.
+     *      Every unusable pool emits SwapRouteSkipped — nothing is silently skipped.
      */
     function _evaluatePools(
         address[] memory pools,
@@ -871,21 +917,34 @@ contract Rebalancer is Ownable {
         uint256 amountIn
     )
         private
-        view
         returns (SwapRoute memory bestRoute)
     {
+        if (pools.length == 0) {
+            emit SwapRouteSkipped(tokenIn, tokenOut, address(0), amountIn, SkipReason.EmptyPools, "");
+            return bestRoute;
+        }
+
         for (uint256 i = 0; i < pools.length; i++) {
             address pool = pools[i];
             ILiquidityPoolRegistry.PoolInfo memory info = POOL_REGISTRY.getPool(pool);
             bytes32 dexId = info.dexId;
 
-            if (!POOL_REGISTRY.isDexActive(dexId)) continue;
+            if (!POOL_REGISTRY.isDexActive(dexId)) {
+                emit SwapRouteSkipped(tokenIn, tokenOut, pool, amountIn, SkipReason.DexInactive, "");
+                continue;
+            }
 
             bytes4 quoteSelector = POOL_REGISTRY.getQuoteSelectorForDex(dexId);
-            if (quoteSelector == bytes4(0)) continue;
+            if (quoteSelector == bytes4(0)) {
+                emit SwapRouteSkipped(tokenIn, tokenOut, pool, amountIn, SkipReason.NoQuoteSelector, "");
+                continue;
+            }
 
             DexConfig memory cfg = dexConfigs[dexId];
-            if (cfg.quoteFacet == address(0)) continue;
+            if (cfg.quoteFacet == address(0)) {
+                emit SwapRouteSkipped(tokenIn, tokenOut, pool, amountIn, SkipReason.NoQuoteFacet, "");
+                continue;
+            }
 
             address[] memory tokens = new address[](2);
             tokens[0] = tokenIn;
@@ -901,6 +960,14 @@ contract Rebalancer is Ownable {
             if (ok && data.length >= 32) {
                 expectedOut = abi.decode(data, (uint256));
             } else {
+                emit SwapRouteSkipped(
+                    tokenIn, tokenOut, pool, amountIn, SkipReason.QuoteReverted, _truncateDetail(data)
+                );
+                continue;
+            }
+
+            if (expectedOut == 0) {
+                emit SwapRouteSkipped(tokenIn, tokenOut, pool, amountIn, SkipReason.ZeroQuote, "");
                 continue;
             }
 
@@ -915,6 +982,16 @@ contract Rebalancer is Ownable {
                 });
             }
         }
+    }
+
+    /// @dev Caps revert detail attached to QuoteReverted skip events at 128 bytes.
+    function _truncateDetail(bytes memory data) private pure returns (bytes memory) {
+        if (data.length <= 128) return data;
+        bytes memory truncated = new bytes(128);
+        for (uint256 i = 0; i < 128; i++) {
+            truncated[i] = data[i];
+        }
+        return truncated;
     }
 
     // ========================================================================

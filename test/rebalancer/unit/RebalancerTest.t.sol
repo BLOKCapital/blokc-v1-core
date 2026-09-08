@@ -1743,3 +1743,213 @@ contract CamelotV3SwapTest is RebalancerTestBase {
         assertGt(totalWethAfter, 1.5e18, "Rebalance should complete via the fallback DEX pools");
     }
 }
+
+// =============================================================================
+// SKIP-EVENT TESTS — every previously-silent routing skip emits SwapRouteSkipped
+// =============================================================================
+
+/// @dev Quote facet that always reverts (simulates a broken/ill-configured quote adapter)
+contract RevertingQuoteFacet {
+    function quoteOut(QuoteInstruction calldata) external pure returns (uint256) {
+        revert("no quote");
+    }
+}
+
+/// @dev Quote facet that always returns 0 (simulates a dead rate source)
+contract ZeroQuoteFacet {
+    function quoteOut(QuoteInstruction calldata) external pure returns (uint256) {
+        return 0;
+    }
+}
+
+contract SkipEventTest is RebalancerTestBase {
+    /// @dev Collect SwapRouteSkipped events emitted since vm.recordLogs() was armed
+    function _skipEvents() internal returns (Vm.Log[] memory skips) {
+        Vm.Log[] memory all = vm.getRecordedLogs();
+        uint256 n;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].topics[0] == Rebalancer.SwapRouteSkipped.selector) n++;
+        }
+        skips = new Vm.Log[](n);
+        uint256 idx;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].topics[0] == Rebalancer.SwapRouteSkipped.selector) skips[idx++] = all[i];
+        }
+    }
+
+    function _decodeSkip(Vm.Log memory l)
+        internal
+        pure
+        returns (address pool, uint256 amountIn, Rebalancer.SkipReason reason, bytes memory detail)
+    {
+        pool = address(uint160(uint256(l.topics[3])));
+        uint8 rawReason;
+        (amountIn, rawReason, detail) = abi.decode(l.data, (uint256, uint8, bytes));
+        reason = Rebalancer.SkipReason(rawReason);
+    }
+
+    function _setupDexWithFacet(
+        bytes32 dexId,
+        address quoteFacet,
+        bool withSelector
+    )
+        internal
+        returns (MockV2Pool pool)
+    {
+        poolRegistry.setDexRegistered(dexId, true);
+        poolRegistry.setDexActive(dexId, true);
+        if (withSelector) poolRegistry.setQuoteSelector(dexId, router.quoteOut.selector);
+        pool = new MockV2Pool();
+        pool.setPool(address(usdc), address(weth), 100_000 * 1e6, 33.33e18);
+        poolRegistry.addPool(address(pool), dexId, "WETH/USDC", address(usdc), address(weth));
+        if (quoteFacet != address(0)) {
+            vm.startPrank(owner);
+            rebalancer.setDexConfig(
+                dexId,
+                address(router),
+                quoteFacet,
+                router.swapExactTokensForTokens.selector,
+                Rebalancer.DexType.V2_STANDARD
+            );
+            vm.stopPrank();
+        }
+    }
+
+    function test_skip_quoteReverted_emitted_and_rebalanceStillCompletes() public {
+        address bad = address(new RevertingQuoteFacet());
+        MockV2Pool badPool = _setupDexWithFacet(keccak256("BAD_DEX"), bad, true);
+
+        _fundGarden(alice, 0, 0, 10_000 * 1e6); // USDC-only garden → WETH + WBTC deficits
+        _warpPastInterval();
+
+        vm.recordLogs();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory skips = _skipEvents();
+        assertEq(skips.length, 1, "exactly one skip expected");
+        (address pool, uint256 amountIn, Rebalancer.SkipReason reason, bytes memory detail) = _decodeSkip(skips[0]);
+        assertEq(pool, address(badPool));
+        assertEq(uint256(reason), uint256(Rebalancer.SkipReason.QuoteReverted));
+        assertEq(detail, abi.encodeWithSignature("Error(string)", "no quote"));
+        assertGt(amountIn, 0);
+
+        // The good CAMELOT_V2 pool still routed both deficits
+        assertGt(weth.balanceOf(alice), 0, "WETH leg should still execute");
+        assertGt(wbtc.balanceOf(alice), 0, "WBTC leg should still execute");
+    }
+
+    function test_skip_zeroQuote_emitted_and_fallbackPoolRoutes() public {
+        address zero = address(new ZeroQuoteFacet());
+        MockV2Pool zeroPool = _setupDexWithFacet(keccak256("ZERO_DEX"), zero, true);
+
+        _fundGarden(alice, 0, 0, 10_000 * 1e6);
+        _warpPastInterval();
+
+        vm.recordLogs();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory skips = _skipEvents();
+        assertEq(skips.length, 1);
+        (address pool, uint256 amountIn, Rebalancer.SkipReason reason,) = _decodeSkip(skips[0]);
+        assertEq(pool, address(zeroPool));
+        assertEq(uint256(reason), uint256(Rebalancer.SkipReason.ZeroQuote));
+        assertGt(amountIn, 0);
+
+        // The good CAMELOT_V2 pool still routed the deficit
+        assertGt(weth.balanceOf(alice), 0, "WETH leg should still execute");
+    }
+
+    function test_skip_dexInactive_emitted_perPool_withNoViablePool() public {
+        _fundGarden(alice, 0, 0, 10_000 * 1e6);
+        poolRegistry.setDexActive(DEX_CAMELOT_V2, false);
+        poolRegistry.setDexActive(DEX_UNISWAP_V2, false);
+        _warpPastInterval();
+
+        vm.recordLogs();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory skips = _skipEvents();
+        // WETH deficit: 1 pool inactive → DexInactive + NoViablePool; WBTC deficit: same
+        assertEq(skips.length, 4);
+        uint256 inactive;
+        uint256 noViable;
+        for (uint256 i = 0; i < skips.length; i++) {
+            (, uint256 amountIn_, Rebalancer.SkipReason reason,) = _decodeSkip(skips[i]);
+            if (reason == Rebalancer.SkipReason.DexInactive) inactive++;
+            if (reason == Rebalancer.SkipReason.NoViablePool) noViable++;
+        }
+        assertEq(inactive, 2);
+        assertEq(noViable, 2);
+
+        // Nothing swapped: the USDC came back to the garden via redistribution
+        assertGt(usdc.balanceOf(alice), 0, "funds must be redistributed, not lost");
+    }
+
+    function test_skip_noQuoteSelector_emitted() public {
+        MockV2Pool orphanPool = _setupDexWithFacet(keccak256("NO_SEL_DEX"), address(router), false);
+
+        _fundGarden(alice, 0, 0, 10_000 * 1e6);
+        _warpPastInterval();
+
+        vm.recordLogs();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory skips = _skipEvents();
+        bool found;
+        for (uint256 i = 0; i < skips.length; i++) {
+            (address pool,, Rebalancer.SkipReason reason,) = _decodeSkip(skips[i]);
+            if (reason == Rebalancer.SkipReason.NoQuoteSelector) {
+                assertEq(pool, address(orphanPool));
+                found = true;
+            }
+        }
+        assertTrue(found, "NoQuoteSelector skip expected");
+        assertGt(weth.balanceOf(alice), 0, "good pool should still route");
+    }
+
+    function test_skip_noQuoteFacet_emitted() public {
+        MockV2Pool orphanPool = _setupDexWithFacet(keccak256("NO_FACET_DEX"), address(0), true);
+
+        _fundGarden(alice, 0, 0, 10_000 * 1e6);
+        _warpPastInterval();
+
+        vm.recordLogs();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory skips = _skipEvents();
+        bool found;
+        for (uint256 i = 0; i < skips.length; i++) {
+            (address pool,, Rebalancer.SkipReason reason,) = _decodeSkip(skips[i]);
+            if (reason == Rebalancer.SkipReason.NoQuoteFacet) {
+                assertEq(pool, address(orphanPool));
+                found = true;
+            }
+        }
+        assertTrue(found, "NoQuoteFacet skip expected");
+    }
+
+    function test_skip_emptyPools_emittedForUnroutableDirectPair() public {
+        // Garden holds WBTC only → WBTC is excess, WETH is in deficit. There is no direct
+        // WBTC/WETH pool, so phase 1 emits EmptyPools for (WBTC → WETH); phase 2 routes the
+        // excess to USDC and phase 3 buys WETH with USDC.
+        _fundGarden(alice, 0, 2 * 1e8, 0);
+        _warpPastInterval();
+
+        vm.recordLogs();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory skips = _skipEvents();
+        bool found;
+        for (uint256 i = 0; i < skips.length; i++) {
+            (address pool, uint256 amountIn, Rebalancer.SkipReason reason,) = _decodeSkip(skips[i]);
+            if (reason == Rebalancer.SkipReason.EmptyPools) {
+                assertEq(pool, address(0));
+                assertEq(skips[i].topics[1], bytes32(uint256(uint160(address(wbtc)))));
+                assertEq(skips[i].topics[2], bytes32(uint256(uint160(address(weth)))));
+                assertGt(amountIn, 0);
+                found = true;
+            }
+        }
+        assertTrue(found, unicode"EmptyPools skip expected for the WBTC to WETH direct pair");
+    }
+}
