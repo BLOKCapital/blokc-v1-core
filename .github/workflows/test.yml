@@ -19,6 +19,11 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          # Pinned: 1.8.x changed `forge fmt` rules and reformats files this repo has not
+          # restyled (CI went red on untouched files when 1.8.1 shipped). Bump deliberately,
+          # together with a repo-wide `forge fmt`, if/when upgrading.
+          version: v1.7.1
 
       - name: Show Forge version
         run: |
