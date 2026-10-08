@@ -119,6 +119,33 @@ contract DeployIndex is BaseScript {
 
         indexComponentRegistry.registerComponents(components);
 
+        // =====================================================================
+        // Deviation bands + auto-accept timeout (time-decay guard configuration)
+        // Bands are per-symbol so volatile components don't freeze the registry:
+        // the EMA only converges 2% per accepted round, so a sustained alt trend
+        // quickly outruns a 10% band (3 production freezes in one week).
+        // =====================================================================
+        indexComponentRegistry.setDeviationTimeout(1 hours); // self-heal within one heartbeat
+
+        // Majors: deep liquidity, >10% moves vs the EMA are rare
+        indexComponentRegistry.setMaxDeviationBps(bytes32("BTC"), 1000);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("ETH"), 1000);
+
+        // Stables: >2% IS the anomaly (depeg) worth catching
+        indexComponentRegistry.setMaxDeviationBps(bytes32("USDC"), 200);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("DAI"), 200);
+
+        // Alts: a sustained trend day (±20-30%) outruns the 2%-alpha EMA with zero manipulation
+        indexComponentRegistry.setMaxDeviationBps(bytes32("LINK"), 2500);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("UNI"), 2500);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("ARB"), 2500);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("AAVE"), 2500);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("GMX"), 2500);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("PENDLE"), 2500);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("GRT"), 2500);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("CRV"), 2500);
+        indexComponentRegistry.setMaxDeviationBps(bytes32("ZRO"), 2500);
+
         IndexCalculationRegistry indexCalculationRegistry = new IndexCalculationRegistry(deployer);
         console2.log("IndexCalculationRegistry deployed at:", address(indexCalculationRegistry));
 

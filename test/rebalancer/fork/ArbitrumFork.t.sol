@@ -44,8 +44,11 @@ contract ArbitrumForkTest is Test {
     address internal constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
     address internal constant INDEX_FACTORY = 0x91da26BF1a4adDa42355B80502785d3F026d7074;
-    address internal constant COMPONENT_REGISTRY = 0x3F8291D2Fb3f5C4391DDbc36C4Ee0B1F48274977;
-    address internal constant POOL_REGISTRY = 0xA3178280c191dD46c551b91c651F337E47594d85;
+    // Live beta-1 registry addresses; override via env to point at another deployment
+    address internal COMPONENT_REGISTRY =
+        vm.envOr("FORK_COMPONENT_REGISTRY", address(0x16BCFb42d60C2579639C621b3977f9e160a4b85d));
+    address internal POOL_REGISTRY =
+        vm.envOr("FORK_POOL_REGISTRY", address(0xF0F7B0a68B777539Ff7d416eEAC56E0FB3e8B30C));
     address internal constant FACET_REGISTRY = 0x1e237507bb8520a253300b9e22bFccCd396E45cF;
     address internal constant GARDEN_FACTORY = 0xA6c558f50c435896aEDe997091bD06ef6cAd3603;
     address internal constant DEX_FACET = 0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B;
@@ -288,6 +291,8 @@ contract ArbitrumForkTest is Test {
 
     function _mockFetchPrice(bytes32 symbol, uint256 price) internal {
         vm.mockCall(COMPONENT_REGISTRY, abi.encodeWithSignature("fetchPrice(bytes32)", symbol), abi.encode(price));
+        // the rebalancer's price cache uses the strict read — mock both
+        vm.mockCall(COMPONENT_REGISTRY, abi.encodeWithSignature("fetchPriceStrict(bytes32)", symbol), abi.encode(price));
     }
 }
 
@@ -350,7 +355,8 @@ contract ArbitrumForkScaleTest is Test {
     address internal constant WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
     address internal constant WBTC = 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f;
     address internal constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-    address internal constant POOL_REGISTRY = 0xA3178280c191dD46c551b91c651F337E47594d85;
+    address internal POOL_REGISTRY =
+        vm.envOr("FORK_POOL_REGISTRY", address(0xF0F7B0a68B777539Ff7d416eEAC56E0FB3e8B30C));
     address internal constant FACET_REGISTRY = 0x1e237507bb8520a253300b9e22bFccCd396E45cF;
     address internal constant DEX_FACET = 0x06eb18FC187Ec0Bf4687e6783DC8cDcB2AD8F97B;
     address internal constant CAMELOT_V2_ROUTER = 0xc873fEcbd354f5A56E00E710B90EF4201db2448d;
