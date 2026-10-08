@@ -179,12 +179,15 @@ contract DeployIndex is BaseScript {
         indexFactory.deployIndex("BLOKC2", address(marketCapWeighted), symbols2);
 
         //deploy BLOKC5
+        // Large-cap alts only (no BTC/ETH — BLOKC2 covers those): market-cap weights land at
+        // LINK ~55%, UNI ~25%, AAVE ~13%, ARB ~4.5%, PENDLE ~2%. All five have direct native-USDC
+        // pools in DeployPoolRegistry and registered price feeds, so every rebalance leg executes.
         bytes32[] memory symbols5 = new bytes32[](5);
-        symbols5[0] = bytes32("BTC");
-        symbols5[1] = bytes32("ETH");
-        symbols5[2] = bytes32("LINK");
-        symbols5[3] = bytes32("UNI");
-        symbols5[4] = bytes32("ARB");
+        symbols5[0] = bytes32("LINK");
+        symbols5[1] = bytes32("UNI");
+        symbols5[2] = bytes32("ARB");
+        symbols5[3] = bytes32("AAVE");
+        symbols5[4] = bytes32("PENDLE");
         indexFactory.deployIndex("BLOKC5", address(marketCapWeighted), symbols5);
 
         //deploy BLOKC10
