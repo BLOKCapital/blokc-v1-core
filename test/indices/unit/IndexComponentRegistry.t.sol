@@ -305,11 +305,19 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         uint256 registeredAt = block.timestamp;
         vm.warp(registeredAt + 36_001);
 
-        // BTC: 70_000e18 -> 20_000e18 is a ~71% drop — far outside the 10% band, but far less
-        // than the 100% broken-feed ceiling. Past the 1h deviation timeout it is auto-accepted.
+        // BTC: 70_000e18 -> 20_000e18 is a ~71% EMA-relative drop — far outside the 10% band,
+        // but below the 2x broken-feed cap. The FIRST deviating read only records the deviation
+        // (persistence clock starts); the cached price is served. After the 1h timeout has
+        // elapsed since that first rejection, the next read auto-accepts the market price.
         int256 newPriceBtc = 20_000e18;
         btcPriceFeed.refresh(newPriceBtc);
 
+        uint256 firstDeviationAt = block.timestamp;
+        uint256 rejected = icr.fetchPrice(bytes32("BTC"));
+        assertEq(rejected, btcPrice);
+        assertEq(icr.getOracleRecord(bytes32("BTC")).firstDeviationAt, firstDeviationAt);
+
+        vm.warp(firstDeviationAt + 3600);
         vm.expectEmit(true, false, false, true, address(icr));
         emit IndexComponentRegistry.DeviationTimeoutAccepted(btcAddress, 20_000e18, btcPrice);
 
@@ -379,18 +387,44 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
     // ═══════════════════════════════════════════════════════════════════════
 
     function test_autoAccept_boundary_exactTimeout_accepts() public setComponentPriceFeed {
-        uint256 registeredAt = block.timestamp;
-        vm.warp(registeredAt + 3599);
+        vm.warp(block.timestamp + 3599);
         btcPriceFeed.refresh(20_000e18);
 
-        // One second before the timeout: still rejected, cached price served
+        // First deviating read: records the deviation, serves the cached price
+        uint256 rejected = icr.fetchPrice(bytes32("BTC"));
+        assertEq(rejected, btcPrice);
+        uint256 firstDeviationAt = block.timestamp;
+
+        // Exactly firstDeviationAt + DEFAULT_DEVIATION_TIMEOUT (>= comparison): accepted
+        vm.warp(firstDeviationAt + 3600);
+        uint256 accepted = icr.fetchPrice(bytes32("BTC"));
+        assertEq(accepted, 20_000e18);
+    }
+
+    function test_autoAccept_cap_twoX_neverAutoAccepted() public setComponentPriceFeed {
+        // A 2x move = exactly 10_000 bps EMA-relative — the broken-feed tier. It is rejected
+        // forever (strict < cap) and only forceResync can adopt it.
+        vm.warp(block.timestamp + 1800);
+        btcPriceFeed.refresh(140_000e18);
+
         uint256 rejected = icr.fetchPrice(bytes32("BTC"));
         assertEq(rejected, btcPrice);
 
-        // Exactly at record.timestamp + DEFAULT_DEVIATION_TIMEOUT (>= comparison): accepted
-        vm.warp(registeredAt + 3600);
-        uint256 accepted = icr.fetchPrice(bytes32("BTC"));
-        assertEq(accepted, 20_000e18);
+        vm.warp(block.timestamp + 2 days); // far past the deviation timeout
+        rejected = icr.fetchPrice(bytes32("BTC"));
+        assertEq(rejected, btcPrice); // still cached — never auto-accepted
+        assertEq(icr.getOracleRecord(bytes32("BTC")).consecutiveRejections, 2);
+    }
+
+    function test_autoAccept_cap_justUnderTwoX_acceptedAfterPersistence() public setComponentPriceFeed {
+        vm.warp(block.timestamp + 1800);
+        btcPriceFeed.refresh(139_000e18); // 1.986x = 9_857 bps EMA-relative — under the cap
+
+        uint256 firstDeviationAt = block.timestamp;
+        assertEq(icr.fetchPrice(bytes32("BTC")), btcPrice); // rejected on first sight
+
+        vm.warp(firstDeviationAt + 3600);
+        assertEq(icr.fetchPrice(bytes32("BTC")), 139_000e18); // auto-accepted after persistence
     }
 
     function test_bandBoundary_exactBand_accepted() public setComponentPriceFeed {

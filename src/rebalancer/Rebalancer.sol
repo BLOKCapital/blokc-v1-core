@@ -48,6 +48,10 @@ error Rebalancer_UnapprovedSwapSelector(bytes4 selector);
 error Rebalancer_DeadlineExpired(uint256 deadline, uint256 blockTimestamp);
 error Rebalancer_BatchSizeNotSet(bytes32 indexTypeId);
 
+/// @notice Thrown when an external-only helper (used for internal try/catch isolation) is
+///         called from outside the contract
+error Rebalancer_InternalOnly();
+
 /// @notice Thrown when renounceOwnership is called (disabled to prevent permanent lockout)
 error Rebalancer_CannotRenounceOwnership();
 
@@ -189,7 +193,8 @@ contract Rebalancer is Ownable {
         NoQuoteFacet, // the DEX has no quote facet configured
         QuoteReverted, // the quote facet staticcall failed (detail carries the revert data)
         ZeroQuote, // the quote returned 0
-        NoViablePool // pools existed for the pair but none produced a usable quote
+        NoViablePool, // pools existed for the pair but none produced a usable quote
+        SwapReverted // the selected swap reverted at execution (detail carries the revert data)
     }
 
     /// @notice Emitted whenever a swap leg is skipped instead of executed, so incomplete
@@ -199,7 +204,7 @@ contract Rebalancer is Ownable {
     /// @param pool The pool skipped (address(0) for pair-level skips)
     /// @param amountIn The amount that would have been swapped
     /// @param reason Why the leg was skipped
-    /// @param detail Truncated revert data (QuoteReverted only, else empty)
+    /// @param detail Truncated revert data (QuoteReverted/SwapReverted only, else empty)
     event SwapRouteSkipped(
         address indexed tokenIn,
         address indexed tokenOut,
@@ -208,6 +213,14 @@ contract Rebalancer is Ownable {
         SkipReason reason,
         bytes detail
     );
+
+    /// @notice Emitted when a garden's token pull fails (missing allowance, token blacklist or
+    ///         pause) and the garden is skipped for the round instead of wedging the batch
+    event GardenPullSkipped(address indexed garden, address indexed token, uint256 balance);
+
+    /// @notice Emitted when a redistribution payout to a garden fails; the allocation stays in
+    ///         the Rebalancer and is excluded from later gardens' remainder sweeps
+    event GardenPayoutFailed(address indexed garden, address indexed token, uint256 allocation);
 
     // ========================================================================
     // Constructor
@@ -514,14 +527,18 @@ contract Rebalancer is Ownable {
         snapshot.usdc = 0;
 
         for (uint256 i = 0; i < symbols.length; i++) {
-            snapshot.components[i] = COMPONENT_REGISTRY.fetchPrice(symbols[i]);
+            // Strict read: an unresolved deviation rejection (firstDeviationAt != 0) reverts the
+            // rebalance instead of pricing contributions, swap sizing and redistribution shares
+            // off a cached price that is behind the market. The block is bounded — the registry
+            // auto-accepts the market price after deviationTimeout, which clears the flag.
+            snapshot.components[i] = COMPONENT_REGISTRY.fetchPriceStrict(symbols[i]);
             if (usdcIsComponent && symbols[i] == _USDC_SYMBOL) snapshot.usdc = snapshot.components[i];
         }
 
         // USDC is not an index component but its value still counts toward the portfolio
         // (and it funds deficit purchases). Cache its price too when a feed is registered.
         if (!usdcIsComponent && COMPONENT_REGISTRY.isComponentRegistered(_USDC_SYMBOL)) {
-            snapshot.usdc = COMPONENT_REGISTRY.fetchPrice(_USDC_SYMBOL);
+            snapshot.usdc = COMPONENT_REGISTRY.fetchPriceStrict(_USDC_SYMBOL);
         }
     }
 
@@ -537,42 +554,49 @@ contract Rebalancer is Ownable {
         contributions = new uint256[](gardens.length);
         totalValueUsd = 0;
 
+        // Pull pass — per-garden-per-token isolation: one non-compliant garden (missing
+        // allowance, token blacklist/pause) must degrade to a skip+event, never wedge the
+        // batch (a wedged batch would permanently brick the whole index type's rebalancing,
+        // since the cursor only advances on success). Contributions are derived from what was
+        // ACTUALLY pulled at the same frozen snapshot prices, so a skipped garden or token
+        // never inflates anyone's redistribution share. The USDC pull mirrors the USDC
+        // valuation gate: with no USDC feed registered, USDC is left in the gardens instead of
+        // being pulled at zero valuation and re-spread by shares that exclude it.
         for (uint256 i = 0; i < gardens.length; i++) {
-            uint256 gardenTotal = 0;
+            uint256 pulledValue = 0;
             for (uint256 j = 0; j < symbols.length; j++) {
                 address token = COMPONENT_REGISTRY.getComponentAddress(symbols[j]);
                 uint256 balance = IERC20(token).balanceOf(gardens[i]);
-                if (balance > 0) {
-                    uint256 price = snapshot.components[j];
+                if (balance == 0) continue;
+                try this._pullTokenFromGarden(gardens[i], token, balance) {
                     uint8 decimals = IERC20Metadata(token).decimals();
-                    gardenTotal += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
+                    pulledValue += Math.mulDiv(balance, snapshot.components[j], 10 ** decimals, Math.Rounding.Floor);
+                } catch {
+                    emit GardenPullSkipped(gardens[i], token, balance);
                 }
             }
             if (!usdcIsComponent && snapshot.usdc > 0) {
                 uint256 usdcBalance = IERC20(USDC).balanceOf(gardens[i]);
                 if (usdcBalance > 0) {
-                    uint8 usdcDecimals = IERC20Metadata(USDC).decimals();
-                    gardenTotal += Math.mulDiv(usdcBalance, snapshot.usdc, 10 ** usdcDecimals, Math.Rounding.Floor);
+                    try this._pullTokenFromGarden(gardens[i], USDC, usdcBalance) {
+                        uint8 usdcDecimals = IERC20Metadata(USDC).decimals();
+                        pulledValue += Math.mulDiv(usdcBalance, snapshot.usdc, 10 ** usdcDecimals, Math.Rounding.Floor);
+                    } catch {
+                        emit GardenPullSkipped(gardens[i], USDC, usdcBalance);
+                    }
                 }
             }
-            contributions[i] = gardenTotal;
-            totalValueUsd += gardenTotal;
+            contributions[i] = pulledValue;
+            totalValueUsd += pulledValue;
         }
+    }
 
-        // gardens[] is built from DAO-registered Index contracts and contains only BLOK vault
-        // contracts that have explicitly approved this Rebalancer to pull tokens (Slither: arbitrary-send-erc20, false
-        // positive).
-        for (uint256 i = 0; i < gardens.length; i++) {
-            for (uint256 j = 0; j < symbols.length; j++) {
-                address token = COMPONENT_REGISTRY.getComponentAddress(symbols[j]);
-                uint256 balance = IERC20(token).balanceOf(gardens[i]);
-                if (balance > 0) IERC20(token).safeTransferFrom(gardens[i], address(this), balance);
-            }
-            if (!usdcIsComponent) {
-                uint256 usdcBalance = IERC20(USDC).balanceOf(gardens[i]);
-                if (usdcBalance > 0) IERC20(USDC).safeTransferFrom(gardens[i], address(this), usdcBalance);
-            }
-        }
+    /// @dev External wrapper so the pull loop can isolate each transfer with try/catch. Only
+    ///      the contract itself may call it — an outside direct call would otherwise let
+    ///      anyone yank approved tokens outside a rebalance round.
+    function _pullTokenFromGarden(address garden, address token, uint256 balance) external {
+        if (msg.sender != address(this)) revert Rebalancer_InternalOnly();
+        IERC20(token).safeTransferFrom(garden, address(this), balance);
     }
 
     // ========================================================================
@@ -797,7 +821,23 @@ contract Rebalancer is Ownable {
                 }
 
                 uint256 minOut = Math.mulDiv(route.expectedOut, 95, 100);
-                uint256 actualAmountOut = _executeSwapRoute(route, minOut, deadline);
+                uint256 actualAmountOut;
+                try this._executeSwapRouteExternal(route, minOut, deadline) returns (uint256 out_) {
+                    actualAmountOut = out_;
+                } catch (bytes memory reason) {
+                    // Execution failure (minOut breach, sandwich, transient liquidity): skip the
+                    // leg instead of reverting the whole batch — the deficit simply stays
+                    // unfilled and the value-loss guard still covers the executed legs.
+                    emit SwapRouteSkipped(
+                        route.tokenIn,
+                        route.tokenOut,
+                        route.pool,
+                        route.amountIn,
+                        SkipReason.SwapReverted,
+                        _truncateDetail(reason)
+                    );
+                    continue;
+                }
 
                 remainingSellAmount -= route.amountIn;
                 remainingSellValue -= Math.mulDiv(route.amountIn, sellPrice, 10 ** sellDecimals, Math.Rounding.Floor);
@@ -821,7 +861,17 @@ contract Rebalancer is Ownable {
                     SwapRoute memory usdcRoute = _evaluatePools(usdcPools, excess[ei].token, USDC, sellAmount);
                     if (usdcRoute.pool != address(0)) {
                         uint256 minOut = Math.mulDiv(usdcRoute.expectedOut, 95, 100);
-                        _executeSwapRoute(usdcRoute, minOut, deadline);
+                        try this._executeSwapRouteExternal(usdcRoute, minOut, deadline) { }
+                        catch (bytes memory reason) {
+                            emit SwapRouteSkipped(
+                                usdcRoute.tokenIn,
+                                usdcRoute.tokenOut,
+                                usdcRoute.pool,
+                                usdcRoute.amountIn,
+                                SkipReason.SwapReverted,
+                                _truncateDetail(reason)
+                            );
+                        }
                     } else {
                         emit SwapRouteSkipped(
                             excess[ei].token, USDC, address(0), sellAmount, SkipReason.NoViablePool, ""
@@ -868,7 +918,20 @@ contract Rebalancer is Ownable {
             }
 
             uint256 minOut = Math.mulDiv(route.expectedOut, 95, 100);
-            uint256 actualAmountOut = _executeSwapRoute(route, minOut, deadline);
+            uint256 actualAmountOut;
+            try this._executeSwapRouteExternal(route, minOut, deadline) returns (uint256 out_) {
+                actualAmountOut = out_;
+            } catch (bytes memory reason) {
+                emit SwapRouteSkipped(
+                    route.tokenIn,
+                    route.tokenOut,
+                    route.pool,
+                    route.amountIn,
+                    SkipReason.SwapReverted,
+                    _truncateDetail(reason)
+                );
+                continue;
+            }
 
             uint256 buyPrice = deficit[di].price;
             uint8 buyDecimals = IERC20Metadata(deficit[di].token).decimals();
@@ -997,6 +1060,21 @@ contract Rebalancer is Ownable {
     // ========================================================================
     // Internal: Swap Execution (DexType-driven, no DEX-specific code)
     // ========================================================================
+
+    /// @dev External wrapper so the swap call sites can isolate each leg with try/catch. Only
+    ///      the contract itself may call it — an outside direct call would otherwise let anyone
+    ///      execute swaps (against forceApprove'd allowances) outside a rebalance round.
+    function _executeSwapRouteExternal(
+        SwapRoute memory route,
+        uint256 minOut,
+        uint256 deadline
+    )
+        external
+        returns (uint256)
+    {
+        if (msg.sender != address(this)) revert Rebalancer_InternalOnly();
+        return _executeSwapRoute(route, minOut, deadline);
+    }
 
     function _executeSwapRoute(
         SwapRoute memory route,
@@ -1188,6 +1266,12 @@ contract Rebalancer is Ownable {
             originalBalances[j] = IERC20(tokenAddrs[j]).balanceOf(address(this));
         }
 
+        // Outbound isolation: a failed payout (garden blacklisted by a token, transfer reject)
+        // must not revert the whole batch. The undelivered allocation stays in the Rebalancer
+        // and is excluded from later gardens' remainder sweeps so it can never be redirected;
+        // GardenPayoutFailed makes it observable for owner recovery.
+        uint256[] memory undelivered = new uint256[](allSymbols.length);
+
         for (uint256 i = 0; i < gardens.length; i++) {
             uint256 share = Math.mulDiv(contributions[i], PRECISION, totalValueUsd, Math.Rounding.Floor);
             bool isLast = (i == gardens.length - 1);
@@ -1197,17 +1281,29 @@ contract Rebalancer is Ownable {
 
                 uint256 gardenAllocation;
                 if (isLast) {
-                    gardenAllocation = IERC20(tokenAddrs[j]).balanceOf(address(this));
+                    uint256 remaining = IERC20(tokenAddrs[j]).balanceOf(address(this));
+                    gardenAllocation = remaining > undelivered[j] ? remaining - undelivered[j] : 0;
                 } else {
                     gardenAllocation = Math.mulDiv(originalBalances[j], share, PRECISION, Math.Rounding.Floor);
                 }
                 if (gardenAllocation > 0) {
-                    IERC20(tokenAddrs[j]).safeTransfer(gardens[i], gardenAllocation);
+                    try this._transferToGarden(tokenAddrs[j], gardens[i], gardenAllocation) { }
+                    catch {
+                        undelivered[j] += gardenAllocation;
+                        emit GardenPayoutFailed(gardens[i], tokenAddrs[j], gardenAllocation);
+                    }
                 }
             }
 
             emit GardenRedistributed(gardens[i], contributions[i]);
         }
+    }
+
+    /// @dev External wrapper so the redistribute loop can isolate each payout with try/catch.
+    ///      Only the contract itself may call it.
+    function _transferToGarden(address token, address garden, uint256 allocation) external {
+        if (msg.sender != address(this)) revert Rebalancer_InternalOnly();
+        IERC20(token).safeTransfer(garden, allocation);
     }
 
     // ========================================================================

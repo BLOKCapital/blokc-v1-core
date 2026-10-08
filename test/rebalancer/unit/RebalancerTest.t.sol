@@ -213,6 +213,12 @@ contract MockComponentRegistry {
         return prices[components[symbol]];
     }
 
+    /// @dev Mirrors the real registry's strict read; the mock has no deviation tracking, so
+    ///      strict behaves identically to the plain read.
+    function fetchPriceStrict(bytes32 symbol) external view returns (uint256) {
+        return prices[components[symbol]];
+    }
+
     function isComponentRegistered(bytes32 symbol) external view returns (bool) {
         return registered[symbol];
     }
@@ -993,22 +999,37 @@ contract TokenPullTest is RebalancerTestBase {
         _warpPastInterval();
     }
 
-    function test_pull_revertsIfNoApproval() public {
-        // Fund garden but don't approve
+    function test_pull_noApproval_skipsGarden_roundCompletes() public {
+        // Fund garden but don't approve: the garden is skipped (evented) and the round
+        // completes for the remaining gardens — a missing allowance must not wedge the batch.
         weth.mint(alice, 1e18);
         wbtc.mint(alice, 10_000_000);
         // No approval set
 
-        // Bob is funded and approved (from _fundGarden)
         _fundGarden(bob, 0.5e18, 5_000_000, 0);
 
-        // The transferFrom for alice should revert since she didn't approve
-        vm.expectRevert();
+        vm.recordLogs();
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory all = vm.getRecordedLogs();
+        uint256 pullSkips;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].topics[0] == Rebalancer.GardenPullSkipped.selector) {
+                assertEq(all[i].topics[1], bytes32(uint256(uint160(alice))));
+                pullSkips++;
+            }
+        }
+        assertEq(pullSkips, 2, "alice's WETH and WBTC pulls must each skip");
+
+        // Alice keeps custody; bob's round completed normally
+        assertEq(weth.balanceOf(alice), 1e18);
+        assertEq(wbtc.balanceOf(alice), 10_000_000);
+        assertGt(weth.balanceOf(bob), 0);
     }
 
-    function test_pull_partialApproval_reverts() public {
-        // Fund alice and approve WETH but not WBTC
+    function test_pull_partialApproval_partialPull() public {
+        // Fund alice and approve WETH but not WBTC: the WETH pull succeeds, the WBTC pull
+        // skips, and alice's contribution counts only what was actually pulled.
         weth.mint(alice, 1e18);
         wbtc.mint(alice, 10_000_000);
         vm.prank(alice);
@@ -1017,12 +1038,30 @@ contract TokenPullTest is RebalancerTestBase {
 
         _fundGarden(bob, 0.5e18, 5_000_000, 0);
 
-        vm.expectRevert();
+        vm.recordLogs();
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory all = vm.getRecordedLogs();
+        uint256 pullSkips;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].topics[0] == Rebalancer.GardenPullSkipped.selector) {
+                assertEq(all[i].topics[2], bytes32(uint256(uint160(address(wbtc)))), "only the unapproved token skips");
+                pullSkips++;
+            }
+        }
+        assertEq(pullSkips, 1, "exactly one skip (alice's unapproved WBTC)");
+
+        // Alice contributed only WETH ($3000 of the $7500 pool = 40% share). The WBTC deficit
+        // was bought with the pool's USDC and split by contribution: alice's 10M kept WBTC +
+        // 40% of the 6.25M WBTC pool = 12.5M; her kept 0 WETH + 40% of the 0.75 WETH pool.
+        assertApproxEqAbs(wbtc.balanceOf(alice), 12_500_000, 1);
+        assertApproxEqAbs(weth.balanceOf(alice), 0.5e18, 1e15);
+        assertGt(wbtc.balanceOf(bob), 0);
     }
 
-    function test_pull_insufficientApproval_reverts() public {
-        // Fund alice and approve less than the balance
+    function test_pull_insufficientApproval_skipsThatToken() public {
+        // Approve less than the balance: the WETH pull fails (insufficient allowance) and is
+        // skipped; the fully-approved WBTC pulls normally.
         weth.mint(alice, 1e18);
         wbtc.mint(alice, 10_000_000);
         vm.prank(alice);
@@ -1032,9 +1071,23 @@ contract TokenPullTest is RebalancerTestBase {
 
         _fundGarden(bob, 0.5e18, 5_000_000, 0);
 
-        // The transferFrom for WETH should revert (trying to pull 1e18 with 0.5e18 allowance)
-        vm.expectRevert();
+        vm.recordLogs();
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory all = vm.getRecordedLogs();
+        uint256 pullSkips;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].topics[0] == Rebalancer.GardenPullSkipped.selector) pullSkips++;
+        }
+        assertEq(pullSkips, 1, "exactly one skip (insufficient WETH allowance)");
+
+        // Alice contributed only WBTC ($6000 of $10500 = 57% share): her unpulled WETH stayed,
+        // the WBTC excess was sold for WETH and split by contribution — alice's WETH = kept
+        // 1e18 + ~57% of the 1.75e18 WETH pool = ~2e18; her WBTC = her 57% share of the
+        // post-swap 8.75M WBTC pool = ~5M (her original 10M was fully pulled and sold).
+        assertApproxEqAbs(weth.balanceOf(alice), 2e18, 1e15);
+        assertApproxEqAbs(wbtc.balanceOf(alice), 5_000_000, 10_000);
+        assertGt(wbtc.balanceOf(bob), 0);
     }
 
     function test_pull_zeroBalanceGardens_succeeds() public {
@@ -1951,5 +2004,142 @@ contract SkipEventTest is RebalancerTestBase {
             }
         }
         assertTrue(found, unicode"EmptyPools skip expected for the WBTC to WETH direct pair");
+    }
+}
+
+// =============================================================================
+// ISOLATION TESTS — one broken garden or one reverting swap leg must degrade
+// to a skip+event, never wedge the batch
+// =============================================================================
+
+/// @dev Quote facet that boosts the base router's rate by 1% so its pool wins route selection
+contract RateBoostQuoteFacet {
+    MockRouter public immutable base;
+
+    constructor(MockRouter base_) {
+        base = base_;
+    }
+
+    function quoteOut(QuoteInstruction calldata inst) external view returns (uint256) {
+        return base.quoteOut(inst) * 101 / 100;
+    }
+}
+
+/// @dev Router that reverts on swap while exposing a whitelisted selector
+contract RevertingSwapRouter {
+    function swapExactTokensForTokens(
+        uint256,
+        uint256,
+        address[] calldata,
+        address,
+        uint256
+    )
+        external
+        pure
+        returns (uint256[] memory)
+    {
+        revert("swap: always fails");
+    }
+}
+
+contract IsolationTest is RebalancerTestBase {
+    function _skipEvents() internal returns (Vm.Log[] memory skips) {
+        Vm.Log[] memory all = vm.getRecordedLogs();
+        uint256 n;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].topics[0] == Rebalancer.GardenPullSkipped.selector) n++;
+        }
+        skips = new Vm.Log[](n);
+        uint256 idx;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].topics[0] == Rebalancer.GardenPullSkipped.selector) skips[idx++] = all[i];
+        }
+    }
+
+    function _swapSkipCount() internal returns (uint256) {
+        Vm.Log[] memory all = vm.getRecordedLogs();
+        uint256 swapSkips;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].topics[0] == Rebalancer.SwapRouteSkipped.selector) {
+                (, uint256 amountIn_, Rebalancer.SkipReason reason,) = _decodeSkipLocal(all[i]);
+                if (reason == Rebalancer.SkipReason.SwapReverted) swapSkips++;
+            }
+        }
+        return swapSkips;
+    }
+
+    function _decodeSkipLocal(Vm.Log memory l)
+        internal
+        pure
+        returns (address pool, uint256 amountIn, Rebalancer.SkipReason reason, bytes memory detail)
+    {
+        pool = address(uint160(uint256(l.topics[3])));
+        uint8 rawReason;
+        (amountIn, rawReason, detail) = abi.decode(l.data, (uint256, uint8, bytes));
+        reason = Rebalancer.SkipReason(rawReason);
+    }
+
+    function test_pullIsolation_unapprovedGarden_skipped_roundCompletes() public {
+        // Bob funds his garden but NEVER approves the rebalancer — his pulls must skip with
+        // events while alice's rebalance completes and bob keeps full custody.
+        weth.mint(bob, 2e18);
+        wbtc.mint(bob, 2e8);
+        usdc.mint(bob, 100e6);
+        _fundGarden(alice, 10e18, 2e8, 10_000e6);
+        _warpPastInterval();
+
+        vm.recordLogs();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        Vm.Log[] memory skips = _skipEvents();
+        assertEq(skips.length, 3, "bob's WETH, WBTC and USDC pulls must each skip");
+        for (uint256 i = 0; i < skips.length; i++) {
+            assertEq(skips[i].topics[1], bytes32(uint256(uint160(bob))), "skips must be bob's");
+        }
+
+        // Bob keeps custody of everything (contribution 0 → share 0)
+        assertEq(weth.balanceOf(bob), 2e18);
+        assertEq(wbtc.balanceOf(bob), 2e8);
+        assertEq(usdc.balanceOf(bob), 100e6);
+
+        // Alice's round completed normally
+        assertGt(weth.balanceOf(alice), 0);
+        assertGt(wbtc.balanceOf(alice), 0);
+    }
+
+    function test_swapIsolation_revertingLeg_skipped_roundCompletes() public {
+        // A dex whose quote facet boosts rates 1% (wins route selection) but whose router
+        // always reverts: the USDC→WETH leg must skip with SwapReverted while the round
+        // completes and the other legs execute.
+        RevertingSwapRouter badRouter = new RevertingSwapRouter();
+        RateBoostQuoteFacet booster = new RateBoostQuoteFacet(router);
+        bytes32 badDex = keccak256("BAD_SWAP_DEX");
+        poolRegistry.setDexRegistered(badDex, true);
+        poolRegistry.setDexActive(badDex, true);
+        poolRegistry.setQuoteSelector(badDex, router.quoteOut.selector);
+        MockV2Pool badPool = new MockV2Pool();
+        badPool.setPool(address(usdc), address(weth), 100_000 * 1e6, 33.33e18);
+        poolRegistry.addPool(address(badPool), badDex, "WETH/USDC", address(usdc), address(weth));
+        vm.startPrank(owner);
+        rebalancer.setDexConfig(
+            badDex,
+            address(badRouter), // swap reverts
+            address(booster), // quote wins
+            router.swapExactTokensForTokens.selector,
+            Rebalancer.DexType.V2_STANDARD
+        );
+        vm.stopPrank();
+
+        _fundGarden(alice, 0, 0, 10_000e6); // USDC-only garden → WETH + WBTC deficits
+        _warpPastInterval();
+
+        vm.recordLogs();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        assertEq(_swapSkipCount(), 1, "exactly one SwapReverted skip expected");
+
+        // The WBTC leg (good dex) executed; the WETH deficit stayed unfilled
+        assertGt(wbtc.balanceOf(alice), 0, "WBTC leg should execute via the good dex");
+        assertEq(weth.balanceOf(alice), 0, "WETH deficit must stay unfilled after the revert-skip");
     }
 }

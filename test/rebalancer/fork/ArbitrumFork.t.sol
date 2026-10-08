@@ -291,6 +291,8 @@ contract ArbitrumForkTest is Test {
 
     function _mockFetchPrice(bytes32 symbol, uint256 price) internal {
         vm.mockCall(COMPONENT_REGISTRY, abi.encodeWithSignature("fetchPrice(bytes32)", symbol), abi.encode(price));
+        // the rebalancer's price cache uses the strict read — mock both
+        vm.mockCall(COMPONENT_REGISTRY, abi.encodeWithSignature("fetchPriceStrict(bytes32)", symbol), abi.encode(price));
     }
 }
 

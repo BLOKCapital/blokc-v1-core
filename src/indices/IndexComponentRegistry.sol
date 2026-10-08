@@ -205,8 +205,9 @@ contract IndexComponentRegistry is Ownable {
     uint256 public constant MIN_MAX_DEVIATION_BPS = 100;
     uint256 public constant MAX_MAX_DEVIATION_BPS = 50_000;
 
-    /// @notice A single-round deviation beyond this (100% = price halved/doubled) is treated as a
-    ///      broken feed or unit change: rejected, never auto-accepted (owner must forceResync)
+    /// @notice A single-round deviation at or beyond this, measured RELATIVE TO THE EMA
+    ///      (10_000 bps = price doubled, 5_000 bps = price halved), is treated as a broken feed
+    ///      or unit change: rejected, never auto-accepted (owner must forceResync)
     uint256 public constant MAX_AUTO_ACCEPT_DEVIATION_BPS = 10_000;
 
     /// @notice Default deviation auto-accept timeout (matches the shortest component heartbeat)
@@ -417,6 +418,14 @@ contract IndexComponentRegistry is Ownable {
             if (answeredInRound < roundId) {
                 return (currResponse, prevResponse, false);
             }
+            // Reject malformed answers BEFORE any conversion consumes them: a negative answer
+            // would panic the int→uint cast and an answer beyond uint128 would panic SafeCast
+            // later, permanently bricking this symbol (record.roundId never advances). A
+            // malformed round degrades to the cached-price path instead; the failure counter is
+            // deliberately NOT reset so a persistently broken feed still trips the threshold.
+            if (answer <= 0 || answer > int256(uint256(type(uint128).max))) {
+                return (currResponse, prevResponse, false);
+            }
             // Successful response: reset failure counter
             delete _feedFailures[address(oracle)];
 
@@ -452,7 +461,14 @@ contract IndexComponentRegistry is Ownable {
                         prevResponse.timestamp = prevTimestamp;
                         prevResponse.answeredInRound = prevAnsweredInRound;
                         prevResponse.success = true;
-                    } catch { }
+                    } catch {
+                        // An UNREADABLE previous round (Chainlink phase boundary: roundId jumps
+                        // phase and round-1 does not exist; pruned history) must not veto the
+                        // already-validated current round — treating it as "prev = current" lets
+                        // the standard validity checks run on the current round alone instead of
+                        // freezing the registry on the cached price until the next round lands.
+                        prevResponse = currResponse;
+                    }
                 }
             }
             updated = true;
@@ -514,17 +530,21 @@ contract IndexComponentRegistry is Ownable {
 
         if (feedWorking && devBps > band) {
             // Fresh but deviating round: track the rejection streak. The self-healing clock is
-            // anchored to `oracleRecord.timestamp` (the last ACCEPTED round), so the auto-accept
-            // fires on the first read after `deviationTimeout` has elapsed — no keeper or owner
-            // action is ever needed to recover from an ordinary market move.
+            // anchored to `firstDeviationAt` — the first read that observed THIS deviation — so
+            // the market price is adopted only after it has genuinely persisted for
+            // `deviationTimeout` across reads; the first deviating read can never satisfy it.
+            // Until then every consumer is served the cached price; no keeper or owner action is
+            // ever needed to recover from an ordinary market move.
             if (oracleRecords[_token].firstDeviationAt == 0) {
                 oracleRecords[_token].firstDeviationAt = SafeCast.toUint48(block.timestamp);
             }
             oracleRecords[_token].consecutiveRejections = oracleRecords[_token].consecutiveRejections + 1;
             emit PriceDeviationRejected(_token, currentPrice, uint256(oracleRecord.emaPrice), devBps, band);
 
-            if (devBps <= MAX_AUTO_ACCEPT_DEVIATION_BPS && block.timestamp - oracleRecord.timestamp >= deviationTimeout)
-            {
+            if (
+                devBps < MAX_AUTO_ACCEPT_DEVIATION_BPS
+                    && block.timestamp - oracleRecords[_token].firstDeviationAt >= deviationTimeout
+            ) {
                 uint256 previousEma = uint256(oracleRecord.emaPrice);
                 _storePrice(_token, currentPrice, _currResponse.timestamp, _currResponse.roundId);
                 _reseedEma(_token, currentPrice);
@@ -544,16 +564,17 @@ contract IndexComponentRegistry is Ownable {
         return oracleRecord.price;
     }
 
-    /// @notice Returns the deviation of a price from the EMA in basis points (0 if the EMA is
-    ///      uninitialized, so first registration always accepts). Uses the larger price as the
-    ///      denominator so the result is always <= 100%.
+    /// @notice Returns the deviation of a price from the EMA in basis points, measured RELATIVE
+    ///      TO THE EMA (the trusted reference): a price doubled = 10_000 bps, halved = 5_000 bps,
+    ///      and arbitrarily large deviations (broken feeds, unit changes) are representable so
+    ///      MAX_AUTO_ACCEPT_DEVIATION_BPS can bind. (0 if the EMA is uninitialized, so first
+    ///      registration always accepts.)
     function _deviationBps(uint256 _currentPrice, uint256 _emaPrice) internal pure returns (uint256) {
         if (_emaPrice == 0) {
             return 0;
         }
-        uint256 minPrice = Math.min(_currentPrice, _emaPrice);
-        uint256 maxPrice = Math.max(_currentPrice, _emaPrice);
-        return Math.mulDiv(maxPrice - minPrice, 1e4, maxPrice, Math.Rounding.Floor);
+        uint256 delta = _currentPrice > _emaPrice ? _currentPrice - _emaPrice : _emaPrice - _currentPrice;
+        return Math.mulDiv(delta, 1e4, _emaPrice, Math.Rounding.Floor);
     }
 
     /// @notice Returns the deviation band for a symbol (per-symbol override, else the default)
