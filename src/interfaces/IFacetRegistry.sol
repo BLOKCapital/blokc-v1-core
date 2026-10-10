@@ -154,6 +154,23 @@ interface IFacetRegistry {
     /// @return gardenTypeIds Array of garden type IDs
     function getAllGardenTypeIds() external view returns (bytes32[] memory gardenTypeIds);
 
+    /// @notice Publishes the DAO's canonical fee registries. Gardens validate every
+    ///         configureFeeModule call against these — the fee payer can only wire the
+    ///         DAO's own registries, never lookalike contracts.
+    function setCanonicalFeeRegistries(
+        address feeRegistry,
+        address treasuryRegistry,
+        address onboarderRegistry
+    )
+        external;
+
+    /// @notice Returns the DAO's canonical fee registries (all zero until first published —
+    ///         gardens refuse to configureFeeModule while unset, fail-closed)
+    function getCanonicalFeeRegistries()
+        external
+        view
+        returns (address feeRegistry, address treasuryRegistry, address onboarderRegistry);
+
     /// @notice Checks if a garden type is registered
     /// @param gardenTypeId The garden type to check
     /// @return True if the garden type is registered

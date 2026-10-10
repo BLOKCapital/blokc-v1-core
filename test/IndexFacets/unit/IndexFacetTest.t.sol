@@ -17,7 +17,10 @@ import {
     FeeFacet_UnwindReentrancy,
     FeeFacet_TreasuryNotSet,
     FeeFacet_ComponentRemained,
-    FeeFacet_ZeroDepositAmount
+    FeeFacet_ZeroDepositAmount,
+    FeeFacet_CanonicalRegistriesNotSet,
+    FeeFacet_RegistryNotCanonical,
+    FeeFacet_SymbolNotInIndex
 } from "../../../src/garden/facets/feeBase/FeeBase.sol";
 
 import { IIndex, SwapStep, PendingIntent } from "../../../src/garden/facets/indexFacets/IIndex.sol";
@@ -194,6 +197,12 @@ contract MockERC20 is IERC20, IERC20Metadata {
             return prices[components[symbol]];
         }
 
+        // Strict variant — identical to plain in the mock (no deviation windows to simulate)
+        function fetchPriceStrict(bytes32 symbol) external view returns (uint256) {
+            if (revertOnFetchPrice) revert("MockComponentRegistry: fetchPrice failed");
+            return prices[components[symbol]];
+        }
+
         function isComponentRegistered(bytes32 symbol) external view returns (bool) {
             return registered[symbol];
         }
@@ -206,6 +215,30 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
     contract MockFacetRegistry {
         mapping(bytes4 => bytes32) public moduleIds;
+
+        address canonicalFeeRegistry;
+        address canonicalTreasuryRegistry;
+        address canonicalOnboarderRegistry;
+
+        function setCanonicalFeeRegistries(
+            address feeRegistry,
+            address treasuryRegistry,
+            address onboarderRegistry
+        )
+            external
+        {
+            canonicalFeeRegistry = feeRegistry;
+            canonicalTreasuryRegistry = treasuryRegistry;
+            canonicalOnboarderRegistry = onboarderRegistry;
+        }
+
+        function getCanonicalFeeRegistries()
+            external
+            view
+            returns (address feeRegistry, address treasuryRegistry, address onboarderRegistry)
+        {
+            return (canonicalFeeRegistry, canonicalTreasuryRegistry, canonicalOnboarderRegistry);
+        }
 
         function setModuleId(bytes4 sel, bytes32 moduleId) external {
             moduleIds[sel] = moduleId;
@@ -666,6 +699,18 @@ contract MockERC20 is IERC20, IERC20Metadata {
             _disconnectFromIndex();
         }
 
+        /// @dev Simulates a legacy pre-fee session: clears the recorded basis so the fee-free
+        ///      disconnectFromIndex path stays reachable in tests (mirror of the forceSet*
+        ///      wrappers — connects made after the mandatory-fee change always record a basis)
+        function forceClearFeeBasis() external {
+            _clearBasis(0);
+        }
+
+        /// @dev Exposes the shared fee-session containment guard used by ApproveFacet.approveTokens
+        function checkFeeSessionGate() external view {
+            _revertIfFeeSessionActive();
+        }
+
         function isConnectedToIndexExt() external view returns (bool) {
             return _isConnectedToIndex();
         }
@@ -687,6 +732,13 @@ contract MockERC20 is IERC20, IERC20Metadata {
         MockERC20 internal weth;
         MockERC20 internal usdc;
         MockERC20 internal wbtc;
+
+        // Base-level fee module — connect requires a configured fee module, so every suite
+        // connects against these mocks (fee-specific suites re-wire their own in setUp)
+        MockFeeRegistry internal feeRegistry;
+        MockTreasuryRegistry internal treasuryRegistry;
+        MockOnboarderRegistry internal onboarderRegistry;
+        address internal treasuryAddr = makeAddr("treasury");
 
         // Prices (8 decimals — Chainlink standard)
         uint256 internal constant WETH_PRICE = 3000e8; // $3,000
@@ -728,6 +780,16 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
             // Use vm.store to write directly into the harness's storage.
             h.setFacetRegistry(address(facetRegistry));
+
+            // Wire the base fee module (canonical-validated, mandatory before connect)
+            feeRegistry = new MockFeeRegistry();
+            treasuryRegistry = new MockTreasuryRegistry();
+            onboarderRegistry = new MockOnboarderRegistry();
+            treasuryRegistry.setAddress(treasuryAddr);
+            facetRegistry.setCanonicalFeeRegistries(
+                address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry)
+            );
+            h.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
 
             // Configure component registry
             componentRegistry.setComponent(bytes32("WETH"), address(weth));
@@ -900,6 +962,9 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function setUp() public override {
             super.setUp();
             _connect();
+            // Connects now always record a fee basis; clear it to exercise the legacy
+            // fee-free disconnect path these tests target (pre-fee sessions only)
+            h.forceClearFeeBasis();
         }
 
         function test_disconnect_clearsIndexAddress() public {
@@ -962,6 +1027,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         }
 
         function test_intent_revertsWhenNotConnected() public {
+            h.forceClearFeeBasis(); // legacy-session disconnect (feeable sessions must unwind)
             h.disconnectFromIndex();
             vm.expectRevert(IndexFacet_NotConnectedToIndex.selector);
             h.rebalanceIntent();
@@ -1461,6 +1527,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
         function test_isConnectedToIndex_falseAfterDisconnect() public {
             _connect();
+            h.forceClearFeeBasis(); // legacy-session disconnect
             h.disconnectFromIndex();
             assertFalse(h.isConnectedToIndex());
         }
@@ -1533,9 +1600,6 @@ contract MockERC20 is IERC20, IERC20Metadata {
     }
 
     contract FeeTestBase is IndexFacetTestBase {
-        MockFeeRegistry internal feeRegistry;
-        MockTreasuryRegistry internal treasuryRegistry;
-        MockOnboarderRegistry internal onboarderRegistry;
         address internal onboarder = makeAddr("onboarder");
         address internal treasury = makeAddr("treasury");
 
@@ -1552,6 +1616,10 @@ contract MockERC20 is IERC20, IERC20Metadata {
             onboarderRegistry.addEligible(onboarder);
             treasuryRegistry.setAddress(treasury);
 
+            // Re-wire canonicals to this suite's own mocks (no active session at setUp)
+            facetRegistry.setCanonicalFeeRegistries(
+                address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry)
+            );
             h.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
 
             // Converting DEX for the unwind
@@ -1698,6 +1766,19 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_fees_deposit_revert_notConnected() public {
             vm.expectRevert(FeeFacet_FeeBasisNotRecorded.selector);
             h.recordDepositExt(bytes32("USDC"), 1e6);
+        }
+
+        function test_fees_depositComponent_revert_symbolNotInIndex() public {
+            _connectWithOnboarder();
+            // A registered component outside the index's weight list must not credit the
+            // basis: the unwind only realizes weighted symbols, so such a credit could never
+            // be converted into exit USDC (audit: basis laundering via off-index deposits)
+            MockERC20 link = new MockERC20("LINK", 18);
+            componentRegistry.setComponent(bytes32("LINK"), address(link));
+            componentRegistry.setPrice(address(link), 15e8);
+
+            vm.expectRevert(abi.encodeWithSelector(FeeFacet_SymbolNotInIndex.selector, bytes32("LINK")));
+            h.recordDepositExt(bytes32("LINK"), 100e18);
         }
     }
 
@@ -1871,6 +1952,20 @@ contract MockERC20 is IERC20, IERC20Metadata {
             assertEq(_gardenUsdc(), 11_000e6);
         }
 
+        function test_fees_approveGate_blockedDuringSession() public {
+            // ApproveFacet.approveTokens shares the fee-session containment guard: with a
+            // recorded basis, no parallel value-egress rail may open (audit: mid-session drain)
+            _connectWithOnboarder();
+            vm.expectRevert(FeeFacet_UnwindRequired.selector);
+            h.checkFeeSessionGate();
+        }
+
+        function test_fees_approveGate_allowedAfterExit() public {
+            _connectWithOnboarder();
+            h.unwindAndDisconnectExt(_unwindSteps());
+            h.checkFeeSessionGate(); // allowances can be (re)granted between sessions
+        }
+
         function test_fees_unwind_revert_reentrancy() public {
             _connectWithOnboarder();
             // Point the unwind's DEX selector at a stub that re-enters unwindAndDisconnectExt:
@@ -1901,10 +1996,30 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function test_fees_configureFeeModule_reconfigure_allowedAfterExit() public {
             _connectWithOnboarder();
             h.unwindAndDisconnectExt(_unwindSteps());
-            MockFeeRegistry newFee = new MockFeeRegistry();
-            h.configureFeeModuleExt(address(newFee), address(treasuryRegistry), address(onboarderRegistry));
+            // Re-wiring the SAME canonical registries between sessions is allowed
+            h.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
             (address fee,,) = h.getFeeRegistriesExt();
-            assertEq(fee, address(newFee));
+            assertEq(fee, address(feeRegistry));
+        }
+
+        function test_fees_configureFeeModule_revert_nonCanonicalRegistry() public {
+            // The fee payer cannot wire lookalike registries — every address must match the
+            // canonical set published on the FacetRegistry (audit: trust-anchor takeover)
+            MockFeeRegistry fakeFee = new MockFeeRegistry();
+            vm.expectRevert(
+                abi.encodeWithSelector(FeeFacet_RegistryNotCanonical.selector, address(fakeFee), address(feeRegistry))
+            );
+            h.configureFeeModuleExt(address(fakeFee), address(treasuryRegistry), address(onboarderRegistry));
+        }
+
+        function test_fees_configureFeeModule_revert_canonicalNotSet() public {
+            // Fail-closed: with no canonical fee registries published on the garden's
+            // FacetRegistry, configuration is impossible
+            IndexFacetHarness bare = new IndexFacetHarness();
+            bare.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
+            bare.setFacetRegistry(address(new MockFacetRegistry())); // no canonical published
+            vm.expectRevert(FeeFacet_CanonicalRegistriesNotSet.selector);
+            bare.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
         }
 
         function test_fees_configureFeeModule_revert_zeroAddress() public {
@@ -1918,12 +2033,12 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.disconnectFromIndexExt();
         }
 
-        function test_fees_legacyDisconnect_feeFree_beforeBasis() public {
-            // Session without a fee module: legacy fee-free disconnect still works
+        function test_fees_connect_revert_withoutFeeModule() public {
+            // Fee sessions are mandatory: an unconfigured garden cannot connect at all — the
+            // legacy fee-free connect-profit-disconnect cycle is closed (audit: opt-out)
             IndexFacetHarness bare = new IndexFacetHarness();
             bare.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
+            vm.expectRevert(FeeFacet_FeeModuleNotConfigured.selector);
             bare.connectToIndexExt(address(index));
-            bare.disconnectFromIndexExt(); // fee-free, no basis recorded
-            assertFalse(bare.isConnectedToIndexExt());
         }
     }

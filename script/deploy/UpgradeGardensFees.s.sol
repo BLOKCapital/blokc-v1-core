@@ -99,6 +99,11 @@ contract UpgradeGardensFees is BaseScript {
         registry.upgradeModule(MODULE_FEES, feeCuts);
         console2.log("FEES module upgraded with FeeFacet at:", address(feeFacet));
 
+        // Publish the DAO's canonical fee registries — gardens validate every
+        // configureFeeModule against these (fail-closed while unpublished)
+        registry.setCanonicalFeeRegistries(feeRegistry, treasuryRegistry, onboarderRegistry);
+        console2.log("Canonical fee registries published on FacetRegistry");
+
         // Allow the FEES module on the INDEX_GARDEN type (append to the allowed list)
         bytes32[] memory currentModules = registry.getGardenTypeModules(INDEX_GARDEN);
         bool alreadyAllowed = false;

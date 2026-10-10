@@ -65,6 +65,10 @@ import { UniswapV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/unis
 import { CamelotV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV2/CamelotV2Facet.sol";
 import { CamelotV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/CamelotV3Facet.sol";
 import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
+import { FeeFacet } from "src/garden/facets/feeFacet/FeeFacet.sol";
+import { FeeRegistry } from "src/fees/FeeRegistry.sol";
+import { TreasuryRegistry } from "src/fees/TreasuryRegistry.sol";
+import { OnboarderRegistry } from "src/fees/OnboarderRegistry.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
@@ -130,6 +134,7 @@ contract E2ESimulation is Test {
     bytes32 internal constant MODULE_WITHDRAW = keccak256("WITHDRAW");
     bytes32 internal constant MODULE_DEX = keccak256("DEX");
     bytes32 internal constant MODULE_INDEX = keccak256("INDEX");
+    bytes32 internal constant MODULE_FEES = keccak256("FEES");
     bytes32 internal constant INDEX_GARDEN_TYPE = keccak256("INDEX");
     bytes32 internal constant INDEX_TYPE_ID = keccak256("E2E-INDEX");
 
@@ -172,6 +177,10 @@ contract E2ESimulation is Test {
     address internal addrOwnershipFacet;
     address internal addrUpgradeFacet;
     address internal addrFacetRegistry;
+    address internal addrFeeFacet;
+    address internal addrFeeRegistry;
+    address internal addrTreasuryRegistry;
+    address internal addrOnboarderRegistry;
     address internal addrProtocolStatus;
     address internal addrComponentRegistry;
     address internal addrCalcRegistry;
@@ -562,10 +571,40 @@ contract E2ESimulation is Test {
         });
         registry.upgradeModule(MODULE_INDEX, indexCuts);
 
-        bytes32[] memory indexGardenModules = new bytes32[](3);
+        // ---- FEES module: fee sessions are mandatory before connect ----
+        FeeFacet feeFacet = new FeeFacet();
+        addrFeeFacet = address(feeFacet);
+        registry.registerModule(MODULE_FEES);
+        IDiamondCut.FacetCut[] memory feeCuts = new IDiamondCut.FacetCut[](1);
+        feeCuts[0] = IDiamondCut.FacetCut({
+            facetAddress: addrFeeFacet,
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: _selectorsOf(
+                FeeFacet(addrFeeFacet).configureFeeModule.selector,
+                FeeFacet(addrFeeFacet).depositUsdc.selector,
+                FeeFacet(addrFeeFacet).depositComponent.selector,
+                FeeFacet(addrFeeFacet).getFeeBasis.selector,
+                FeeFacet(addrFeeFacet).getFeeRegistries.selector,
+                FeeFacet(addrFeeFacet).getLastSettlement.selector
+            )
+        });
+        registry.upgradeModule(MODULE_FEES, feeCuts);
+
+        // Canonical fee registries — gardens validate configureFeeModule against these
+        FeeRegistry feeRegistry = new FeeRegistry(deployer);
+        TreasuryRegistry treasuryRegistry = new TreasuryRegistry(deployer);
+        OnboarderRegistry onboarderRegistry = new OnboarderRegistry(deployer);
+        addrFeeRegistry = address(feeRegistry);
+        addrTreasuryRegistry = address(treasuryRegistry);
+        addrOnboarderRegistry = address(onboarderRegistry);
+        treasuryRegistry.setTreasuryAddress(deployer, bytes32("e2e"));
+        registry.setCanonicalFeeRegistries(addrFeeRegistry, addrTreasuryRegistry, addrOnboarderRegistry);
+
+        bytes32[] memory indexGardenModules = new bytes32[](4);
         indexGardenModules[0] = MODULE_DEX;
         indexGardenModules[1] = MODULE_WITHDRAW;
         indexGardenModules[2] = MODULE_INDEX;
+        indexGardenModules[3] = MODULE_FEES;
         registry.addGardenType(INDEX_GARDEN_TYPE, indexGardenModules);
 
         // ---- DEX configs on the Rebalancer (selectors per the whitelist) ----
@@ -730,6 +769,21 @@ contract E2ESimulation is Test {
             if (!ok4) {
                 emit log_named_bytes("configureIndexModule failed", err4);
                 revert("configureIndexModule failed");
+            }
+
+            // Wire the fee module (mandatory before connect)
+            vm.prank(user);
+            (bool okCfg, bytes memory errCfg) = garden.call(
+                abi.encodeWithSignature(
+                    "configureFeeModule(address,address,address)",
+                    addrFeeRegistry,
+                    addrTreasuryRegistry,
+                    addrOnboarderRegistry
+                )
+            );
+            if (!okCfg) {
+                emit log_named_bytes("configureFeeModule failed", errCfg);
+                revert("configureFeeModule failed");
             }
 
             // Connect to the index

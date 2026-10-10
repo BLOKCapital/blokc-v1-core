@@ -80,6 +80,10 @@ error IndexFacet_IntentExpired();
 /// @notice Thrown when total garden value decreased beyond acceptable threshold
 error IndexFacet_ExcessiveValueLoss(uint256 valueBefore, uint256 valueAfter);
 
+/// @notice Thrown when the unwind's cached price snapshot and the session's weight list
+///         disagree in length (defensive — cannot happen with a deterministic getWeights())
+error IndexFacet_OracleSnapshotMismatch();
+
 /// @notice Thrown on reentrant call to _rebalance
 error IndexFacet_RebalanceReentrancy();
 
@@ -195,9 +199,13 @@ abstract contract IndexBase is FeeBase {
 
         FeeStorage.Layout storage fs = FeeStorage.layout();
 
+        // Fee sessions are mandatory: every new session must record a basis and settle
+        // through the fee layer. Without this, an unconfigured garden could connect, profit,
+        // and exit fee-free via the legacy disconnect (audit: opt-out cycle).
+        if (fs.feeRegistry == address(0)) revert FeeFacet_FeeModuleNotConfigured();
+
         // Onboarder eligibility is DAO-gated: only allowlisted addresses may be bound
         if (onboarder != address(0)) {
-            if (fs.feeRegistry == address(0)) revert FeeFacet_FeeModuleNotConfigured();
             if (!IOnboarderRegistry(fs.onboarderRegistry).isOnboarderEligible(onboarder)) {
                 revert IndexFacet_OnboarderNotEligible(onboarder);
             }
@@ -261,14 +269,17 @@ abstract contract IndexBase is FeeBase {
 
         (bytes32[] memory symbols,) = Index(indexAddress).getWeights();
 
-        // Cache component prices once (same-block oracle snapshot for the whole unwind)
+        // Cache component prices once (same-block oracle snapshot for the whole unwind).
+        // Strict reads: a deviation-rejected or stale feed reverts the unwind up front with
+        // the true reason instead of silently pricing the exit guard off a stale-high value.
         uint256[] memory cachedPrices = new uint256[](symbols.length);
         for (uint256 i = 0; i < symbols.length; i++) {
-            cachedPrices[i] = componentRegistry.fetchPrice(symbols[i]);
+            cachedPrices[i] = componentRegistry.fetchPriceStrict(symbols[i]);
         }
 
-        // Basis snapshot before the unwind (USDC-denominated)
-        uint256 valueBefore = _calculateSessionUsdcNav();
+        // Basis snapshot before the unwind (USDC-denominated) — valued from the same snapshot
+        // as the guard (mirrors the _rebalance M4 fix: no Chainlink round can land mid-NAV)
+        uint256 valueBefore = _calculateSessionUsdcNav(cachedPrices);
 
         // Sell every non-USDC component to USDC
         _executeSwapSteps(steps);
@@ -701,9 +712,36 @@ abstract contract IndexBase is FeeBase {
             if (symbols[i] == _USDC_SYMBOL) continue; // raw USDC counted directly below
             address token = componentRegistry.getComponentAddress(symbols[i]);
             uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 price = componentRegistry.fetchPrice(symbols[i]);
+            // Strict read: connect-time basis must not be priced off a deviation-rejected
+            // or stale feed (the basis is persisted and never re-validated)
+            uint256 price = componentRegistry.fetchPriceStrict(symbols[i]);
             uint8 decimals = IERC20Metadata(token).decimals();
             componentUsd8 += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
+        }
+
+        // Convert USD(8dec) → USDC(6dec) and add raw USDC
+        uint256 nav = Math.mulDiv(componentUsd8, 1e6, 1e8, Math.Rounding.Floor);
+        return nav + IERC20(IndexStorage.USDC_ADDRESS).balanceOf(address(this));
+    }
+
+    /// @notice Snapshot variant: values from the unwind's pre-fetched same-block price cache
+    ///         (mirrors the _rebalance M4 fix) instead of re-fetching per symbol — a Chainlink
+    ///         round landing mid-NAV can no longer shift the exit guard's reference.
+    function _calculateSessionUsdcNav(uint256[] memory cachedPrices) internal override returns (uint256) {
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        (, address componentRegistryAddress,) = _protocolAddresses();
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(componentRegistryAddress);
+
+        (bytes32[] memory symbols,) = Index(s.indexAddress).getWeights();
+        if (symbols.length != cachedPrices.length) revert IndexFacet_OracleSnapshotMismatch();
+
+        uint256 componentUsd8 = 0; // 8-decimal USD (Chainlink convention)
+        for (uint256 i = 0; i < symbols.length; i++) {
+            if (symbols[i] == _USDC_SYMBOL) continue; // raw USDC counted directly below
+            address token = componentRegistry.getComponentAddress(symbols[i]);
+            uint256 balance = IERC20(token).balanceOf(address(this));
+            uint8 decimals = IERC20Metadata(token).decimals();
+            componentUsd8 += Math.mulDiv(balance, cachedPrices[i], 10 ** decimals, Math.Rounding.Floor);
         }
 
         // Convert USD(8dec) → USDC(6dec) and add raw USDC

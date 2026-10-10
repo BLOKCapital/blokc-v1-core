@@ -21,7 +21,10 @@ import { IFeeRegistry } from "src/interfaces/IFeeRegistry.sol";
 import { ITreasuryRegistry } from "src/interfaces/ITreasuryRegistry.sol";
 import { IOnboarderRegistry } from "src/interfaces/IOnboarderRegistry.sol";
 import { IIndex } from "src/garden/facets/indexFacets/IIndex.sol";
+import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
+import { Index } from "src/indices/Index.sol";
+import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 // ============================================================================
 // Errors
@@ -64,6 +67,22 @@ error FeeFacet_ZeroDepositAmount();
 /// @notice Thrown when a module calls the session valuation hook without overriding it
 error FeeFacet_NavHookNotImplemented();
 
+/// @notice Thrown when configureFeeModule is attempted before the FacetRegistry has published
+///         the DAO's canonical fee registries (fail-closed: no registries, no fee module)
+error FeeFacet_CanonicalRegistriesNotSet();
+
+/// @notice Thrown when configureFeeModule is called with an address that is not the DAO's
+///         canonical registry published on the FacetRegistry
+/// @param provided The address that was passed in
+/// @param canonical The canonical address it must match
+error FeeFacet_RegistryNotCanonical(address provided, address canonical);
+
+/// @notice Thrown when a component deposit is for a symbol outside the active session's
+///         valuation universe (the connected index's weight list) — credited basis could
+///         never be realized into exit USDC
+/// @param symbol The out-of-universe symbol
+error FeeFacet_SymbolNotInIndex(bytes32 symbol);
+
 /**
  * @title FeeBase
  * @author BLOK Capital DAO
@@ -91,11 +110,25 @@ abstract contract FeeBase {
     /// @notice Wires the fee registries into this garden. First-time configuration is allowed
     ///         in any garden state (live gardens must be able to adopt fees without
     ///         disconnecting); any re-configuration requires no active fee session.
+    /// @dev All three addresses are validated against the DAO's canonical fee registries
+    ///      published on the FacetRegistry (the garden's immutable trust anchor) — the fee
+    ///      payer can never wire lookalike registries that zero the schedule or redirect
+    ///      fees to themselves. Fail-closed while canonicals are unpublished.
     function _configureFeeModule(address feeRegistry, address treasuryRegistry, address onboarderRegistry) internal {
         if (feeRegistry == address(0) || treasuryRegistry == address(0) || onboarderRegistry == address(0)) {
             revert FeeFacet_InvalidFeeModuleAddress(feeRegistry == address(0)
                     ? feeRegistry
                     : treasuryRegistry == address(0) ? treasuryRegistry : onboarderRegistry);
+        }
+        (address canonicalFee, address canonicalTreasury, address canonicalOnboarder) =
+            IFacetRegistry(LibDiamond.layout().facetRegistry).getCanonicalFeeRegistries();
+        if (canonicalFee == address(0)) revert FeeFacet_CanonicalRegistriesNotSet();
+        if (feeRegistry != canonicalFee) revert FeeFacet_RegistryNotCanonical(feeRegistry, canonicalFee);
+        if (treasuryRegistry != canonicalTreasury) {
+            revert FeeFacet_RegistryNotCanonical(treasuryRegistry, canonicalTreasury);
+        }
+        if (onboarderRegistry != canonicalOnboarder) {
+            revert FeeFacet_RegistryNotCanonical(onboarderRegistry, canonicalOnboarder);
         }
         FeeStorage.Layout storage fs = FeeStorage.layout();
         if (fs.feeRegistry != address(0) && fs.basisRecorded) {
@@ -105,6 +138,14 @@ abstract contract FeeBase {
         fs.feeRegistry = feeRegistry;
         fs.treasuryRegistry = treasuryRegistry;
         fs.onboarderRegistry = onboarderRegistry;
+    }
+
+    /// @dev Guards value-egress primitives against active fee sessions: with a recorded basis
+    ///      the unwind is the ONLY sanctioned exit, and any parallel rail (e.g. allowances to
+    ///      external spenders) would drain the fee base before settlement. Used by
+    ///      ApproveFacet.approveTokens and any future owner-callable egress facet.
+    function _revertIfFeeSessionActive() internal view {
+        if (FeeStorage.layout().basisRecorded) revert FeeFacet_UnwindRequired();
     }
 
     /// @dev Returns the configured fee registry, reverting loudly if the fee module was never
@@ -175,10 +216,28 @@ abstract contract FeeBase {
             if (componentRegistryAddress == address(0)) revert FeeFacet_FeeModuleNotConfigured();
             IndexComponentRegistry componentRegistry = IndexComponentRegistry(componentRegistryAddress);
             token = componentRegistry.getComponentAddress(symbol);
+
+            // Deposit-universe check: credited basis must be realizable into exit USDC, and the
+            // unwind only converts the active session's own symbols — a deposit outside that
+            // universe would permanently suppress the feeable profit (audit: basis laundering)
+            address indexAddress = IndexStorage.layout().indexAddress;
+            if (indexAddress == address(0)) revert FeeFacet_SymbolNotInIndex(symbol);
+            (bytes32[] memory sessionSymbols,) = Index(indexAddress).getWeights();
+            bool inSession;
+            for (uint256 i = 0; i < sessionSymbols.length; i++) {
+                if (sessionSymbols[i] == symbol) {
+                    inSession = true;
+                    break;
+                }
+            }
+            if (!inSession) revert FeeFacet_SymbolNotInIndex(symbol);
+
             SafeERC20.safeTransferFrom(IERC20(token), msg.sender, address(this), amount);
             uint8 decimals = IERC20Metadata(token).decimals();
+            // Strict read: a deviation-rejected or stale feed must not price the basis (the
+            // basis is the one transient oracle read that is persisted and never re-validated)
             uint256 usd8 =
-                Math.mulDiv(amount, componentRegistry.fetchPrice(symbol), 10 ** decimals, Math.Rounding.Floor);
+                Math.mulDiv(amount, componentRegistry.fetchPriceStrict(symbol), 10 ** decimals, Math.Rounding.Floor);
             usdcValue = Math.mulDiv(usd8, 1e6, 1e8, Math.Rounding.Floor);
         }
 
@@ -193,6 +252,16 @@ abstract contract FeeBase {
     ///         FeeFacet itself never calls this hook (only tool modules do).
     /// @return The garden's USDC-denominated NAV (6 decimals)
     function _calculateSessionUsdcNav() internal virtual returns (uint256) {
+        revert FeeFacet_NavHookNotImplemented();
+    }
+
+    /// @notice Snapshot variant of the valuation hook: the caller supplies pre-fetched prices
+    ///         (indexed like the symbols from Index.getWeights()) so the whole unwind values
+    ///         from one same-block oracle snapshot — mirroring the _rebalance M4 fix.
+    /// @param cachedPrices Pre-fetched component prices (8 decimals), same order as getWeights()
+    /// @return The garden's USDC-denominated NAV (6 decimals)
+    function _calculateSessionUsdcNav(uint256[] memory cachedPrices) internal virtual returns (uint256) {
+        cachedPrices; // silence unused-param warning in the default (reverting) implementation
         revert FeeFacet_NavHookNotImplemented();
     }
 

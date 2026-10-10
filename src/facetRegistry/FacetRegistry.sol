@@ -60,6 +60,9 @@ error FacetRegistry_CannotModifyBaseFacet(address facetAddress);
 /// @notice Thrown when module ID is zero
 error FacetRegistry_ModuleIdIsZero();
 
+/// @notice Thrown when a zero address is passed as a canonical fee registry
+error FacetRegistry_FeeRegistryAddressIsZero();
+
 /// @notice Thrown when module already exists
 error FacetRegistry_ModuleAlreadyExists(bytes32 moduleId);
 
@@ -218,6 +221,10 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     /// @notice Emitted when a module is removed from a garden type
     event AllowedModuleRemoved(bytes32 indexed gardenTypeId, bytes32 indexed moduleId);
 
+    event CanonicalFeeRegistriesUpdated(
+        address indexed feeRegistry, address indexed treasuryRegistry, address indexed onboarderRegistry
+    );
+
     // ========================================================================
     //                            CONSTRUCTOR
     // ========================================================================
@@ -270,6 +277,43 @@ contract FacetRegistry is IFacetRegistry, Ownable {
             _facetCutByVersion[_currentVersion] = cut;
             _moduleFacetCutByVersion[BASE_MODULE][_moduleVersion[BASE_MODULE]] = cut;
         }
+    }
+
+    // ========================================================================
+    //                      CANONICAL FEE REGISTRIES
+    // ========================================================================
+
+    address private _canonicalFeeRegistry;
+    address private _canonicalTreasuryRegistry;
+    address private _canonicalOnboarderRegistry;
+
+    /// @notice Publishes the DAO's canonical fee registries. Gardens validate every
+    ///         configureFeeModule call against these, so the fee payer (the garden owner)
+    ///         can only ever wire the DAO's own registries — never lookalike contracts.
+    /// @param feeRegistry Canonical FeeRegistry (schedule + safety caps)
+    /// @param treasuryRegistry Canonical TreasuryRegistry (fee receiver)
+    /// @param onboarderRegistry Canonical OnboarderRegistry (onboarder eligibility)
+    function setCanonicalFeeRegistries(
+        address feeRegistry,
+        address treasuryRegistry,
+        address onboarderRegistry
+    )
+        external
+        onlyOwner
+    {
+        if (feeRegistry == address(0) || treasuryRegistry == address(0) || onboarderRegistry == address(0)) {
+            revert FacetRegistry_FeeRegistryAddressIsZero();
+        }
+        _canonicalFeeRegistry = feeRegistry;
+        _canonicalTreasuryRegistry = treasuryRegistry;
+        _canonicalOnboarderRegistry = onboarderRegistry;
+        emit CanonicalFeeRegistriesUpdated(feeRegistry, treasuryRegistry, onboarderRegistry);
+    }
+
+    /// @notice Returns the DAO's canonical fee registries (all zero until first published —
+    ///         gardens refuse to configureFeeModule while unset, fail-closed)
+    function getCanonicalFeeRegistries() external view returns (address, address, address) {
+        return (_canonicalFeeRegistry, _canonicalTreasuryRegistry, _canonicalOnboarderRegistry);
     }
 
     // ========================================================================
