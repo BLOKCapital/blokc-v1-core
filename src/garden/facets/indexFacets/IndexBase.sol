@@ -13,6 +13,13 @@ pragma solidity ^0.8.31;
 import { IndexFactory } from "src/indices/IndexFactory.sol";
 import { Index } from "src/indices/Index.sol";
 import { IndexStorage } from "src/garden/facets/indexFacets/IndexStorage.sol";
+import { FeeStorage } from "src/garden/facets/indexFacets/FeeStorage.sol";
+import { FeeBase } from "src/garden/facets/feeBase/FeeBase.sol";
+import {
+    FeeFacet_FeeModuleNotConfigured,
+    FeeFacet_FeeBasisNotRecorded,
+    FeeFacet_UnwindReentrancy
+} from "src/garden/facets/feeBase/FeeBase.sol";
 import { IndexComponentRegistry } from "src/indices/IndexComponentRegistry.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -21,6 +28,9 @@ import { IIndex, SwapStep, PendingIntent } from "src/garden/facets/indexFacets/I
 import { SwapInstruction } from "src/interfaces/ISwapInstruction.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
+import { IFeeRegistry } from "src/interfaces/IFeeRegistry.sol";
+import { ITreasuryRegistry } from "src/interfaces/ITreasuryRegistry.sol";
+import { IOnboarderRegistry } from "src/interfaces/IOnboarderRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // ============================================================================
@@ -86,6 +96,23 @@ error IndexFacet_ModuleNotConfigured();
 ///         or has a pending intent — re-pointing must happen on a disconnected garden
 error IndexFacet_ConfigureRequiresDisconnected();
 
+/// @notice Thrown when an onboarder address is not allowlisted in the OnboarderRegistry
+/// @param onboarder The ineligible address
+error IndexFacet_OnboarderNotEligible(address onboarder);
+
+/// @notice Thrown when the fee module has not been configured but the operation requires it
+error IndexFacet_FeeModuleNotConfigured();
+
+/// @notice Thrown when the legacy fee-free disconnect is attempted on a session that has a
+///         recorded fee basis — such sessions must exit through unwindAndDisconnect
+error IndexFacet_UnwindRequired();
+
+/// @notice Thrown when an unwind leaves a non-USDC component balance behind — the whole unwind
+///         aborts (garden stays connected, basis untouched) rather than settle on a partial unwind
+/// @param symbol The component symbol that remained
+/// @param remaining The remaining balance
+error IndexFacet_ComponentRemained(bytes32 symbol, uint256 remaining);
+
 /**
  * @title IndexBase
  * @author BLOK Capital DAO
@@ -102,11 +129,13 @@ error IndexFacet_ConfigureRequiresDisconnected();
  *      allocations are computed against the full garden value. During rebalancing, USDC is swapped into
  *      index components, driving its balance toward zero. Any other non-index, non-USDC tokens held by the
  *      garden are invisible to these calculations and will NOT be protected by the MAX_VALUE_LOSS_BPS check.
+ *
+ *      Fee lifecycle: this module is the FIRST consumer of the garden-level fee layer (FeeBase).
+ *      connectToIndex records the fee basis; unwindAndDisconnect sells all components to USDC and
+ *      settles fees through the shared layer. The fee session itself (FeeStorage) is tool-agnostic —
+ *      future wealth-management modules record and settle their own sessions the same way.
  */
-abstract contract IndexBase {
-    /// @dev Cached bytes32 symbol for USDC — used for gas-efficient comparison.
-    bytes32 private constant _USDC_SYMBOL = bytes32("USDC");
-
+abstract contract IndexBase is FeeBase {
     /// @notice Reads the deployer-configured protocol addresses, reverting loudly if the
     ///         module was never configured instead of silently calling address(0).
     function _protocolAddresses()
@@ -147,27 +176,55 @@ abstract contract IndexBase {
         s.poolRegistry = poolRegistry;
     }
 
-    /// @notice Connects the garden to an index for automated rebalancing.
+    /// @notice Connects the garden to an index for automated rebalancing (no onboarder bound).
     /// @param indexAddress The address of the index contract to connect to.
     function _connectToIndex(address indexAddress) internal {
+        _connectToIndex(indexAddress, address(0));
+    }
+
+    /// @notice Connects the garden to an index, records the fee basis, and binds the onboarder.
+    /// @param indexAddress The address of the index contract to connect to.
+    /// @param onboarder The onboarder to bind for this session (address(0) = none). Must be
+    ///        allowlisted in the OnboarderRegistry — this is what prevents an investor writing
+    ///        arbitrary addresses (including their own) in as onboarder.
+    function _connectToIndex(address indexAddress, address onboarder) internal {
         (address indexFactory,,) = _protocolAddresses();
         if (!IndexFactory(indexFactory).isIndexRegistered(indexAddress)) {
             revert IndexFacet_IndexNotRegistered(indexAddress);
         }
 
-        // Store the connected index address (state writes before external call — checks-effects-interactions)
+        FeeStorage.Layout storage fs = FeeStorage.layout();
+
+        // Onboarder eligibility is DAO-gated: only allowlisted addresses may be bound
+        if (onboarder != address(0)) {
+            if (fs.feeRegistry == address(0)) revert FeeFacet_FeeModuleNotConfigured();
+            if (!IOnboarderRegistry(fs.onboarderRegistry).isOnboarderEligible(onboarder)) {
+                revert IndexFacet_OnboarderNotEligible(onboarder);
+            }
+        }
+
+        // Store the connected index address FIRST — the fee basis's NAV hook reads it
+        // (state writes before external call — checks-effects-interactions)
         IndexStorage.layout().indexAddress = indexAddress;
         LibDiamond.layout().isConnectedToIndex = true;
+
+        // Record the fee basis (no-op-safe when the fee module is unconfigured: the session
+        // stays legacy — basisRecorded stays false — and exits fee-free via disconnectFromIndex)
+        _recordBasis(indexAddress, onboarder);
 
         Index(indexAddress).connectGardenToIndex();
         emit IIndex.IndexConnected(indexAddress);
     }
 
-    /// @notice Disconnects the garden from its currently connected index.
+    /// @notice Disconnects the garden from its currently connected index. Feeable sessions
+    ///         (with a recorded basis) must exit through unwindAndDisconnect — this legacy
+    ///         fee-free path exists only for sessions recorded before the fee layer existed.
     function _disconnectFromIndex() internal {
         IndexStorage.Layout storage s = IndexStorage.layout();
         address indexAddress = s.indexAddress;
         if (indexAddress == address(0)) revert IndexFacet_NotConnectedToIndex();
+
+        if (FeeStorage.layout().basisRecorded) revert IndexFacet_UnwindRequired();
 
         // Clear pending intent so a stale intent cannot be executed after reconnecting to a different index
         s.pendingIntent.active = false;
@@ -178,6 +235,93 @@ abstract contract IndexBase {
 
         Index(indexAddress).disconnectGardenFromIndex();
         emit IIndex.IndexDisconnected(indexAddress);
+    }
+
+    /// @notice Unwinds every non-USDC index component to USDC, settles the fee session
+    ///         (performance/protocol fees + onboarder cut), and disconnects the garden — atomic
+    ///         from the investor's point of view. If any stage aborts (value loss, residual
+    ///         component, failed swap), the whole tx reverts and the garden stays connected with
+    ///         its basis untouched.
+    /// @param steps The unwind swap steps (caller/CRE-supplied; PoolRegistry-resolved, DEX-
+    ///        allowlisted, per-swap min-out enforced, batch value-loss capped at 0.5%).
+    function _unwindAndDisconnect(SwapStep[] calldata steps) internal {
+        FeeStorage.Layout storage fs = FeeStorage.layout();
+
+        if (fs.unwinding) revert FeeFacet_UnwindReentrancy();
+        fs.unwinding = true;
+
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        address indexAddress = s.indexAddress;
+        if (indexAddress == address(0)) revert IndexFacet_NotConnectedToIndex();
+        if (!fs.basisRecorded) revert FeeFacet_FeeBasisNotRecorded();
+        if (fs.feeRegistry == address(0)) revert FeeFacet_FeeModuleNotConfigured();
+
+        (, address componentRegistryAddress,) = _protocolAddresses();
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(componentRegistryAddress);
+
+        (bytes32[] memory symbols,) = Index(indexAddress).getWeights();
+
+        // Cache component prices once (same-block oracle snapshot for the whole unwind)
+        uint256[] memory cachedPrices = new uint256[](symbols.length);
+        for (uint256 i = 0; i < symbols.length; i++) {
+            cachedPrices[i] = componentRegistry.fetchPrice(symbols[i]);
+        }
+
+        // Basis snapshot before the unwind (USDC-denominated)
+        uint256 valueBefore = _calculateSessionUsdcNav();
+
+        // Sell every non-USDC component to USDC
+        _executeSwapSteps(steps);
+
+        // Residue check: every non-USDC component must be fully converted, otherwise fees
+        // would settle on a partial unwind (safe direction: revert → garden stays connected)
+        for (uint256 i = 0; i < symbols.length; i++) {
+            if (symbols[i] == _USDC_SYMBOL) continue;
+            address token = componentRegistry.getComponentAddress(symbols[i]);
+            uint256 remaining = IERC20(token).balanceOf(address(this));
+            if (remaining != 0) revert IndexFacet_ComponentRemained(symbols[i], remaining);
+        }
+
+        // Realized USDC at exit — the unwind must not lose more than MAX_VALUE_LOSS_BPS
+        uint256 exitUSDC = IERC20(IndexStorage.USDC_ADDRESS).balanceOf(address(this));
+        uint256 minAcceptableExit =
+            Math.mulDiv(valueBefore, 10_000 - IndexStorage.MAX_VALUE_LOSS_BPS, 10_000, Math.Rounding.Floor);
+        if (exitUSDC < minAcceptableExit) {
+            revert IndexFacet_ExcessiveValueLoss(valueBefore, exitUSDC);
+        }
+
+        // Fee split — rates per the session's applyRateAt snapshot (ConnectLock default: the
+        // schedule locked at connect; DisconnectLive: live registry rates read now)
+        FeeStorage.FeeSchedule memory schedule = fs.lockedSchedule;
+        if (schedule.applyRateAtMode == FeeStorage.APPLY_RATE_DISCONNECT_LIVE) {
+            (uint256 performanceFeeBps, uint256 protocolFeeBps, uint256 onboarderShareBps,,) =
+                IFeeRegistry(fs.feeRegistry).getFeeSchedule();
+            schedule = FeeStorage.FeeSchedule({
+                performanceFeeBps: uint16(performanceFeeBps),
+                protocolFeeBps: uint16(protocolFeeBps),
+                onboarderShareBps: uint16(onboarderShareBps),
+                applyRateAtMode: FeeStorage.APPLY_RATE_DISCONNECT_LIVE
+            });
+        }
+
+        (uint256 profit, uint256 performanceFee, uint256 protocolFee, uint256 onboarderCut, uint256 treasuryTotal) =
+            _computeFeeSplit(exitUSDC, fs.entryUSDC, schedule, fs.onboarderAddress);
+
+        // Settle fees BEFORE clearing session state (checks-effects-interactions)
+        _settleFees(profit, performanceFee, protocolFee, onboarderCut, treasuryTotal);
+
+        // Clear index session state + fee session state
+        s.pendingIntent.active = false;
+        s.indexAddress = address(0);
+        LibDiamond.layout().isConnectedToIndex = false;
+        _clearBasis(exitUSDC);
+        fs.unwinding = false;
+
+        Index(indexAddress).disconnectGardenFromIndex();
+
+        emit IIndex.GardenUnwound(address(this), exitUSDC);
+        emit IIndex.FeesSettled(address(this), profit, performanceFee, protocolFee, onboarderCut, treasuryTotal);
+        emit IIndex.Disconnected(address(this), indexAddress);
     }
 
     /// @notice Creates a rebalance intent by computing current vs target allocations.
@@ -534,5 +678,36 @@ abstract contract IndexBase {
         return (
             s.pendingIntent.active, s.pendingIntent.totalValueUsd, s.pendingIntent.symbols, s.pendingIntent.targetValues
         );
+    }
+
+    // ========================================================================
+    // Fee layer — INDEX session valuation hook
+    // ========================================================================
+
+    /// @notice INDEX session valuation: every index component valued at its oracle USDC price
+    ///         plus the raw USDC balance (8-dec USD converted to 6-dec USDC). This is the
+    ///         fee layer's session NAV hook for the INDEX tool — future wealth-management
+    ///         modules override it with their own accounting in their own bases.
+    /// @return The garden's USDC-denominated NAV (6 decimals)
+    function _calculateSessionUsdcNav() internal override returns (uint256) {
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        (, address componentRegistryAddress,) = _protocolAddresses();
+        IndexComponentRegistry componentRegistry = IndexComponentRegistry(componentRegistryAddress);
+
+        (bytes32[] memory symbols,) = Index(s.indexAddress).getWeights();
+
+        uint256 componentUsd8 = 0; // 8-decimal USD (Chainlink convention)
+        for (uint256 i = 0; i < symbols.length; i++) {
+            if (symbols[i] == _USDC_SYMBOL) continue; // raw USDC counted directly below
+            address token = componentRegistry.getComponentAddress(symbols[i]);
+            uint256 balance = IERC20(token).balanceOf(address(this));
+            uint256 price = componentRegistry.fetchPrice(symbols[i]);
+            uint8 decimals = IERC20Metadata(token).decimals();
+            componentUsd8 += Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
+        }
+
+        // Convert USD(8dec) → USDC(6dec) and add raw USDC
+        uint256 nav = Math.mulDiv(componentUsd8, 1e6, 1e8, Math.Rounding.Floor);
+        return nav + IERC20(IndexStorage.USDC_ADDRESS).balanceOf(address(this));
     }
 }

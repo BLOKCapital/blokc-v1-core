@@ -13,6 +13,7 @@ import { CamelotV2Facet } from "src/garden/facets/utilityFacets/arbitrumOne/came
 import { CamelotV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/CamelotV3Facet.sol";
 import { AaveV3Facet } from "src/garden/facets/utilityFacets/arbitrumOne/aaveV3/AaveV3Facet.sol";
 import { IndexFacet } from "src/garden/facets/indexFacets/IndexFacet.sol";
+import { FeeFacet } from "src/garden/facets/feeFacet/FeeFacet.sol";
 
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 
@@ -22,6 +23,7 @@ contract RegisterUtilityFacets is BaseScript {
     bytes32 constant MODULE_DEX = keccak256("DEX");
     bytes32 constant MODULE_YIELD = keccak256("YIELD");
     bytes32 constant MODULE_INDEX = keccak256("INDEX");
+    bytes32 constant MODULE_FEES = keccak256("FEES");
 
     // Garden type IDs
     bytes32 constant YIELD_GARDEN = keccak256("YIELD");
@@ -184,14 +186,41 @@ contract RegisterUtilityFacets is BaseScript {
         console2.log("INDEX module upgraded with IndexFacet");
 
         // =====================================================================
+        // FEES module (FeeFacet) — garden-level fee session layer
+        // =====================================================================
+        FeeFacet feeFacet = new FeeFacet();
+        bytes4[] memory feeSelectors = new bytes4[](6);
+        feeSelectors[0] = feeFacet.configureFeeModule.selector;
+        feeSelectors[1] = feeFacet.depositUsdc.selector;
+        feeSelectors[2] = feeFacet.depositComponent.selector;
+        feeSelectors[3] = feeFacet.getFeeBasis.selector;
+        feeSelectors[4] = feeFacet.getFeeRegistries.selector;
+        feeSelectors[5] = feeFacet.getLastSettlement.selector;
+        console2.log("FeeFacet deployed at:", address(feeFacet));
+
+        IDiamondCut.FacetCut[] memory feeCuts = new IDiamondCut.FacetCut[](1);
+        feeCuts[0] = IDiamondCut.FacetCut({
+            facetAddress: address(feeFacet), action: IDiamondCut.FacetCutAction.Add, functionSelectors: feeSelectors
+        });
+
+        if (!registry.isModuleRegistered(MODULE_FEES)) {
+            registry.registerModule(MODULE_FEES);
+            console2.log("FEES module registered");
+        }
+        registry.upgradeModule(MODULE_FEES, feeCuts);
+        console2.log("FEES module upgraded with FeeFacet");
+
+        // =====================================================================
         // Garden types
         // =====================================================================
-        // INDEX_GARDEN allowed modules: BASE (implicit), DEX_MODULE, WITHDRAW_MODULE, INDEX_MODULE
+        // INDEX_GARDEN allowed modules: BASE (implicit), DEX_MODULE, WITHDRAW_MODULE,
+        // INDEX_MODULE, FEES_MODULE
         if (!registry.isGardenTypeRegistered(INDEX_GARDEN)) {
-            bytes32[] memory indexGardenModules = new bytes32[](3);
+            bytes32[] memory indexGardenModules = new bytes32[](4);
             indexGardenModules[0] = MODULE_DEX;
             indexGardenModules[1] = MODULE_WITHDRAW;
             indexGardenModules[2] = MODULE_INDEX;
+            indexGardenModules[3] = MODULE_FEES;
             registry.addGardenType(INDEX_GARDEN, indexGardenModules);
             console2.log("INDEX_GARDEN type registered");
         }

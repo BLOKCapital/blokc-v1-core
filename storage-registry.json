@@ -35,7 +35,8 @@
     },
     "INDEX": {
       "storage_libraries": [
-        "IndexStorage"
+        "IndexStorage",
+        "FeeStorage"
       ]
     },
     "PENDLE_V2": {
@@ -54,6 +55,11 @@
     },
     "WITHDRAW": {
       "storage_libraries": []
+    },
+    "FEES": {
+      "storage_libraries": [
+        "FeeStorage"
+      ]
     }
   }
 }
