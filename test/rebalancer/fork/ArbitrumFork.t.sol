@@ -135,6 +135,10 @@ contract ArbitrumForkTest is Test {
         IUpgrade(garden2).upgrade(hash2);
 
         // Connect gardens to the Index
+        // NOTE: once the fee rollout lands on mainnet (FEES module registered + canonical
+        // fee registries published + gardens configured), each garden must call
+        // configureFeeModule(canonical...) BEFORE connectToIndex — connect reverts
+        // FeeFacet_FeeModuleNotConfigured otherwise (fee sessions are mandatory).
         vm.prank(user1);
         IIndexFacet(garden1).connectToIndex(testIndex);
         vm.prank(user2);

@@ -77,12 +77,78 @@ interface IIndex {
     );
 
     // ========================================================================
+    // Fee lifecycle events
+    // ========================================================================
+
+    /// @notice Emitted when a fee session starts and the garden's USDC basis is recorded
+    /// @param garden The address of the garden
+    /// @param entryUSDC The USDC-denominated basis snapshot (6 decimals)
+    /// @param indexAddress The address of the session's index (session reference)
+    /// @param onboarder The bound onboarder (address(0) = none)
+    event BasisRecorded(
+        address indexed garden, uint256 entryUSDC, address indexed indexAddress, address indexed onboarder
+    );
+
+    /// @notice Emitted when a fee session's unwind completes — every non-USDC component sold
+    /// @param garden The address of the garden
+    /// @param exitUSDC The realized USDC balance at exit (6 decimals)
+    event GardenUnwound(address indexed garden, uint256 exitUSDC);
+
+    /// @notice Emitted when fees are settled at session exit (always, even when all zeros)
+    /// @param garden The address of the garden
+    /// @param profit Realized profit (0 on a loss)
+    /// @param performanceFee The performance fee charged
+    /// @param protocolFee The protocol fee charged
+    /// @param onboarderCut The onboarder's share of the performance fee (0 if unbound or failed)
+    /// @param treasuryTotal The total USDC sent to the Treasury (DAO perf share + protocol fee,
+    ///        plus a failed onboarder cut re-routed per spec)
+    event FeesSettled(
+        address indexed garden,
+        uint256 profit,
+        uint256 performanceFee,
+        uint256 protocolFee,
+        uint256 onboarderCut,
+        uint256 treasuryTotal
+    );
+
+    /// @notice Emitted when the fee session ends and the garden detaches from the index
+    /// @param garden The address of the garden
+    /// @param indexAddress The index the garden was connected to
+    event Disconnected(address indexed garden, address indexed indexAddress);
+
+    /// @notice Emitted when the onboarder payout reverts on receive — the cut is re-routed to
+    ///         the Treasury so the exit never bricks
+    /// @param garden The address of the garden
+    /// @param onboarder The onboarder wallet that failed to receive
+    /// @param amount The re-routed amount
+    event OnboarderPayoutFailed(address indexed garden, address indexed onboarder, uint256 amount);
+
+    /// @notice Emitted when a deposit is recorded into an active fee session
+    /// @param garden The address of the garden
+    /// @param token The deposited token
+    /// @param amount The deposited amount
+    /// @param usdcValue The USDC value credited to the basis
+    event DepositRecorded(address indexed garden, address indexed token, uint256 amount, uint256 usdcValue);
+
+    // ========================================================================
     // Functions
     // ========================================================================
 
     /// @notice Connect the garden to an index for automated rebalancing
     /// @param indexAddress Address of the index contract to connect to
     function connectToIndex(address indexAddress) external;
+
+    /// @notice Connect the garden to an index, recording the fee basis and binding the onboarder
+    /// @param indexAddress Address of the index contract to connect to
+    /// @param onboarder The onboarder to bind for this session (must be allowlisted;
+    ///        address(0) = none)
+    function connectToIndexWithOnboarder(address indexAddress, address onboarder) external;
+
+    /// @notice Unwind every non-USDC index component to USDC, settle the fee session
+    ///        (performance/protocol fees + onboarder cut), and disconnect — atomic
+    /// @dev Owner-only; if any stage aborts the garden stays connected with its basis untouched
+    /// @param steps The unwind swap steps (caller/CRE-supplied, PoolRegistry-resolved)
+    function unwindAndDisconnect(SwapStep[] calldata steps) external;
 
     /// @notice Disconnect the garden from its connected index
     function disconnectFromIndex() external;

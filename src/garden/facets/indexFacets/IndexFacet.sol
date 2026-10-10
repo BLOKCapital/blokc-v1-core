@@ -50,8 +50,28 @@ contract IndexFacet is IIndex, IndexBase, Facet {
     }
 
     /// @inheritdoc IIndex
+    function connectToIndexWithOnboarder(
+        address indexAddress,
+        address onboarder
+    )
+        external
+        nonReentrant
+        onlyGardenOwner
+        ifIndexNotConnected
+    {
+        _connectToIndex(indexAddress, onboarder);
+    }
+
+    /// @inheritdoc IIndex
     function disconnectFromIndex() external nonReentrant onlyGardenOwner {
         _disconnectFromIndex();
+    }
+
+    /// @inheritdoc IIndex
+    /// @dev Does NOT use nonReentrant — the unwind self-calls DEX facets (custom unwinding
+    ///      flag in FeeStorage instead, mirroring rebalance's rebalancing flag).
+    function unwindAndDisconnect(SwapStep[] calldata steps) external onlyGardenOwner {
+        _unwindAndDisconnect(steps);
     }
 
     /// @inheritdoc IIndex

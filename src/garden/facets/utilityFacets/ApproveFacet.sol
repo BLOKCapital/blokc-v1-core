@@ -4,6 +4,7 @@ pragma solidity ^0.8.31;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
+import { FeeBase } from "src/garden/facets/feeBase/FeeBase.sol";
 
 /// @notice Thrown when approving the zero address as spender
 error ApproveFacet_ZeroSpender();
@@ -23,8 +24,14 @@ error ApproveFacet_ZeroToken();
  *
  *         Installed on INDEX gardens via the FacetRegistry's INDEX module (bumping the
  *         module version), then picked up by each garden's normal two-step upgrade.
+ *
+ *         A recorded fee session blocks approvals: with a basis recorded, the unwind is
+ *         the only sanctioned value exit, and an unscoped max allowance would open a
+ *         second, fee-free rail that drains the fee base before settlement. Grant (or
+ *         refresh) allowances while the garden has no active fee session — rebalancer
+ *         pulls during a rebalance use the already-granted allowances.
  */
-contract ApproveFacet is Facet {
+contract ApproveFacet is Facet, FeeBase {
     using SafeERC20 for IERC20;
 
     /// @notice Grants max allowance for `tokens` to `spender` from the garden's balances.
@@ -32,6 +39,9 @@ contract ApproveFacet is Facet {
     ///               the garden's index — the Rebalancer pulls it separately)
     /// @param spender The contract allowed to pull tokens — the CumulativeRebalancer
     function approveTokens(address[] calldata tokens, address spender) external onlyGardenOwner {
+        // Fee-session containment: no parallel value egress while a feeable session is live
+        _revertIfFeeSessionActive();
+
         if (spender == address(0)) revert ApproveFacet_ZeroSpender();
 
         for (uint256 i = 0; i < tokens.length; i++) {

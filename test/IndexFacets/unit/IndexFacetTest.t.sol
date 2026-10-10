@@ -8,6 +8,20 @@ import { IndexFacet } from "../../../src/garden/facets/indexFacets/IndexFacet.so
 import { IndexBase } from "../../../src/garden/facets/indexFacets/IndexBase.sol";
 
 import { IndexStorage } from "../../../src/garden/facets/indexFacets/IndexStorage.sol";
+import { FeeStorage } from "../../../src/garden/facets/indexFacets/FeeStorage.sol";
+import {
+    FeeFacet_FeeModuleNotConfigured,
+    FeeFacet_InvalidFeeModuleAddress,
+    FeeFacet_FeeBasisNotRecorded,
+    FeeFacet_UnwindRequired,
+    FeeFacet_UnwindReentrancy,
+    FeeFacet_TreasuryNotSet,
+    FeeFacet_ComponentRemained,
+    FeeFacet_ZeroDepositAmount,
+    FeeFacet_CanonicalRegistriesNotSet,
+    FeeFacet_RegistryNotCanonical,
+    FeeFacet_SymbolNotInIndex
+} from "../../../src/garden/facets/feeBase/FeeBase.sol";
 
 import { IIndex, SwapStep, PendingIntent } from "../../../src/garden/facets/indexFacets/IIndex.sol";
 import { SwapInstruction } from "src/interfaces/ISwapInstruction.sol";
@@ -30,6 +44,9 @@ import {
     IndexFacet_InsufficientSwapOutput,
     IndexFacet_IntentExpired,
     IndexFacet_ExcessiveValueLoss,
+    IndexFacet_UnwindRequired,
+    IndexFacet_ComponentRemained,
+    IndexFacet_OnboarderNotEligible,
     IndexFacet_RebalanceReentrancy,
     IndexFacet_ZeroTotalValue,
     IndexFacet_ModuleNotConfigured,
@@ -63,7 +80,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         totalSupply += amount;
     }
 
-    function transfer(address to, uint256 amount) external override returns (bool) {
+    function transfer(address to, uint256 amount) external virtual override returns (bool) {
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         return true;
@@ -180,6 +197,12 @@ contract MockERC20 is IERC20, IERC20Metadata {
             return prices[components[symbol]];
         }
 
+        // Strict variant — identical to plain in the mock (no deviation windows to simulate)
+        function fetchPriceStrict(bytes32 symbol) external view returns (uint256) {
+            if (revertOnFetchPrice) revert("MockComponentRegistry: fetchPrice failed");
+            return prices[components[symbol]];
+        }
+
         function isComponentRegistered(bytes32 symbol) external view returns (bool) {
             return registered[symbol];
         }
@@ -192,6 +215,30 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
     contract MockFacetRegistry {
         mapping(bytes4 => bytes32) public moduleIds;
+
+        address canonicalFeeRegistry;
+        address canonicalTreasuryRegistry;
+        address canonicalOnboarderRegistry;
+
+        function setCanonicalFeeRegistries(
+            address feeRegistry,
+            address treasuryRegistry,
+            address onboarderRegistry
+        )
+            external
+        {
+            canonicalFeeRegistry = feeRegistry;
+            canonicalTreasuryRegistry = treasuryRegistry;
+            canonicalOnboarderRegistry = onboarderRegistry;
+        }
+
+        function getCanonicalFeeRegistries()
+            external
+            view
+            returns (address feeRegistry, address treasuryRegistry, address onboarderRegistry)
+        {
+            return (canonicalFeeRegistry, canonicalTreasuryRegistry, canonicalOnboarderRegistry);
+        }
 
         function setModuleId(bytes4 sel, bytes32 moduleId) external {
             moduleIds[sel] = moduleId;
@@ -242,6 +289,102 @@ contract MockERC20 is IERC20, IERC20Metadata {
             bytes4 sel = selectors[dexId];
             require(sel != bytes4(0), "MockPoolRegistry: DEX not registered");
             return sel;
+        }
+    }
+
+    // ── Fee registry mocks
+    // ────────────────────────────────────────────────────────
+
+    contract MockFeeRegistry {
+        uint256 public performanceFeeBps = 1000;
+        uint256 public protocolFeeBps = 200;
+        uint256 public onboarderShareBps = 5000;
+        uint8 public applyRateAtMode = 0; // ConnectLock
+
+        function setPerformanceFeeBps(uint256 v) external {
+            performanceFeeBps = v;
+        }
+
+        function setProtocolFeeBps(uint256 v) external {
+            protocolFeeBps = v;
+        }
+
+        function setOnboarderShareBps(uint256 v) external {
+            onboarderShareBps = v;
+        }
+
+        function setApplyRateAt(uint8 v) external {
+            applyRateAtMode = v;
+        }
+
+        function getFeeSchedule()
+            external
+            view
+            returns (
+                uint256 performanceFee,
+                uint256 protocolFee,
+                uint256 onboarderShare,
+                uint8 assessmentBase,
+                uint8 applyRateAt
+            )
+        {
+            return (performanceFeeBps, protocolFeeBps, onboarderShareBps, 0, applyRateAtMode);
+        }
+
+        function getSafetyCaps() external pure returns (uint256, uint256, uint256) {
+            return (3000, 1000, 10_000);
+        }
+
+        function getPerformanceFeeBps() external view returns (uint256) {
+            return performanceFeeBps;
+        }
+
+        function getProtocolFeeBps() external view returns (uint256) {
+            return protocolFeeBps;
+        }
+
+        function getOnboarderShareBps() external view returns (uint256) {
+            return onboarderShareBps;
+        }
+
+        function getAssessmentBase() external pure returns (uint8) {
+            return 0;
+        }
+
+        function getApplyRateAt() external view returns (uint8) {
+            return applyRateAtMode;
+        }
+    }
+
+    contract MockTreasuryRegistry {
+        address public treasuryAddress;
+
+        function setAddress(address a) external {
+            treasuryAddress = a;
+        }
+
+        function unset() external {
+            treasuryAddress = address(0);
+        }
+
+        function getTreasuryAddress() external view returns (address) {
+            return treasuryAddress;
+        }
+    }
+
+    contract MockOnboarderRegistry {
+        mapping(address => bool) public eligible;
+
+        function addEligible(address a) external {
+            eligible[a] = true;
+        }
+
+        function removeEligible(address a) external {
+            eligible[a] = false;
+        }
+
+        function isOnboarderEligible(address a) external view returns (bool) {
+            return eligible[a];
         }
     }
 
@@ -416,6 +559,161 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function swapTokens(address, address, uint256, uint256) external returns (uint256) {
             return 0;
         }
+
+        // ── Fee-layer additions
+        // ─────────────────────────────────────────────
+        // Converting swap stub for unwind tests: burns tokenIn from the garden's balance and
+        // mints USDC at the configured rate (per 1 token-in unit, out scaled by 1e18).
+        mapping(address => uint256) public usdcOutPerToken;
+
+        function setUsdcRate(address tokenIn, uint256 rate) external {
+            usdcOutPerToken[tokenIn] = rate;
+        }
+
+        function swapToUsdc(SwapInstruction calldata instruction) external {
+            address tokenIn = instruction.tokens[0];
+            address usdcOut = instruction.tokens[instruction.tokens.length - 1];
+            MockERC20(tokenIn)
+                .setBalance(address(this), IERC20(tokenIn).balanceOf(address(this)) - instruction.amountIn);
+            uint256 out = instruction.amountIn * usdcOutPerToken[tokenIn] / 1e18;
+            MockERC20(usdcOut).setBalance(address(this), IERC20(usdcOut).balanceOf(address(this)) + out);
+        }
+
+        // Reentrancy vector for the unwind-flag test: re-enters unwindAndDisconnectExt from
+        // inside the DEX stub (where fs.unwinding is set by the outer call). The inner call
+        // reverts FeeFacet_UnwindReentrancy before touching the empty steps.
+        bool public reenterOnSwapToUsdc;
+
+        function setReenterOnSwapToUsdc(bool v) external {
+            reenterOnSwapToUsdc = v;
+        }
+
+        function swapToUsdcReentering(SwapInstruction calldata instruction) external {
+            this.unwindAndDisconnectExt(new SwapStep[](0));
+            this.swapToUsdc(instruction);
+        }
+
+        // Wrappers over FeeBase internals (modifiers are enforced on the real facet, not the
+        // standalone harness — same as connectToIndex above).
+        function configureFeeModuleExt(
+            address feeRegistry,
+            address treasuryRegistry,
+            address onboarderRegistry
+        )
+            external
+        {
+            _configureFeeModule(feeRegistry, treasuryRegistry, onboarderRegistry);
+        }
+
+        function connectToIndexWithOnboarderExt(address indexAddress, address onboarder) external {
+            _connectToIndex(indexAddress, onboarder);
+        }
+
+        function unwindAndDisconnectExt(SwapStep[] calldata steps) external {
+            _unwindAndDisconnect(steps);
+        }
+
+        function recordDepositExt(bytes32 symbol, uint256 amount) external {
+            _recordDeposit(symbol, amount);
+        }
+
+        function getFeeBasisRaw()
+            external
+            view
+            returns (
+                bool basisRecorded,
+                uint256 entryUSDC,
+                address onboarder,
+                uint16 perfBps,
+                uint16 protoBps,
+                uint16 shareBps,
+                uint8 applyRateAtMode
+            )
+        {
+            FeeStorage.Layout storage fs = FeeStorage.layout();
+            return (
+                fs.basisRecorded,
+                fs.entryUSDC,
+                fs.onboarderAddress,
+                fs.lockedSchedule.performanceFeeBps,
+                fs.lockedSchedule.protocolFeeBps,
+                fs.lockedSchedule.onboarderShareBps,
+                fs.lockedSchedule.applyRateAtMode
+            );
+        }
+
+        function getUnwindingFlag() external view returns (bool) {
+            return FeeStorage.layout().unwinding;
+        }
+
+        function getFeeBasis()
+            external
+            view
+            returns (
+                bool basisRecorded,
+                uint256 entryUSDC,
+                uint256 depositUSDC,
+                uint64 connectedAtBlock,
+                uint64 connectedAtTimestamp,
+                address onboarder,
+                uint16 perfBps,
+                uint16 protoBps,
+                uint16 shareBps,
+                uint8 applyRateAtMode
+            )
+        {
+            FeeStorage.Layout storage fs = FeeStorage.layout();
+            return (
+                fs.basisRecorded,
+                fs.entryUSDC,
+                fs.depositUSDC,
+                fs.connectedAtBlock,
+                fs.connectedAtTimestamp,
+                fs.onboarderAddress,
+                fs.lockedSchedule.performanceFeeBps,
+                fs.lockedSchedule.protocolFeeBps,
+                fs.lockedSchedule.onboarderShareBps,
+                fs.lockedSchedule.applyRateAtMode
+            );
+        }
+
+        function getLastSettlement() external view returns (uint256 lastExitUSDC, int256 lastRealizedProfitUSDC) {
+            FeeStorage.Layout storage fs = FeeStorage.layout();
+            return (fs.lastExitUSDC, fs.lastRealizedProfitUSDC);
+        }
+
+        function getFeeRegistriesExt()
+            external
+            view
+            returns (address feeRegistry, address treasuryRegistry, address onboarderRegistry)
+        {
+            FeeStorage.Layout storage fs = FeeStorage.layout();
+            return (fs.feeRegistry, fs.treasuryRegistry, fs.onboarderRegistry);
+        }
+
+        function connectToIndexExt(address indexAddress) external {
+            _connectToIndex(indexAddress);
+        }
+
+        function disconnectFromIndexExt() external {
+            _disconnectFromIndex();
+        }
+
+        /// @dev Simulates a legacy pre-fee session: clears the recorded basis so the fee-free
+        ///      disconnectFromIndex path stays reachable in tests (mirror of the forceSet*
+        ///      wrappers — connects made after the mandatory-fee change always record a basis)
+        function forceClearFeeBasis() external {
+            _clearBasis(0);
+        }
+
+        /// @dev Exposes the shared fee-session containment guard used by ApproveFacet.approveTokens
+        function checkFeeSessionGate() external view {
+            _revertIfFeeSessionActive();
+        }
+
+        function isConnectedToIndexExt() external view returns (bool) {
+            return _isConnectedToIndex();
+        }
     }
 
     // =============================================================================
@@ -434,6 +732,13 @@ contract MockERC20 is IERC20, IERC20Metadata {
         MockERC20 internal weth;
         MockERC20 internal usdc;
         MockERC20 internal wbtc;
+
+        // Base-level fee module — connect requires a configured fee module, so every suite
+        // connects against these mocks (fee-specific suites re-wire their own in setUp)
+        MockFeeRegistry internal feeRegistry;
+        MockTreasuryRegistry internal treasuryRegistry;
+        MockOnboarderRegistry internal onboarderRegistry;
+        address internal treasuryAddr = makeAddr("treasury");
 
         // Prices (8 decimals — Chainlink standard)
         uint256 internal constant WETH_PRICE = 3000e8; // $3,000
@@ -475,6 +780,16 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
             // Use vm.store to write directly into the harness's storage.
             h.setFacetRegistry(address(facetRegistry));
+
+            // Wire the base fee module (canonical-validated, mandatory before connect)
+            feeRegistry = new MockFeeRegistry();
+            treasuryRegistry = new MockTreasuryRegistry();
+            onboarderRegistry = new MockOnboarderRegistry();
+            treasuryRegistry.setAddress(treasuryAddr);
+            facetRegistry.setCanonicalFeeRegistries(
+                address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry)
+            );
+            h.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
 
             // Configure component registry
             componentRegistry.setComponent(bytes32("WETH"), address(weth));
@@ -647,6 +962,9 @@ contract MockERC20 is IERC20, IERC20Metadata {
         function setUp() public override {
             super.setUp();
             _connect();
+            // Connects now always record a fee basis; clear it to exercise the legacy
+            // fee-free disconnect path these tests target (pre-fee sessions only)
+            h.forceClearFeeBasis();
         }
 
         function test_disconnect_clearsIndexAddress() public {
@@ -709,6 +1027,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
         }
 
         function test_intent_revertsWhenNotConnected() public {
+            h.forceClearFeeBasis(); // legacy-session disconnect (feeable sessions must unwind)
             h.disconnectFromIndex();
             vm.expectRevert(IndexFacet_NotConnectedToIndex.selector);
             h.rebalanceIntent();
@@ -1208,6 +1527,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
 
         function test_isConnectedToIndex_falseAfterDisconnect() public {
             _connect();
+            h.forceClearFeeBasis(); // legacy-session disconnect
             h.disconnectFromIndex();
             assertFalse(h.isConnectedToIndex());
         }
@@ -1257,3 +1577,468 @@ contract MockERC20 is IERC20, IERC20Metadata {
         }
     }
 
+    // =============================================================================
+    // FEE LIFECYCLE — spec §13 acceptance scenarios
+    // =============================================================================
+
+    /// @dev USDC mock with an address blocklist (simulates Circle blacklisting an onboarder wallet)
+    contract FeeTestBlacklistUSDC is MockERC20 {
+        mapping(address => bool) public blocked;
+
+        constructor() MockERC20("USDC", 6) { }
+
+        function setBlocked(address a, bool b) external {
+            blocked[a] = b;
+        }
+
+        function transfer(address to, uint256 amount) public override returns (bool) {
+            require(!blocked[to] && !blocked[msg.sender], "blacklisted");
+            this.setBalance(msg.sender, this.balanceOf(msg.sender) - amount);
+            this.setBalance(to, this.balanceOf(to) + amount);
+            return true;
+        }
+    }
+
+    contract FeeTestBase is IndexFacetTestBase {
+        address internal onboarder = makeAddr("onboarder");
+        address internal treasury = makeAddr("treasury");
+
+        // Converting DEX rates (USDC out per 1 token-in unit)
+        uint256 internal constant WETH_USDC_RATE = 3000e6;
+        uint256 internal constant WBTC_USDC_RATE = 6e20; // 1e7 sat → 6e9 raw = 6000e6 USDC
+
+        function setUp() public virtual override {
+            super.setUp();
+
+            feeRegistry = new MockFeeRegistry();
+            treasuryRegistry = new MockTreasuryRegistry();
+            onboarderRegistry = new MockOnboarderRegistry();
+            onboarderRegistry.addEligible(onboarder);
+            treasuryRegistry.setAddress(treasury);
+
+            // Re-wire canonicals to this suite's own mocks (no active session at setUp)
+            facetRegistry.setCanonicalFeeRegistries(
+                address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry)
+            );
+            h.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
+
+            // Converting DEX for the unwind
+            h.setUsdcRate(address(weth), WETH_USDC_RATE);
+            h.setUsdcRate(address(wbtc), WBTC_USDC_RATE);
+            poolRegistry.setSwapSelector(keccak256("USDC_DEX"), h.swapToUsdc.selector);
+            facetRegistry.setModuleId(h.swapToUsdc.selector, keccak256("DEX"));
+        }
+
+        /// @dev Basis at connect with the base setUp balances:
+        ///      WETH 1e18 → 3000e6, WBTC 1e7 → 6000e6, raw USDC 1000e6 → NAV = 10_000e6
+        function _connectWithOnboarder() internal {
+            h.connectToIndexWithOnboarderExt(address(index), onboarder);
+        }
+
+        function _connectNoOnboarder() internal {
+            h.connectToIndexWithOnboarderExt(address(index), address(0));
+        }
+
+        function _unwindSteps() internal view returns (SwapStep[] memory steps) {
+            steps = new SwapStep[](2);
+            steps[0] = SwapStep({
+                dexId: keccak256("USDC_DEX"),
+                instruction: SwapInstruction({
+                    amountIn: WETH_BALANCE,
+                    amountOut: 0,
+                    tokens: new address[](2),
+                    pools: new address[](1),
+                    exactOutput: false,
+                    deadline: 0
+                })
+            });
+            steps[0].instruction.tokens[0] = address(weth);
+            steps[0].instruction.tokens[1] = IndexStorage.USDC_ADDRESS;
+            steps[1] = SwapStep({
+                dexId: keccak256("USDC_DEX"),
+                instruction: SwapInstruction({
+                    amountIn: WBTC_BALANCE,
+                    amountOut: 0,
+                    tokens: new address[](2),
+                    pools: new address[](1),
+                    exactOutput: false,
+                    deadline: 0
+                })
+            });
+            steps[1].instruction.tokens[0] = address(wbtc);
+            steps[1].instruction.tokens[1] = IndexStorage.USDC_ADDRESS;
+        }
+
+        function _gardenUsdc() internal view returns (uint256) {
+            return h.getTokenBalance(IndexStorage.USDC_ADDRESS);
+        }
+
+        /// @dev Test-harness artifact: settlement transfers route through the etched forwarder at
+        ///      the USDC constant (msg.sender = forwarder), so the fee float must be seeded on that
+        ///      address. On-chain the garden itself holds the USDC and pays from its own balance.
+        function _seedFeeFloat(uint256 amount) internal {
+            usdc.setBalance(IndexStorage.USDC_ADDRESS, amount);
+        }
+    }
+
+    contract FeeConnectTest is FeeTestBase {
+        function test_fees_connect_recordsBasis() public {
+            _connectWithOnboarder();
+            (bool recorded, uint256 entryUSDC, uint256 depositUSDC,,, address bound,,,,) = h.getFeeBasis();
+            assertTrue(recorded);
+            assertEq(entryUSDC, 10_000e6); // 3000 + 6000 + 1000
+            assertEq(depositUSDC, 0);
+            assertEq(bound, onboarder);
+        }
+
+        function test_fees_connect_locksSchedule() public {
+            _connectWithOnboarder();
+            (,,, uint16 perfBps, uint16 protoBps, uint16 shareBps,) = h.getFeeBasisRaw();
+            assertEq(perfBps, 1000);
+            assertEq(protoBps, 200);
+            assertEq(shareBps, 5000);
+        }
+
+        function test_fees_connect_eligibleOnboarder_bound() public {
+            _connectWithOnboarder();
+            (bool recorded,,,,, address bound,,,,) = h.getFeeBasis();
+            assertTrue(recorded);
+            assertEq(bound, onboarder);
+        }
+
+        function test_fees_connect_revert_onboarderNotEligible() public {
+            address stranger = makeAddr("stranger");
+            vm.expectRevert(abi.encodeWithSelector(IndexFacet_OnboarderNotEligible.selector, stranger));
+            h.connectToIndexWithOnboarderExt(address(index), stranger);
+        }
+
+        function test_fees_connect_revert_onboarderWithoutFeeModule() public {
+            // Garden without configureFeeModule cannot bind an onboarder
+            FeeTestBase fresh = new FeeTestBase(); // has its own harness, also configured...
+            // Instead: deploy a bare harness with no fee config
+            IndexFacetHarness bare = new IndexFacetHarness();
+            bare.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
+            vm.expectRevert(FeeFacet_FeeModuleNotConfigured.selector);
+            bare.connectToIndexWithOnboarderExt(address(index), onboarder);
+        }
+
+        function test_fees_legacyConnect_bindsZeroOnboarder_feeFree() public {
+            _connectNoOnboarder();
+            (bool recorded,,,,, address bound,,,,) = h.getFeeBasis();
+            assertTrue(recorded); // basis recorded
+            assertEq(bound, address(0)); // no onboarder
+        }
+    }
+
+    contract FeeDepositTest is FeeTestBase {
+        function test_fees_depositUsdc_increasesEntry() public {
+            _connectWithOnboarder();
+            // The deposit pull takes USDC from msg.sender (the test contract here) through the
+            // etched forwarder at the USDC constant — so the test needs the balance and must
+            // approve the forwarder (on-chain the owner approves the garden directly)
+            usdc.setBalance(address(this), 2000e6);
+            usdc.approve(IndexStorage.USDC_ADDRESS, 2000e6);
+            h.recordDepositExt(bytes32("USDC"), 2000e6);
+
+            (, uint256 entryUSDC, uint256 depositUSDC,,,,,,,) = h.getFeeBasis();
+            assertEq(entryUSDC, 12_000e6); // 10_000 + 2_000
+            assertEq(depositUSDC, 2000e6);
+        }
+
+        function test_fees_depositComponent_increasesEntryByOracleValue() public {
+            _connectWithOnboarder();
+            // The deposit pull takes WETH from msg.sender (the test contract here); the component
+            // mock has no forwarder, so the token-level msg.sender is the harness itself
+            weth.setBalance(address(this), 1e18);
+            weth.approve(address(h), 1e18);
+            h.recordDepositExt(bytes32("WETH"), 1e18); // +3000e6
+
+            (, uint256 entryUSDC,,,,,,,,) = h.getFeeBasis();
+            assertEq(entryUSDC, 13_000e6);
+        }
+
+        function test_fees_deposit_revert_zeroAmount() public {
+            _connectWithOnboarder();
+            vm.expectRevert(FeeFacet_ZeroDepositAmount.selector);
+            h.recordDepositExt(bytes32("USDC"), 0);
+        }
+
+        function test_fees_deposit_revert_notConnected() public {
+            vm.expectRevert(FeeFacet_FeeBasisNotRecorded.selector);
+            h.recordDepositExt(bytes32("USDC"), 1e6);
+        }
+
+        function test_fees_depositComponent_revert_symbolNotInIndex() public {
+            _connectWithOnboarder();
+            // A registered component outside the index's weight list must not credit the
+            // basis: the unwind only realizes weighted symbols, so such a credit could never
+            // be converted into exit USDC (audit: basis laundering via off-index deposits)
+            MockERC20 link = new MockERC20("LINK", 18);
+            componentRegistry.setComponent(bytes32("LINK"), address(link));
+            componentRegistry.setPrice(address(link), 15e8);
+
+            vm.expectRevert(abi.encodeWithSelector(FeeFacet_SymbolNotInIndex.selector, bytes32("LINK")));
+            h.recordDepositExt(bytes32("LINK"), 100e18);
+        }
+    }
+
+    contract FeeUnwindTest is FeeTestBase {
+        function test_fees_unwind_workedSplit_invariantsHold() public {
+            _connectWithOnboarder(); // basis 10_000e6
+
+            // Market pumps: WETH 3000 → 4000; unwind converts at the new price
+            componentRegistry.setPrice(address(weth), 4000e8);
+            h.setUsdcRate(address(weth), 4000e6);
+            // The pump alone realizes the profit: exit = 1_000 raw + 4_000 (WETH@4000)
+            // + 6_000 (WBTC) = 11_000e6 vs basis 10_000e6 → profit 1_000e6
+            // Settlement spends the etched forwarder's balance in the harness (on-chain the garden
+            // pays from its own USDC) — seed the float the fees will be paid from
+            _seedFeeFloat(120e6);
+
+            h.unwindAndDisconnectExt(_unwindSteps());
+            // The garden's balance IS the full exit here — the harness float paid the fees, so
+            // on-chain's exit − fees == garden balance doesn't apply to this harness
+            uint256 exitUSDC = _gardenUsdc(); // 11_000e6
+
+            // Onboarder 50e6, treasury 70e6 (50 DAO perf + 20 proto); the garden keeps its full
+            // exit because the harness float paid the fees
+            assertEq(usdc.balanceOf(onboarder), 50e6);
+            assertEq(usdc.balanceOf(treasury), 70e6);
+            assertEq(_gardenUsdc(), 11_000e6);
+
+            // Conservation incl. the harness float: 50 + 70 + 11_000 == 11_000 + 120
+            assertEq(usdc.balanceOf(onboarder) + usdc.balanceOf(treasury) + _gardenUsdc(), exitUSDC + 120e6);
+
+            // Session cleared, audit written
+            (bool recorded, uint256 entryUSDC,,,,,,,,) = h.getFeeBasis();
+            assertFalse(recorded);
+            assertEq(entryUSDC, 0);
+            (uint256 lastExit, int256 lastProfit) = h.getLastSettlement();
+            assertEq(lastExit, exitUSDC);
+            assertEq(lastProfit, int256(1000e6));
+        }
+
+        function test_fees_unwind_onboarderSettlement_math() public {
+            // Spec §13(2): connect 10,000, exit 11,000, onboarder set → perf 100, onboarder 50,
+            // treasury 50 + 20, investor 10,880
+            _connectWithOnboarder();
+            usdc.setBalance(address(h), _gardenUsdc() + 1000e6);
+            _seedFeeFloat(120e6);
+            h.unwindAndDisconnectExt(_unwindSteps());
+
+            assertEq(usdc.balanceOf(onboarder), 50e6);
+            assertEq(usdc.balanceOf(treasury), 70e6);
+            assertEq(_gardenUsdc(), 11_000e6); // full exit kept; fees from the harness float
+        }
+
+        function test_fees_unwind_noOnboarder_treasuryGetsFullPerf() public {
+            _connectNoOnboarder();
+            usdc.setBalance(address(h), _gardenUsdc() + 1000e6);
+            _seedFeeFloat(120e6);
+            h.unwindAndDisconnectExt(_unwindSteps());
+
+            assertEq(usdc.balanceOf(onboarder), 0);
+            assertEq(usdc.balanceOf(treasury), 120e6); // 100 perf + 20 proto
+            assertEq(_gardenUsdc(), 11_000e6);
+        }
+
+        function test_fees_unwind_loss_noFees() public {
+            _connectWithOnboarder(); // basis 10_000e6
+
+            // Market dumps: WBTC halves → NAV at unwind 7_000e6, DEX matches the oracle (no
+            // swap loss), so the whole drop is realized as a loss vs the 10_000e6 basis
+            componentRegistry.setPrice(address(wbtc), 30_000e8);
+            h.setUsdcRate(address(wbtc), 3e20); // 1e7 sat → 3e9 raw = 3000e6 USDC
+
+            h.unwindAndDisconnectExt(_unwindSteps());
+
+            // No fee transfers: onboarder and treasury balances unchanged
+            assertEq(usdc.balanceOf(onboarder), 0);
+            assertEq(usdc.balanceOf(treasury), 0);
+            // Investor receives exitUSDC in full
+            assertEq(_gardenUsdc(), 7000e6); // 3000 + 3000 + 1000
+
+            (uint256 lastExit, int256 lastProfit) = h.getLastSettlement();
+            assertEq(lastExit, 7000e6);
+            assertEq(lastProfit, int256(7000e6) - int256(10_000e6)); // −3_000e6 loss recorded
+        }
+
+        function test_fees_unwind_zeroProfit_skipsTransfers() public {
+            _connectWithOnboarder(); // basis == NAV; unwind at same prices → exit == entry
+            uint256 beforeOnboarder = usdc.balanceOf(onboarder);
+            uint256 beforeTreasury = usdc.balanceOf(treasury);
+
+            h.unwindAndDisconnectExt(_unwindSteps());
+
+            assertEq(usdc.balanceOf(onboarder), beforeOnboarder);
+            assertEq(usdc.balanceOf(treasury), beforeTreasury);
+            (, int256 lastProfit) = h.getLastSettlement();
+            assertEq(lastProfit, 0);
+        }
+
+        function test_fees_unwind_excessiveValueLoss_gardenStaysConnected() public {
+            _connectWithOnboarder(); // basis 10_000e6
+
+            // Oracle pumps WETH to 4000 but the DEX sells at the OLD price → NAV 11_000e6,
+            // exit 10_000e6 (< 99.5% floor of 10_945e6) → abort, garden stays connected
+            componentRegistry.setPrice(address(weth), 4000e8);
+            // dex rate stays 3000e6
+
+            vm.expectRevert(abi.encodeWithSelector(IndexFacet_ExcessiveValueLoss.selector, 11_000e6, 10_000e6));
+            h.unwindAndDisconnectExt(_unwindSteps());
+
+            // Garden stays connected, basis untouched
+            assertTrue(h.isConnectedToIndex());
+            (bool recorded, uint256 entryUSDC,,,,,,,,) = h.getFeeBasis();
+            assertTrue(recorded);
+            assertEq(entryUSDC, 10_000e6);
+        }
+
+        function test_fees_unwind_componentRemained_aborts() public {
+            _connectWithOnboarder();
+            // Only sell WETH — WBTC remains → abort
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = SwapStep({
+                dexId: keccak256("USDC_DEX"),
+                instruction: SwapInstruction({
+                    amountIn: WETH_BALANCE,
+                    amountOut: 0,
+                    tokens: new address[](2),
+                    pools: new address[](1),
+                    exactOutput: false,
+                    deadline: 0
+                })
+            });
+            steps[0].instruction.tokens[0] = address(weth);
+            steps[0].instruction.tokens[1] = IndexStorage.USDC_ADDRESS;
+
+            vm.expectRevert(
+                abi.encodeWithSelector(IndexFacet_ComponentRemained.selector, bytes32("WBTC"), WBTC_BALANCE)
+            );
+            h.unwindAndDisconnectExt(steps);
+        }
+
+        function test_fees_unwind_treasuryUnset_reverts() public {
+            _connectWithOnboarder();
+            treasuryRegistry.unset();
+            usdc.setBalance(address(h), _gardenUsdc() + 1000e6);
+
+            vm.expectRevert(FeeFacet_TreasuryNotSet.selector);
+            h.unwindAndDisconnectExt(_unwindSteps());
+
+            // Garden stays connected, basis untouched
+            assertTrue(h.isConnectedToIndex());
+            (bool recorded, uint256 entryUSDC,,,,,,,,) = h.getFeeBasis();
+            assertTrue(recorded);
+            assertEq(entryUSDC, 10_000e6);
+        }
+
+        function test_fees_unwind_onboarderPayoutFails_routesToTreasury() public {
+            // Re-etch a blacklisting USDC at the constant address
+            FeeTestBlacklistUSDC blUsdc = new FeeTestBlacklistUSDC();
+            blUsdc.setBalance(address(h), USDC_BALANCE);
+            blUsdc.setBlocked(onboarder, true);
+            _etchMockAt(IndexStorage.USDC_ADDRESS, address(blUsdc));
+
+            _connectWithOnboarder(); // basis 10_000e6 (recomputed against the blacklisting token)
+            blUsdc.setBalance(address(h), _gardenUsdc() + 1000e6);
+            blUsdc.setBalance(IndexStorage.USDC_ADDRESS, 120e6); // fee float on the re-etched mock
+
+            h.unwindAndDisconnectExt(_unwindSteps());
+
+            // Onboarder cut re-routed to Treasury: 50 (dao perf) + 20 (proto) + 50 (failed cut)
+            assertEq(blUsdc.balanceOf(onboarder), 0);
+            assertEq(blUsdc.balanceOf(treasury), 120e6);
+            assertEq(_gardenUsdc(), 11_000e6);
+        }
+
+        function test_fees_approveGate_blockedDuringSession() public {
+            // ApproveFacet.approveTokens shares the fee-session containment guard: with a
+            // recorded basis, no parallel value-egress rail may open (audit: mid-session drain)
+            _connectWithOnboarder();
+            vm.expectRevert(FeeFacet_UnwindRequired.selector);
+            h.checkFeeSessionGate();
+        }
+
+        function test_fees_approveGate_allowedAfterExit() public {
+            _connectWithOnboarder();
+            h.unwindAndDisconnectExt(_unwindSteps());
+            h.checkFeeSessionGate(); // allowances can be (re)granted between sessions
+        }
+
+        function test_fees_unwind_revert_reentrancy() public {
+            _connectWithOnboarder();
+            // Point the unwind's DEX selector at a stub that re-enters unwindAndDisconnectExt:
+            // the reentrant call hits fs.unwinding (set by the outer call) and reverts, and the
+            // outer unwind wraps the inner revert in SwapCallFailed
+            poolRegistry.setSwapSelector(keccak256("USDC_DEX"), h.swapToUsdcReentering.selector);
+            facetRegistry.setModuleId(h.swapToUsdcReentering.selector, keccak256("DEX"));
+            h.setReenterOnSwapToUsdc(true);
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IndexFacet_SwapCallFailed.selector,
+                    uint256(0),
+                    abi.encodeWithSelector(FeeFacet_UnwindReentrancy.selector)
+                )
+            );
+            h.unwindAndDisconnectExt(_unwindSteps());
+        }
+    }
+
+    contract FeeModuleConfigTest is FeeTestBase {
+        function test_fees_configureFeeModule_reconfigure_requiresNoSession() public {
+            _connectWithOnboarder(); // active session
+            vm.expectRevert(FeeFacet_UnwindRequired.selector);
+            h.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
+        }
+
+        function test_fees_configureFeeModule_reconfigure_allowedAfterExit() public {
+            _connectWithOnboarder();
+            h.unwindAndDisconnectExt(_unwindSteps());
+            // Re-wiring the SAME canonical registries between sessions is allowed
+            h.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
+            (address fee,,) = h.getFeeRegistriesExt();
+            assertEq(fee, address(feeRegistry));
+        }
+
+        function test_fees_configureFeeModule_revert_nonCanonicalRegistry() public {
+            // The fee payer cannot wire lookalike registries — every address must match the
+            // canonical set published on the FacetRegistry (audit: trust-anchor takeover)
+            MockFeeRegistry fakeFee = new MockFeeRegistry();
+            vm.expectRevert(
+                abi.encodeWithSelector(FeeFacet_RegistryNotCanonical.selector, address(fakeFee), address(feeRegistry))
+            );
+            h.configureFeeModuleExt(address(fakeFee), address(treasuryRegistry), address(onboarderRegistry));
+        }
+
+        function test_fees_configureFeeModule_revert_canonicalNotSet() public {
+            // Fail-closed: with no canonical fee registries published on the garden's
+            // FacetRegistry, configuration is impossible
+            IndexFacetHarness bare = new IndexFacetHarness();
+            bare.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
+            bare.setFacetRegistry(address(new MockFacetRegistry())); // no canonical published
+            vm.expectRevert(FeeFacet_CanonicalRegistriesNotSet.selector);
+            bare.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
+        }
+
+        function test_fees_configureFeeModule_revert_zeroAddress() public {
+            vm.expectRevert(abi.encodeWithSelector(FeeFacet_InvalidFeeModuleAddress.selector, address(0)));
+            h.configureFeeModuleExt(address(0), address(treasuryRegistry), address(onboarderRegistry));
+        }
+
+        function test_fees_legacyDisconnect_revert_afterBasis() public {
+            _connectWithOnboarder();
+            vm.expectRevert(IndexFacet_UnwindRequired.selector);
+            h.disconnectFromIndexExt();
+        }
+
+        function test_fees_connect_revert_withoutFeeModule() public {
+            // Fee sessions are mandatory: an unconfigured garden cannot connect at all — the
+            // legacy fee-free connect-profit-disconnect cycle is closed (audit: opt-out)
+            IndexFacetHarness bare = new IndexFacetHarness();
+            bare.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
+            vm.expectRevert(FeeFacet_FeeModuleNotConfigured.selector);
+            bare.connectToIndexExt(address(index));
+        }
+    }
