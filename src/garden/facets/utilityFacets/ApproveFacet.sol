@@ -12,11 +12,10 @@ import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 error ApproveFacet_ZeroSpender();
 
 /// @notice Thrown when approveTokens is attempted before the FacetRegistry has published the
-///         canonical rebalancer (fail-closed — no canonical spender, no approvals)
+///         canonical rebalancer (fail-closed)
 error ApproveFacet_CanonicalRebalancerNotSet();
 
-/// @notice Thrown when the spender is not the DAO's canonical rebalancer (external audit H01:
-///         pre-session max allowances to arbitrary spenders were a fee-free exit rail)
+/// @notice Thrown when the spender is not the DAO's canonical rebalancer
 /// @param provided The spender that was passed
 /// @param canonical The canonical rebalancer it must match
 error ApproveFacet_SpenderNotCanonicalRebalancer(address provided, address canonical);
@@ -57,9 +56,8 @@ contract ApproveFacet is Facet, FeeBase {
 
         if (spender == address(0)) revert ApproveFacet_ZeroSpender();
 
-        // Spender containment (external audit H01): the allowance exists solely so the
-        // CumulativeRebalancer can pull balances — any other spender is a fee-free exit
-        // rail. Fail-closed while the canonical rebalancer is unpublished.
+        // Allowances exist solely for the canonical CumulativeRebalancer's pulls — any
+        // other spender is a parallel value-egress rail. Fail-closed while unpublished.
         address canonical = IFacetRegistry(LibDiamond.layout().facetRegistry).getCanonicalRebalancer();
         if (canonical == address(0)) revert ApproveFacet_CanonicalRebalancerNotSet();
         if (spender != canonical) revert ApproveFacet_SpenderNotCanonicalRebalancer(spender, canonical);

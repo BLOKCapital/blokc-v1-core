@@ -330,9 +330,8 @@ contract FacetRegistry is IFacetRegistry, Ownable {
         return (_canonicalFeeRegistry, _canonicalTreasuryRegistry, _canonicalOnboarderRegistry);
     }
 
-    /// @notice Publishes the DAO's canonical CumulativeRebalancer. Gardens restrict
-    ///         approveTokens spenders to this address (external audit H01: pre-session
-    ///         allowances to arbitrary spenders were a fee-free exit rail).
+    /// @notice Publishes the DAO's canonical CumulativeRebalancer — the only spender
+    ///         gardens may grant pull allowances to.
     function setCanonicalRebalancer(address rebalancer) external onlyOwner {
         if (rebalancer == address(0)) revert FacetRegistry_CanonicalRegistryAddressIsZero();
         _canonicalRebalancer = rebalancer;
@@ -345,9 +344,8 @@ contract FacetRegistry is IFacetRegistry, Ownable {
         return _canonicalRebalancer;
     }
 
-    /// @notice Publishes the DAO's canonical index-module registries. Gardens validate every
-    ///         configureIndexModule call against these (external audit H02: owner-chosen
-    ///         registries controlled the fee layer's identity AND price reads).
+    /// @notice Publishes the DAO's canonical index-module registries — gardens validate
+    ///         every configureIndexModule call against these.
     function setCanonicalIndexRegistries(
         address indexFactory,
         address indexComponentRegistry,

@@ -42,7 +42,7 @@ error Rebalancer_SwapFailed(address tokenIn, address tokenOut, bytes reason);
 error Rebalancer_NoPoolsFound(address tokenIn, address tokenOut);
 
 /// @notice Thrown when recoverUndeliveredPayout is called with nothing (or too much)
-///         attributed to the given token/garden pair (external audit M01)
+///         attributed to the given token/garden pair
 error Rebalancer_NothingUndelivered(address token, address garden);
 error Rebalancer_InsufficientSwapOutput(address tokenOut, uint256 received, uint256 minExpected);
 error Rebalancer_DexNotConfigured(bytes32 dexId);
@@ -165,13 +165,11 @@ contract Rebalancer is Ownable {
     /// @notice Max gardens per batch for each index type. Set by the DAO.
     mapping(bytes32 indexTypeId => uint256 batchSize) public maxGardensPerBatch;
 
-    /// @notice token => total failed-payout allocation still sitting in this contract
-    ///         (external audit M01). Excluded from every inventory read so stranded
-    ///         funds are never re-traded, spent on deficits, or redistributed to a
-    ///         later batch. Recoverable via recoverUndeliveredPayout.
+    /// @notice token => failed-payout allocation still held here. Excluded from every
+    ///         inventory read via _tradeableBalance; recoverable by the attributed owner.
     mapping(address token => uint256 amount) public undeliveredPayouts;
 
-    /// @notice token => garden => attributed undelivered amount (owner recovery).
+    /// @notice token => garden => attributed undelivered amount.
     mapping(address token => mapping(address garden => uint256)) public undeliveredFor;
 
     // ========================================================================
@@ -403,15 +401,9 @@ contract Rebalancer is Ownable {
         (address[] memory batch, uint256 totalGardens) = _collectGardens(indexTypeId, cursor, batchSize);
         if (totalGardens == 0) revert Rebalancer_NoGardensFound(indexTypeId);
 
-        // If the connected-garden set shrank below the stored cursor (gardens disconnected
-        // mid-round — EnumerableSet.remove is swap-and-pop), the remaining slice is empty.
-        // End the round here instead of silently restarting it: writing the cooldown anchor
-        // closes the round so the 24h interval re-binds. Otherwise a garden owner could
-        // disconnect/reconnect tail gardens to restart rounds back-to-back, each restart
-        // skipping the cooldown check (which only runs on cursor == 0) and the anchor never
-        // being written (it is only written when a round completes). The batches 0..k-1 of
-        // this round already executed, so the anchor reflects real work; any garden that
-        // swapped into an unprocessed position waits at most one interval for the next round.
+        // The set shrank below the cursor (disconnects swap-and-pop): the remaining slice
+        // is empty. Complete the round — restarting without the cooldown anchor would let
+        // tail gardens restart rounds back-to-back.
         if (cursor >= totalGardens) {
             gardenCursor[indexTypeId] = 0;
             lastRebalanceTimestamp[indexTypeId] = block.timestamp;
@@ -442,11 +434,8 @@ contract Rebalancer is Ownable {
             _snapshotAndPullTokens(batch, symbols, usdcIsComponent, snapshot);
 
         if (totalValueUsd == 0) {
-            // Batch pulled nothing (all-empty, all-unapproved, or all-unfunded gardens):
-            // no swaps, no redistribution owed. Treat as processed — reverting here parks
-            // the cursor on this window forever (the cooldown only re-binds at cursor 0),
-            // wedging cumulative rebalancing for the whole index type against free
-            // empty-garden spam (external audit H03).
+            // Nothing pulled: no swaps, no redistribution owed. Advance instead of
+            // reverting — a revert would park the cursor on this window forever.
             if (end >= totalGardens) {
                 gardenCursor[indexTypeId] = 0;
                 lastRebalanceTimestamp[indexTypeId] = block.timestamp;
@@ -1280,24 +1269,18 @@ contract Rebalancer is Ownable {
     }
 
     // ========================================================================
-    // Internal: Undelivered Payout Accounting (external audit M01)
+    // Internal: Undelivered Payout Accounting
     // ========================================================================
 
-    /// @dev Saturating inventory read: raw balance minus stranded undelivered payouts.
-    ///      Every inventory valuation/spend/redistribution read MUST go through this so
-    ///      a failed payout is never re-traded, spent on deficit buys, or paid to a
-    ///      later batch (the payout's owner recovers it via recoverUndeliveredPayout).
-    ///      Saturating at zero: a fee-on-transfer token whose balance fell below the
-    ///      recorded stranded amount must not revert subsequent rebalances.
+    /// @dev Inventory read excluding stranded undelivered payouts, saturating at zero.
     function _tradeableBalance(address token) private view returns (uint256) {
         uint256 balance = IERC20(token).balanceOf(address(this));
         uint256 stranded = undeliveredPayouts[token];
         return balance > stranded ? balance - stranded : 0;
     }
 
-    /// @notice Retries a failed garden payout (external audit M01). The transfer is
-    ///         attempted directly: a still-blacklisted garden reverts, leaving the
-    ///         accounting unchanged for a later retry.
+    /// @notice Retries a failed garden payout. Reverts while the receiver is still
+    ///         rejecting transfers; accounting is unchanged until it succeeds.
     function recoverUndeliveredPayout(address token, address garden, uint256 amount) external onlyOwner {
         if (amount == 0 || amount > undeliveredFor[token][garden]) {
             revert Rebalancer_NothingUndelivered(token, garden);
@@ -1345,12 +1328,8 @@ contract Rebalancer is Ownable {
             originalBalances[j] = _tradeableBalance(tokenAddrs[j]);
         }
 
-        // Outbound isolation (external audit M01): a failed payout (garden blacklisted by a
-        // token, transfer reject) must not revert the whole batch and must never leak into
-        // later rounds. The stranded amount is recorded in storage (undeliveredPayouts /
-        // undeliveredFor) and excluded from every inventory read via _tradeableBalance, so
-        // it is never re-traded, spent on deficit buys, or redistributed; the attributed
-        // owner recovers it via recoverUndeliveredPayout.
+        // Failed payouts are recorded in storage and excluded from every inventory
+        // read — they are never re-traded or redistributed (recoverUndeliveredPayout).
 
         for (uint256 i = 0; i < gardens.length; i++) {
             uint256 share = Math.mulDiv(contributions[i], PRECISION, totalValueUsd, Math.Rounding.Floor);

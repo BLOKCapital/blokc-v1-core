@@ -36,7 +36,9 @@ jobs:
 
       - name: Run Forge build
         run: |
-          forge build --sizes
+          # EIP-170 applies to deployed contracts only — test/script contracts are
+          # never deployed (FuzzTester/IndexFacetHarness exceed it by design)
+          forge build --sizes --skip test script
         id: build
 
       - name: Run Forge tests

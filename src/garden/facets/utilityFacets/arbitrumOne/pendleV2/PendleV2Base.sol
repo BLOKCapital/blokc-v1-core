@@ -106,9 +106,7 @@ abstract contract PendleV2Base {
     {
         IPAllActionV3 router = IPAllActionV3(PENDLE_V2_ROUTER_ADDRESS);
 
-        // The router pulls the PT from this contract via transferFrom (external audit I01:
-        // the buy path approves, the sell path never did — every sale with exactPtIn > 0
-        // reverted on zero allowance). Read the PT from the market, approve, then reset.
+        // The router pulls the PT via transferFrom — approve before the sale, reset after.
         (, IERC20 pt,) = IPMarket(market).readTokens();
         pt.forceApprove(address(router), exactPtIn);
         (netTokenOut, netSyFee, netSyInterm) = router.swapExactPtForToken(receiver, market, exactPtIn, output, limit);

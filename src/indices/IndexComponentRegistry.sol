@@ -388,10 +388,8 @@ contract IndexComponentRegistry is Ownable {
     }
 
     /// @notice Strict read: like `fetchPrice` but reverts while the symbol has an unresolved
-    ///      deviation rejection (firstDeviationAt != 0) OR the served record is stale (no
-    ///      fresh round within the heartbeat — external audit L01: the stale half of the
-    ///      "stale feeds never price the basis" guarantee). For consumers that prefer loud
-    ///      failure over stale-price service.
+    ///      deviation rejection (firstDeviationAt != 0) or the served record is stale
+    ///      (no fresh round within the heartbeat).
     function fetchPriceStrict(bytes32 _symbol) external returns (uint256 price) {
         price = fetchPrice(_symbol);
         address _token = _components[_symbol].tokenAddress;
@@ -399,10 +397,8 @@ contract IndexComponentRegistry is Ownable {
         if (record.firstDeviationAt != 0) {
             revert IndexComponentRegistry__PriceDeviationTooHigh(_token, record.price, record.emaPrice);
         }
-        // Staleness gate: fetchPrice degrades to the cached price on a feed stall; strict
-        // consumers (fee basis, deposit credit, unwind guard, rebalance snapshot) must not
-        // be priced off it. Auto-accept paths store the accepted round's own timestamp, so
-        // fresh rounds never trip this.
+        // Strict consumers must not be priced off a stale record. Auto-accept paths
+        // store the accepted round's own timestamp, so fresh rounds never trip this.
         if (_isPriceStale(record.timestamp, _components[_symbol].heartbeat)) {
             revert IndexComponentRegistry__FeedFrozenError(_token);
         }
