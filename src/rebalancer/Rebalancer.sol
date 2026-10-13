@@ -40,6 +40,10 @@ error Rebalancer_ZeroTotalValue(bytes32 indexTypeId);
 error Rebalancer_ExcessiveValueLoss(uint256 valueBefore, uint256 valueAfter);
 error Rebalancer_SwapFailed(address tokenIn, address tokenOut, bytes reason);
 error Rebalancer_NoPoolsFound(address tokenIn, address tokenOut);
+
+/// @notice Thrown when recoverUndeliveredPayout is called with nothing (or too much)
+///         attributed to the given token/garden pair (external audit M01)
+error Rebalancer_NothingUndelivered(address token, address garden);
 error Rebalancer_InsufficientSwapOutput(address tokenOut, uint256 received, uint256 minExpected);
 error Rebalancer_DexNotConfigured(bytes32 dexId);
 error Rebalancer_DexTypeNotSupported(uint8 dexType);
@@ -161,6 +165,15 @@ contract Rebalancer is Ownable {
     /// @notice Max gardens per batch for each index type. Set by the DAO.
     mapping(bytes32 indexTypeId => uint256 batchSize) public maxGardensPerBatch;
 
+    /// @notice token => total failed-payout allocation still sitting in this contract
+    ///         (external audit M01). Excluded from every inventory read so stranded
+    ///         funds are never re-traded, spent on deficits, or redistributed to a
+    ///         later batch. Recoverable via recoverUndeliveredPayout.
+    mapping(address token => uint256 amount) public undeliveredPayouts;
+
+    /// @notice token => garden => attributed undelivered amount (owner recovery).
+    mapping(address token => mapping(address garden => uint256)) public undeliveredFor;
+
     // ========================================================================
     // Events
     // ========================================================================
@@ -221,6 +234,8 @@ contract Rebalancer is Ownable {
     /// @notice Emitted when a redistribution payout to a garden fails; the allocation stays in
     ///         the Rebalancer and is excluded from later gardens' remainder sweeps
     event GardenPayoutFailed(address indexed garden, address indexed token, uint256 allocation);
+
+    event UndeliveredRecovered(address indexed token, address indexed garden, uint256 amount);
 
     // ========================================================================
     // Constructor
@@ -388,8 +403,24 @@ contract Rebalancer is Ownable {
         (address[] memory batch, uint256 totalGardens) = _collectGardens(indexTypeId, cursor, batchSize);
         if (totalGardens == 0) revert Rebalancer_NoGardensFound(indexTypeId);
 
-        // If cursor is past the end (gardens were removed), reset to start a fresh round
-        if (cursor >= totalGardens) cursor = 0;
+        // If the connected-garden set shrank below the stored cursor (gardens disconnected
+        // mid-round — EnumerableSet.remove is swap-and-pop), the remaining slice is empty.
+        // End the round here instead of silently restarting it: writing the cooldown anchor
+        // closes the round so the 24h interval re-binds. Otherwise a garden owner could
+        // disconnect/reconnect tail gardens to restart rounds back-to-back, each restart
+        // skipping the cooldown check (which only runs on cursor == 0) and the anchor never
+        // being written (it is only written when a round completes). The batches 0..k-1 of
+        // this round already executed, so the anchor reflects real work; any garden that
+        // swapped into an unprocessed position waits at most one interval for the next round.
+        if (cursor >= totalGardens) {
+            gardenCursor[indexTypeId] = 0;
+            lastRebalanceTimestamp[indexTypeId] = block.timestamp;
+            emit CumulativeRebalanceCompleted(
+                indexTypeId, totalGardens, block.timestamp, block.timestamp + REBALANCE_INTERVAL
+            );
+            _locked = false;
+            return;
+        }
 
         uint256 end = cursor + batchSize;
         if (end > totalGardens) end = totalGardens;
@@ -410,7 +441,25 @@ contract Rebalancer is Ownable {
         (uint256[] memory contributions, uint256 totalValueUsd) =
             _snapshotAndPullTokens(batch, symbols, usdcIsComponent, snapshot);
 
-        if (totalValueUsd == 0) revert Rebalancer_ZeroTotalValue(indexTypeId);
+        if (totalValueUsd == 0) {
+            // Batch pulled nothing (all-empty, all-unapproved, or all-unfunded gardens):
+            // no swaps, no redistribution owed. Treat as processed — reverting here parks
+            // the cursor on this window forever (the cooldown only re-binds at cursor 0),
+            // wedging cumulative rebalancing for the whole index type against free
+            // empty-garden spam (external audit H03).
+            if (end >= totalGardens) {
+                gardenCursor[indexTypeId] = 0;
+                lastRebalanceTimestamp[indexTypeId] = block.timestamp;
+                emit CumulativeRebalanceCompleted(
+                    indexTypeId, totalGardens, block.timestamp, block.timestamp + REBALANCE_INTERVAL
+                );
+            } else {
+                gardenCursor[indexTypeId] = end;
+                emit BatchRebalanceCompleted(indexTypeId, end, totalGardens);
+            }
+            _locked = false;
+            return;
+        }
 
         if (cursor == 0) {
             emit CumulativeRebalanceStarted(indexTypeId, totalGardens, totalValueUsd);
@@ -619,7 +668,7 @@ contract Rebalancer is Ownable {
 
         for (uint256 i = 0; i < symbols.length; i++) {
             address token = COMPONENT_REGISTRY.getComponentAddress(symbols[i]);
-            uint256 balance = IERC20(token).balanceOf(address(this));
+            uint256 balance = _tradeableBalance(token);
             uint256 price = snapshot.components[i];
             uint8 decimals = IERC20Metadata(token).decimals();
             currentValues[i] = Math.mulDiv(balance, price, 10 ** decimals, Math.Rounding.Floor);
@@ -627,7 +676,7 @@ contract Rebalancer is Ownable {
         }
 
         if (!usdcIsComponent && snapshot.usdc > 0) {
-            uint256 usdcBalance = IERC20(USDC).balanceOf(address(this));
+            uint256 usdcBalance = _tradeableBalance(USDC);
             if (usdcBalance > 0) {
                 uint8 usdcDecimals = IERC20Metadata(USDC).decimals();
                 recomputedTotal += Math.mulDiv(usdcBalance, snapshot.usdc, 10 ** usdcDecimals, Math.Rounding.Floor);
@@ -651,7 +700,7 @@ contract Rebalancer is Ownable {
         total = 0;
         for (uint256 i = 0; i < symbols.length; i++) {
             address token = COMPONENT_REGISTRY.getComponentAddress(symbols[i]);
-            uint256 balance = IERC20(token).balanceOf(address(this));
+            uint256 balance = _tradeableBalance(token);
             if (balance > 0) {
                 uint256 price = snapshot.components[i];
                 uint8 decimals = IERC20Metadata(token).decimals();
@@ -659,7 +708,7 @@ contract Rebalancer is Ownable {
             }
         }
         if (!usdcIsComponent && snapshot.usdc > 0) {
-            uint256 usdcBalance = IERC20(USDC).balanceOf(address(this));
+            uint256 usdcBalance = _tradeableBalance(USDC);
             if (usdcBalance > 0) {
                 uint8 usdcDecimals = IERC20Metadata(USDC).decimals();
                 total += Math.mulDiv(usdcBalance, snapshot.usdc, 10 ** usdcDecimals, Math.Rounding.Floor);
@@ -854,7 +903,7 @@ contract Rebalancer is Ownable {
 
             // Phase 2: Remaining excess → consolidated to USDC in one swap per token.
             if (remainingSellAmount > 0 && excess[ei].token != USDC) {
-                uint256 balance = IERC20(excess[ei].token).balanceOf(address(this));
+                uint256 balance = _tradeableBalance(excess[ei].token);
                 uint256 sellAmount = remainingSellAmount < balance ? remainingSellAmount : balance;
                 if (sellAmount > 0) {
                     address[] memory usdcPools = POOL_REGISTRY.getPoolsForPair(excess[ei].token, USDC);
@@ -886,7 +935,7 @@ contract Rebalancer is Ownable {
     }
 
     function _sweepUsdcToDeficits(TokenDeficit[] memory deficit, uint256 deadline, uint256 usdcPrice) private {
-        uint256 usdcBalance = IERC20(USDC).balanceOf(address(this));
+        uint256 usdcBalance = _tradeableBalance(USDC);
         if (usdcBalance == 0) return;
 
         uint8 usdcDecimals = IERC20Metadata(USDC).decimals();
@@ -942,7 +991,7 @@ contract Rebalancer is Ownable {
                 deficit[di].buyValueUsd = 0;
             }
 
-            usdcBalance = IERC20(USDC).balanceOf(address(this));
+            usdcBalance = _tradeableBalance(USDC);
         }
     }
 
@@ -1231,6 +1280,35 @@ contract Rebalancer is Ownable {
     }
 
     // ========================================================================
+    // Internal: Undelivered Payout Accounting (external audit M01)
+    // ========================================================================
+
+    /// @dev Saturating inventory read: raw balance minus stranded undelivered payouts.
+    ///      Every inventory valuation/spend/redistribution read MUST go through this so
+    ///      a failed payout is never re-traded, spent on deficit buys, or paid to a
+    ///      later batch (the payout's owner recovers it via recoverUndeliveredPayout).
+    ///      Saturating at zero: a fee-on-transfer token whose balance fell below the
+    ///      recorded stranded amount must not revert subsequent rebalances.
+    function _tradeableBalance(address token) private view returns (uint256) {
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        uint256 stranded = undeliveredPayouts[token];
+        return balance > stranded ? balance - stranded : 0;
+    }
+
+    /// @notice Retries a failed garden payout (external audit M01). The transfer is
+    ///         attempted directly: a still-blacklisted garden reverts, leaving the
+    ///         accounting unchanged for a later retry.
+    function recoverUndeliveredPayout(address token, address garden, uint256 amount) external onlyOwner {
+        if (amount == 0 || amount > undeliveredFor[token][garden]) {
+            revert Rebalancer_NothingUndelivered(token, garden);
+        }
+        undeliveredPayouts[token] -= amount;
+        undeliveredFor[token][garden] -= amount;
+        IERC20(token).safeTransfer(garden, amount);
+        emit UndeliveredRecovered(token, garden, amount);
+    }
+
+    // ========================================================================
     // Internal: Redistribution
     // ========================================================================
 
@@ -1261,16 +1339,18 @@ contract Rebalancer is Ownable {
             }
         }
 
+        // Payout base: tradeable inventory only — stranded undelivered payouts are excluded
         uint256[] memory originalBalances = new uint256[](allSymbols.length);
         for (uint256 j = 0; j < allSymbols.length; j++) {
-            originalBalances[j] = IERC20(tokenAddrs[j]).balanceOf(address(this));
+            originalBalances[j] = _tradeableBalance(tokenAddrs[j]);
         }
 
-        // Outbound isolation: a failed payout (garden blacklisted by a token, transfer reject)
-        // must not revert the whole batch. The undelivered allocation stays in the Rebalancer
-        // and is excluded from later gardens' remainder sweeps so it can never be redirected;
-        // GardenPayoutFailed makes it observable for owner recovery.
-        uint256[] memory undelivered = new uint256[](allSymbols.length);
+        // Outbound isolation (external audit M01): a failed payout (garden blacklisted by a
+        // token, transfer reject) must not revert the whole batch and must never leak into
+        // later rounds. The stranded amount is recorded in storage (undeliveredPayouts /
+        // undeliveredFor) and excluded from every inventory read via _tradeableBalance, so
+        // it is never re-traded, spent on deficit buys, or redistributed; the attributed
+        // owner recovers it via recoverUndeliveredPayout.
 
         for (uint256 i = 0; i < gardens.length; i++) {
             uint256 share = Math.mulDiv(contributions[i], PRECISION, totalValueUsd, Math.Rounding.Floor);
@@ -1281,15 +1361,15 @@ contract Rebalancer is Ownable {
 
                 uint256 gardenAllocation;
                 if (isLast) {
-                    uint256 remaining = IERC20(tokenAddrs[j]).balanceOf(address(this));
-                    gardenAllocation = remaining > undelivered[j] ? remaining - undelivered[j] : 0;
+                    gardenAllocation = _tradeableBalance(tokenAddrs[j]);
                 } else {
                     gardenAllocation = Math.mulDiv(originalBalances[j], share, PRECISION, Math.Rounding.Floor);
                 }
                 if (gardenAllocation > 0) {
                     try this._transferToGarden(tokenAddrs[j], gardens[i], gardenAllocation) { }
                     catch {
-                        undelivered[j] += gardenAllocation;
+                        undeliveredPayouts[tokenAddrs[j]] += gardenAllocation;
+                        undeliveredFor[tokenAddrs[j]][gardens[i]] += gardenAllocation;
                         emit GardenPayoutFailed(gardens[i], tokenAddrs[j], gardenAllocation);
                     }
                 }

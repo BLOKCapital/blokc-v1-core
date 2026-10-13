@@ -25,13 +25,19 @@ contract ApproveFacetTest is DiamondTestBase {
     bytes32 internal constant GARDEN_TYPE = keccak256("INDEX");
 
     address internal diamondOwner = address(0xA11CE);
-    address internal spender = address(0xB0B);
+    // Spending is restricted to the DAO's canonical rebalancer (external audit H01) —
+    // the tests publish the pointer and grant to it
+    address internal spender;
     MockERC20 internal tokenA;
     MockERC20 internal tokenB;
     address internal garden;
 
     function setUp() public override {
         super.setUp();
+
+        // Publish the canonical rebalancer — approveTokens fails closed while unset
+        spender = address(0xB0B);
+        registry.setCanonicalRebalancer(spender);
 
         // -- Module holding the ApproveFacet (mirrors the upgradeModule step) --
         ApproveFacet approveFacet = new ApproveFacet();
@@ -100,5 +106,36 @@ contract ApproveFacetTest is DiamondTestBase {
         vm.expectRevert(abi.encodeWithSignature("ApproveFacet_ZeroToken()"));
         vm.prank(diamondOwner);
         IApproveTokens(garden).approveTokens(tokens, spender);
+    }
+
+    // ── External audit H01: pre-session allowances to arbitrary spenders were a fee-free
+    //    exit rail — spending is now restricted to the canonical rebalancer ──
+
+    function test_approveTokens_revertsOnNonCanonicalSpender() public {
+        address attacker = address(0xdead);
+        vm.expectRevert(
+            abi.encodeWithSignature("ApproveFacet_SpenderNotCanonicalRebalancer(address,address)", attacker, spender)
+        );
+        vm.prank(diamondOwner);
+        IApproveTokens(garden).approveTokens(_twoTokens(), attacker);
+    }
+
+    function test_approveTokens_followsCanonicalRotation() public {
+        // DAO rotates the canonical rebalancer: the old spender loses the rail instantly,
+        // the new one is grantable — the migration path for a rebalancer redeployment
+        address newRebalancer = address(0xC0DE);
+        registry.setCanonicalRebalancer(newRebalancer);
+
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ApproveFacet_SpenderNotCanonicalRebalancer(address,address)", spender, newRebalancer
+            )
+        );
+        vm.prank(diamondOwner);
+        IApproveTokens(garden).approveTokens(_twoTokens(), spender);
+
+        vm.prank(diamondOwner);
+        IApproveTokens(garden).approveTokens(_twoTokens(), newRebalancer);
+        assertEq(IERC20(tokenA).allowance(garden, newRebalancer), type(uint256).max);
     }
 }

@@ -29,6 +29,7 @@ import {
     Rebalancer_RebalanceReentrancy,
     Rebalancer_ZeroTotalValue,
     Rebalancer_ExcessiveValueLoss,
+    Rebalancer_NothingUndelivered,
     Rebalancer_BatchSizeNotSet,
     Rebalancer_InvalidConfig
 } from "src/rebalancer/Rebalancer.sol";
@@ -95,7 +96,14 @@ contract MockERC20 is IERC20, IERC20Metadata {
         _balances[to] += amount;
     }
 
+    mapping(address => bool) public transferBlocked;
+
+    function setTransferBlocked(address account, bool blocked) external {
+        transferBlocked[account] = blocked;
+    }
+
     function transfer(address to, uint256 amount) external override returns (bool) {
+        require(!transferBlocked[to] && !transferBlocked[msg.sender], "transfer blocked");
         _balances[msg.sender] -= amount;
         _balances[to] += amount;
         return true;
@@ -835,10 +843,18 @@ contract GuardTest is RebalancerTestBase {
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
-    function test_rebalance_revertsIfZeroTotalValue() public {
-        // Gardens exist but have zero balance
+    function test_rebalance_zeroTotalValue_advancesCursorInsteadOfWedging() public {
+        // Gardens exist but have zero balance. Pre-fix (external audit H03) this reverted
+        // Rebalancer_ZeroTotalValue with the cursor parked — permanently wedging the index
+        // type against free empty-garden spam. Now the empty batch counts as processed:
+        // it completes the round (single batch), binds the cooldown anchor, and no swaps run.
         _warpPastInterval();
-        vm.expectRevert(abi.encodeWithSelector(Rebalancer_ZeroTotalValue.selector, INDEX_TYPE));
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0, "round completed, cursor reset");
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp, "cooldown anchor bound");
+        // The anchor binds: an immediate retry hits the 24h cooldown
+        vm.expectRevert();
         rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
     }
 
@@ -2141,5 +2157,294 @@ contract IsolationTest is RebalancerTestBase {
         // The WBTC leg (good dex) executed; the WETH deficit stayed unfilled
         assertGt(wbtc.balanceOf(alice), 0, "WBTC leg should execute via the good dex");
         assertEq(weth.balanceOf(alice), 0, "WETH deficit must stay unfilled after the revert-skip");
+    }
+}
+
+// =============================================================================
+// M03 VERIFICATION (transient): cursor-past-end round restart bypasses cooldown
+// =============================================================================
+
+contract M03CooldownBypassTest is RebalancerTestBase {
+    bytes32 internal constant STARTED_TOPIC = keccak256(bytes("CumulativeRebalanceStarted(bytes32,uint256,uint256)"));
+    bytes32 internal constant COMPLETED_TOPIC =
+        keccak256(bytes("CumulativeRebalanceCompleted(bytes32,uint256,uint256,uint256)"));
+
+    address internal dave = makeAddr("dave");
+    address internal eve = makeAddr("eve");
+
+    address[] internal five;
+    address[] internal four;
+
+    function setUp() public override {
+        super.setUp();
+        vm.prank(owner);
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 2); // B = 2
+        address[5] memory g = [alice, bob, charlie, dave, eve];
+        five = new address[](5);
+        four = new address[](4);
+        for (uint256 i = 0; i < 5; i++) {
+            five[i] = g[i];
+            if (i < 4) four[i] = g[i];
+            _fundGarden(g[i], 1e18, 5_000_000, 0);
+        }
+        blokc2Index.setGardens(five);
+        vm.warp(block.timestamp + 24 hours + 1); // pass genesis cooldown
+    }
+
+    function _countBoth() internal returns (uint256 started, uint256 completed) {
+        Vm.Log[] memory logs = vm.getRecordedLogs(); // drains the record buffer
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics.length == 0) continue;
+            if (logs[i].topics[0] == STARTED_TOPIC) started++;
+            if (logs[i].topics[0] == COMPLETED_TOPIC) completed++;
+        }
+    }
+
+    /// FIXED BEHAVIOR: cursor-past-end completes the round (writes the anchor)
+    /// instead of silently restarting, so the 24h cooldown re-binds.
+    function test_m03_shrinkBelowCursor_completesRoundAndBindsCooldown() public {
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 4);
+
+        // Disconnect tail garden: cursor(4) >= total(4)
+        blokc2Index.setGardens(four);
+
+        uint256 expectedNext = block.timestamp + 24 hours;
+        vm.expectEmit(true, false, false, true);
+        emit Rebalancer.CumulativeRebalanceCompleted(INDEX_TYPE, 4, block.timestamp, expectedNext);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp, "anchor written");
+
+        // Cooldown re-binds: no fresh round within 24h
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Rebalancer_RebalanceIntervalNotPassed.selector, INDEX_TYPE, block.timestamp, block.timestamp + 24 hours
+            )
+        );
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+    }
+
+    /// FIXED BEHAVIOR: the auditor's spam loop is dead — the first shrink
+    /// completes the round and every later call inside 24h reverts.
+    function test_m03_spamLoop_blocked() public {
+        uint256 start = block.timestamp;
+        vm.recordLogs();
+
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        // First shrink: instead of restarting, the round is closed and the
+        // cooldown anchor written (fixed behavior).
+        blokc2Index.setGardens(four);
+        vm.prank(stranger);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp, "anchor written on shrink");
+
+        // Every further call inside 24h reverts — fresh rounds and past-end
+        // restarts alike are now gated.
+        blokc2Index.setGardens(five);
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Rebalancer_RebalanceIntervalNotPassed.selector, INDEX_TYPE, block.timestamp, block.timestamp + 24 hours
+            )
+        );
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        blokc2Index.setGardens(four);
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Rebalancer_RebalanceIntervalNotPassed.selector, INDEX_TYPE, block.timestamp, block.timestamp + 24 hours
+            )
+        );
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        assertLt(block.timestamp - start, 900);
+        (uint256 started, uint256 completedRounds) = _countBoth();
+        assertEq(started, 1, "only the initial round started");
+        assertEq(completedRounds, 1, "round completed on shrink");
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp, "anchor written");
+    }
+
+    /// Boundary N <= B: single call completes the round, no extra pass.
+    function test_m03_boundary_N_le_B_singlePass() public {
+        address[] memory two = new address[](2);
+        two[0] = alice;
+        two[1] = bob;
+        blokc2Index.setGardens(two); // N = 2 <= batchSize = 2
+
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0, "round complete in one pass");
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
+    }
+
+    /// Boundary B < N <= 2B: exactly one extra pass completes the round.
+    function test_m03_boundary_B_lt_N_le_2B_twoPasses() public {
+        address[] memory three = new address[](3);
+        three[0] = alice;
+        three[1] = bob;
+        three[2] = charlie;
+        blokc2Index.setGardens(three);
+
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 2, "batch 1 done, one extra pass pending");
+
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0, "round complete");
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
+    }
+
+    /// Boundary N > 2B: the multi-batch loop walks to completion.
+    function test_m03_boundary_N_gt_2B_loopCompletes() public {
+        // 5 gardens, B=2: passes at cursor 2, 4, then final garden completes
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 2);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 4);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
+
+        // Next round gated by cooldown
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Rebalancer_RebalanceIntervalNotPassed.selector, INDEX_TYPE, block.timestamp, block.timestamp + 24 hours
+            )
+        );
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+    }
+
+    /// Edge: every garden disconnects mid-round (revert NoGardensFound, cursor
+    /// preserved); one reconnect closes the stale round via the past-end path.
+    function test_m03_allDisconnected_thenReconnect_closesStaleRound() public {
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 2);
+
+        blokc2Index.setGardens(new address[](0));
+        vm.expectRevert(abi.encodeWithSelector(Rebalancer_NoGardensFound.selector, INDEX_TYPE));
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 2, "cursor preserved");
+
+        // One garden reconnects: stored cursor(2) >= total(1) -> past-end path
+        // closes the stale round instead of restarting it
+        address[] memory one = new address[](1);
+        one[0] = alice;
+        blokc2Index.setGardens(one);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0, "stale round closed");
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp, "anchor written");
+
+        // Cooldown binds again
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Rebalancer_RebalanceIntervalNotPassed.selector, INDEX_TYPE, block.timestamp, block.timestamp + 24 hours
+            )
+        );
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+    }
+}
+
+// =============================================================================
+// M01 — stranded payout containment (external audit)
+// =============================================================================
+
+contract M01StrandedPayoutTest is RebalancerTestBase {
+    address internal carol = makeAddr("carol");
+
+    function setUp() public override {
+        super.setUp();
+        vm.prank(owner);
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 1); // one garden per batch: each is "last"
+    }
+
+    function test_m01_failedPayout_isStrandedNotRedistributed() public {
+        // Batch [alice, bob]: alice's USDC payout reverts (transfer blocked, like Circle
+        // blacklisting a garden). Pre-fix the stranded amount leaked into the next batch
+        // as inventory and the next batch's last garden swept it.
+        _fundGarden(alice, 1e18, 5_000_000, 500e6);
+        _fundGarden(bob, 1e18, 5_000_000, 500e6);
+        usdc.setTransferBlocked(alice, true);
+        weth.setTransferBlocked(alice, true);
+
+        _warpPastInterval();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, vm.getBlockTimestamp() + 300);
+
+        // The symmetric garden's USDC is fully swapped into components, so the WETH payout
+        // is the strand here; a blocked payout on any token must record the same way
+        assertGt(rebalancer.undeliveredPayouts(address(weth)), 0, "alice's WETH share must be stranded");
+        assertEq(weth.balanceOf(alice), 0, "blocked garden received nothing");
+    }
+
+    function test_m01_nextBatch_cannotCaptureStrandedFunds() public {
+        // Round 1 strands alice's payouts; round 2's final batch (carol alone) must be
+        // bounded by TRADEABLE inventory — pre-fix the last-garden sweep took the stranded
+        // funds too
+        _fundGarden(alice, 1e18, 5_000_000, 500e6);
+        _fundGarden(bob, 1e18, 5_000_000, 500e6);
+        usdc.setTransferBlocked(alice, true);
+        weth.setTransferBlocked(alice, true);
+        _warpPastInterval();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, vm.getBlockTimestamp() + 300);
+        uint256 strandedWeth = rebalancer.undeliveredPayouts(address(weth));
+        uint256 strandedUsdc = rebalancer.undeliveredPayouts(address(usdc));
+
+        // Round 1 ran two single-garden batches: alice's payout stranded, bob's last-garden
+        // sweep bounded by tradeable inventory. Round 2 processes carol alone.
+        address[] memory three = new address[](3);
+        three[0] = alice;
+        three[1] = bob;
+        three[2] = carol;
+        blokc2Index.setGardens(three);
+        _fundGarden(carol, 2e18, 10_000_000, 2000e6);
+        _warpPastInterval();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, vm.getBlockTimestamp() + 300);
+
+        // The stranded attributions are unchanged — a later batch can neither spend nor
+        // sweep them (the raw balance may grow with fresh inventory, never the counter)
+        assertEq(rebalancer.undeliveredPayouts(address(weth)), strandedWeth, "stranded WETH untouched");
+        assertEq(rebalancer.undeliveredPayouts(address(usdc)), strandedUsdc, "stranded USDC untouched");
+        assertGe(weth.balanceOf(address(rebalancer)), strandedWeth);
+    }
+
+    function test_m01_ownerRecovery_returnsFundsToVictimGarden() public {
+        _fundGarden(alice, 1e18, 5_000_000, 500e6);
+        _fundGarden(bob, 1e18, 5_000_000, 500e6);
+        usdc.setTransferBlocked(alice, true);
+        weth.setTransferBlocked(alice, true);
+        _warpPastInterval();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, vm.getBlockTimestamp() + 300);
+
+        uint256 strandedWeth = rebalancer.undeliveredPayouts(address(weth));
+
+        // Blacklist lifts; the DAO retries the payout
+        weth.setTransferBlocked(alice, false);
+        vm.prank(owner);
+        rebalancer.recoverUndeliveredPayout(address(weth), alice, strandedWeth);
+
+        assertEq(weth.balanceOf(alice), strandedWeth);
+        assertEq(rebalancer.undeliveredPayouts(address(weth)), 0);
+        assertEq(rebalancer.undeliveredFor(address(weth), alice), 0);
+
+        // Over-claiming reverts with accounting intact
+        vm.expectRevert(abi.encodeWithSelector(Rebalancer_NothingUndelivered.selector, address(weth), alice));
+        vm.prank(owner);
+        rebalancer.recoverUndeliveredPayout(address(weth), alice, 1);
+    }
+
+    function test_m01_recovery_revertsForNonOwner() public {
+        _fundGarden(alice, 1e18, 5_000_000, 500e6);
+        _fundGarden(bob, 1e18, 5_000_000, 500e6);
+        usdc.setTransferBlocked(alice, true);
+        weth.setTransferBlocked(alice, true);
+        _warpPastInterval();
+        rebalancer.cumulativeRebalance(INDEX_TYPE, vm.getBlockTimestamp() + 300);
+        uint256 strandedWeth = rebalancer.undeliveredPayouts(address(weth));
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
+        rebalancer.recoverUndeliveredPayout(address(weth), alice, strandedWeth);
     }
 }

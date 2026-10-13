@@ -63,6 +63,9 @@ error FacetRegistry_ModuleIdIsZero();
 /// @notice Thrown when a zero address is passed as a canonical fee registry
 error FacetRegistry_FeeRegistryAddressIsZero();
 
+/// @notice Thrown when a zero address is passed as a canonical rebalancer or index registry
+error FacetRegistry_CanonicalRegistryAddressIsZero();
+
 /// @notice Thrown when module already exists
 error FacetRegistry_ModuleAlreadyExists(bytes32 moduleId);
 
@@ -225,6 +228,12 @@ contract FacetRegistry is IFacetRegistry, Ownable {
         address indexed feeRegistry, address indexed treasuryRegistry, address indexed onboarderRegistry
     );
 
+    event CanonicalRebalancerUpdated(address indexed rebalancer);
+
+    event CanonicalIndexRegistriesUpdated(
+        address indexed indexFactory, address indexed indexComponentRegistry, address indexed poolRegistry
+    );
+
     // ========================================================================
     //                            CONSTRUCTOR
     // ========================================================================
@@ -287,6 +296,11 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     address private _canonicalTreasuryRegistry;
     address private _canonicalOnboarderRegistry;
 
+    address private _canonicalRebalancer;
+    address private _canonicalIndexFactory;
+    address private _canonicalIndexComponentRegistry;
+    address private _canonicalPoolRegistry;
+
     /// @notice Publishes the DAO's canonical fee registries. Gardens validate every
     ///         configureFeeModule call against these, so the fee payer (the garden owner)
     ///         can only ever wire the DAO's own registries — never lookalike contracts.
@@ -314,6 +328,51 @@ contract FacetRegistry is IFacetRegistry, Ownable {
     ///         gardens refuse to configureFeeModule while unset, fail-closed)
     function getCanonicalFeeRegistries() external view returns (address, address, address) {
         return (_canonicalFeeRegistry, _canonicalTreasuryRegistry, _canonicalOnboarderRegistry);
+    }
+
+    /// @notice Publishes the DAO's canonical CumulativeRebalancer. Gardens restrict
+    ///         approveTokens spenders to this address (external audit H01: pre-session
+    ///         allowances to arbitrary spenders were a fee-free exit rail).
+    function setCanonicalRebalancer(address rebalancer) external onlyOwner {
+        if (rebalancer == address(0)) revert FacetRegistry_CanonicalRegistryAddressIsZero();
+        _canonicalRebalancer = rebalancer;
+        emit CanonicalRebalancerUpdated(rebalancer);
+    }
+
+    /// @notice Returns the DAO's canonical rebalancer (zero until first published —
+    ///         approveTokens fails closed while unset)
+    function getCanonicalRebalancer() external view returns (address) {
+        return _canonicalRebalancer;
+    }
+
+    /// @notice Publishes the DAO's canonical index-module registries. Gardens validate every
+    ///         configureIndexModule call against these (external audit H02: owner-chosen
+    ///         registries controlled the fee layer's identity AND price reads).
+    function setCanonicalIndexRegistries(
+        address indexFactory,
+        address indexComponentRegistry,
+        address poolRegistry
+    )
+        external
+        onlyOwner
+    {
+        if (indexFactory == address(0) || indexComponentRegistry == address(0) || poolRegistry == address(0)) {
+            revert FacetRegistry_CanonicalRegistryAddressIsZero();
+        }
+        _canonicalIndexFactory = indexFactory;
+        _canonicalIndexComponentRegistry = indexComponentRegistry;
+        _canonicalPoolRegistry = poolRegistry;
+        emit CanonicalIndexRegistriesUpdated(indexFactory, indexComponentRegistry, poolRegistry);
+    }
+
+    /// @notice Returns the DAO's canonical index registries (all zero until first published —
+    ///         gardens refuse configureIndexModule while unset, fail-closed)
+    function getCanonicalIndexRegistries()
+        external
+        view
+        returns (address indexFactory, address indexComponentRegistry, address poolRegistry)
+    {
+        return (_canonicalIndexFactory, _canonicalIndexComponentRegistry, _canonicalPoolRegistry);
     }
 
     // ========================================================================

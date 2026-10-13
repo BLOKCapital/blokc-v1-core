@@ -84,6 +84,19 @@ error IndexFacet_ExcessiveValueLoss(uint256 valueBefore, uint256 valueAfter);
 ///         disagree in length (defensive — cannot happen with a deterministic getWeights())
 error IndexFacet_OracleSnapshotMismatch();
 
+/// @notice Thrown when a swap step's first or last path token is neither USDC nor a symbol
+///         of the active session/intent — value moved there is invisible to the fee and
+///         unwind accounting (external audit M02: off-universe value parking)
+/// @param token The disallowed endpoint token
+error IndexFacet_SwapTokenNotAllowed(address token);
+
+/// @notice Thrown when a rebalance's cumulative declared input value exceeds 1.5x the
+///         weight gap — honest routes turn over ~the gap, so anything beyond the margin
+///         is churn (external audit C01: round-trip fee burn through one pool)
+/// @param turnover The cumulative declared input value (USD 8 decimals)
+/// @param cap The turnover cap (USD 8 decimals)
+error IndexFacet_TurnoverCapExceeded(uint256 turnover, uint256 cap);
+
 /// @notice Thrown on reentrant call to _rebalance
 error IndexFacet_RebalanceReentrancy();
 
@@ -99,6 +112,17 @@ error IndexFacet_ModuleNotConfigured();
 /// @notice Thrown when configureIndexModule is called while the garden is connected to an index
 ///         or has a pending intent — re-pointing must happen on a disconnected garden
 error IndexFacet_ConfigureRequiresDisconnected();
+
+/// @notice Thrown when configureIndexModule is attempted before the FacetRegistry has
+///         published the DAO's canonical index registries (fail-closed)
+error IndexFacet_CanonicalIndexRegistriesNotSet();
+
+/// @notice Thrown when configureIndexModule is called with an address that is not the DAO's
+///         canonical registry (external audit H02: owner-chosen registries controlled the
+///         fee layer's identity and price reads)
+/// @param provided The address that was passed in
+/// @param canonical The canonical address it must match
+error IndexFacet_IndexRegistryNotCanonical(address provided, address canonical);
 
 /// @notice Thrown when an onboarder address is not allowlisted in the OnboarderRegistry
 /// @param onboarder The ineligible address
@@ -154,6 +178,21 @@ abstract contract IndexBase is FeeBase {
         if (indexFactory == address(0) || indexComponentRegistry == address(0) || poolRegistry == address(0)) {
             revert IndexFacet_ModuleNotConfigured();
         }
+
+        // Registry containment (external audit H02): the component registry drives the fee
+        // layer's identity AND price reads (basis, unwind guard, residue check), so the
+        // fee payer must never be able to choose it. Validate against the DAO's canonical
+        // index registries published on the FacetRegistry — fail-closed while unset.
+        (address canonicalFactory, address canonicalRegistry, address canonicalPool) =
+            IFacetRegistry(LibDiamond.layout().facetRegistry).getCanonicalIndexRegistries();
+        if (canonicalFactory == address(0)) revert IndexFacet_CanonicalIndexRegistriesNotSet();
+        if (indexFactory != canonicalFactory) {
+            revert IndexFacet_IndexRegistryNotCanonical(indexFactory, canonicalFactory);
+        }
+        if (indexComponentRegistry != canonicalRegistry) {
+            revert IndexFacet_IndexRegistryNotCanonical(indexComponentRegistry, canonicalRegistry);
+        }
+        if (poolRegistry != canonicalPool) revert IndexFacet_IndexRegistryNotCanonical(poolRegistry, canonicalPool);
     }
 
     /// @notice Sets the protocol addresses the index module talks to. Owner-only (see IndexFacet),
@@ -170,6 +209,21 @@ abstract contract IndexBase is FeeBase {
         if (indexFactory == address(0) || indexComponentRegistry == address(0) || poolRegistry == address(0)) {
             revert IndexFacet_ModuleNotConfigured();
         }
+
+        // Registry containment (external audit H02): the component registry drives the fee
+        // layer's identity AND price reads (basis, unwind guard, residue check), so the
+        // fee payer must never be able to choose it. Validate against the DAO's canonical
+        // index registries published on the FacetRegistry — fail-closed while unset.
+        (address canonicalFactory, address canonicalRegistry, address canonicalPool) =
+            IFacetRegistry(LibDiamond.layout().facetRegistry).getCanonicalIndexRegistries();
+        if (canonicalFactory == address(0)) revert IndexFacet_CanonicalIndexRegistriesNotSet();
+        if (indexFactory != canonicalFactory) {
+            revert IndexFacet_IndexRegistryNotCanonical(indexFactory, canonicalFactory);
+        }
+        if (indexComponentRegistry != canonicalRegistry) {
+            revert IndexFacet_IndexRegistryNotCanonical(indexComponentRegistry, canonicalRegistry);
+        }
+        if (poolRegistry != canonicalPool) revert IndexFacet_IndexRegistryNotCanonical(poolRegistry, canonicalPool);
         IndexStorage.Layout storage s = IndexStorage.layout();
         if (s.indexAddress != address(0) || s.pendingIntent.active) {
             revert IndexFacet_ConfigureRequiresDisconnected();
@@ -281,8 +335,12 @@ abstract contract IndexBase is FeeBase {
         // as the guard (mirrors the _rebalance M4 fix: no Chainlink round can land mid-NAV)
         uint256 valueBefore = _calculateSessionUsdcNav(cachedPrices);
 
-        // Sell every non-USDC component to USDC
-        _executeSwapSteps(steps);
+        // Sell every non-USDC component to USDC. Endpoints restricted to weight symbols +
+        // USDC (M02); turnover exempt — the unwind legitimately converts 100% of NAV and
+        // is already bounded by its own 0.5% exit guard + the residue check.
+        (address[] memory allowedTokens, uint256[] memory allowedPrices) =
+            _allowedEndpoints(componentRegistry, symbols, cachedPrices);
+        _executeSwapSteps(steps, allowedTokens, allowedPrices, type(uint256).max);
 
         // Residue check: every non-USDC component must be fully converted, otherwise fees
         // would settle on a partial unwind (safe direction: revert → garden stays connected)
@@ -432,8 +490,14 @@ abstract contract IndexBase is FeeBase {
 
         uint256 valueBefore = _calculateTotalValue(componentRegistry, cachedPrices);
 
-        // Execute each swap step on the Diamond's DEX facets
-        _executeSwapSteps(steps);
+        // Endpoints restricted to intent symbols + USDC (M02); cumulative declared input
+        // capped at 1.5x the weight gap (C01): honest routes turn over ~the gap (each
+        // excess sold once, each deficit bought once, hub routes re-spend proceeds within
+        // the same sum), so a round trip far beyond the margin is churn, not rebalancing.
+        (address[] memory allowedTokens, uint256[] memory allowedPrices) =
+            _allowedEndpoints(componentRegistry, s.pendingIntent.symbols, cachedPrices);
+        uint256 turnoverCapUsd8 = _rebalanceTurnoverCapUsd8(componentRegistry, cachedPrices);
+        _executeSwapSteps(steps, allowedTokens, allowedPrices, turnoverCapUsd8);
 
         // Verify final balances match targets within threshold and get post-swap total value
         uint256 valueAfter = _verifyBalancesMatchTargets(componentRegistry, cachedPrices);
@@ -455,14 +519,39 @@ abstract contract IndexBase is FeeBase {
         emit IIndex.RebalanceCompleted(address(this), s.indexAddress, block.timestamp, nextRebalanceTimestamp);
     }
 
-    /// @notice Execute swap steps by resolving selectors from PoolRegistry and delegating to DEX facets
-    /// @dev For each step: resolves the swap selector from PoolRegistry via dexId, validates it
-    ///      belongs to the DEX module, then calls the DEX facet with the SwapInstruction.
-    ///      Output token balance is verified after each swap.
+    /// @dev Turnover margin over the weight gap: honest multi-hop/hub routes re-spend swap
+    ///      proceeds but never exceed ~the gap in declared inputs; 1.5x covers per-leg fees,
+    ///      intent-to-execution drift, and partial-fill sizing. A reverting attempt is
+    ///      retryable after INTENT_INTERVAL — a false positive costs gas, not liveness.
+    uint256 internal constant TURNOVER_MARGIN_NUM = 15_000;
+    uint256 internal constant TURNOVER_MARGIN_DEN = 10_000;
+
+    /// @notice Execute swap steps by resolving selectors from PoolRegistry and delegating to
+    ///         DEX facets, with swap-endpoint and turnover containment (external audits M02+C01).
+    /// @dev For each step: validates both path endpoints against the allowed token list, tracks
+    ///      the cumulative declared input value against the turnover cap, resolves the swap
+    ///      selector from PoolRegistry via dexId, validates it belongs to the DEX module, then
+    ///      calls the DEX facet with the SwapInstruction. Output token balance is verified
+    ///      after each swap. Intermediate path tokens are unconstrained (multi-hop routes
+    ///      legitimately traverse non-endpoint tokens within one instruction).
     /// @param steps Array of swap steps to execute
-    function _executeSwapSteps(SwapStep[] calldata steps) internal {
+    /// @param allowedTokens Endpoint allowlist: USDC + the active session's/intent's symbols
+    /// @param allowedPrices Oracle prices for allowedTokens (USD 8 decimals; USDC = 1e8),
+    ///        same index order — used to price each step's declared input against the cap
+    /// @param maxTurnoverUsd8 Cumulative declared-input cap in USD 8 decimals
+    ///        (type(uint256).max exempts the caller, e.g. the unwind's own exit guard)
+    function _executeSwapSteps(
+        SwapStep[] calldata steps,
+        address[] memory allowedTokens,
+        uint256[] memory allowedPrices,
+        uint256 maxTurnoverUsd8
+    )
+        internal
+    {
         (,, address poolRegistryAddress) = _protocolAddresses();
         ILiquidityPoolRegistry poolReg = ILiquidityPoolRegistry(poolRegistryAddress);
+
+        uint256 turnoverUsd8 = 0;
 
         for (uint256 i = 0; i < steps.length; i++) {
             // Resolve selector from PoolRegistry
@@ -471,9 +560,26 @@ abstract contract IndexBase is FeeBase {
             // Validate selector belongs to DEX module
             if (!_isDexFunction(selector)) revert IndexFacet_SelectorNotWhitelisted(selector);
 
-            // Output token is the last token in the path
             SwapInstruction calldata instruction = steps[i].instruction;
+            if (instruction.tokens.length < 2) revert IndexFacet_SwapTokenNotAllowed(address(0));
+
+            // Endpoint containment (M02): value must only move between USDC and the active
+            // session's/intent's tokens — anything else is invisible to the fee accounting
+            address inputToken = instruction.tokens[0];
             address outputToken = instruction.tokens[instruction.tokens.length - 1];
+            uint256 inputPrice = _allowedEndpointPrice(inputToken, allowedTokens, allowedPrices);
+            _allowedEndpointPrice(outputToken, allowedTokens, allowedPrices); // reverts when disallowed
+
+            // Turnover containment (C01): charge the declared input at the same oracle
+            // snapshot the value guard uses. exactOutput steps declare their max spend,
+            // so this bounds them conservatively.
+            if (maxTurnoverUsd8 != type(uint256).max && instruction.amountIn != 0) {
+                uint8 decimals = IERC20Metadata(inputToken).decimals();
+                turnoverUsd8 += Math.mulDiv(instruction.amountIn, inputPrice, 10 ** decimals, Math.Rounding.Floor);
+                if (turnoverUsd8 > maxTurnoverUsd8) {
+                    revert IndexFacet_TurnoverCapExceeded(turnoverUsd8, maxTurnoverUsd8);
+                }
+            }
 
             uint256 balanceBefore = IERC20(outputToken).balanceOf(address(this));
 
@@ -492,6 +598,78 @@ abstract contract IndexBase is FeeBase {
                 revert IndexFacet_InsufficientSwapOutput(i, outputToken, received, minOutput);
             }
         }
+    }
+
+    /// @dev Endpoint allowlist + parallel price list: USDC (priced 1e8) first, then the
+    ///      given symbols' token addresses with their snapshot prices. `snapshotPrices`
+    ///      must be indexed exactly like `symbols` (the rebalance's intent prices or the
+    ///      unwind's weight prices).
+    function _allowedEndpoints(
+        IndexComponentRegistry componentRegistry,
+        bytes32[] memory symbols,
+        uint256[] memory snapshotPrices
+    )
+        internal
+        view
+        returns (address[] memory allowedTokens, uint256[] memory allowedPrices)
+    {
+        allowedTokens = new address[](symbols.length + 1);
+        allowedPrices = new uint256[](symbols.length + 1);
+        allowedTokens[0] = IndexStorage.USDC_ADDRESS;
+        allowedPrices[0] = 1e8; // USDC = $1 (6 decimals: 1e6 raw * 1e8 / 1e6 = 1e8 per unit)
+        for (uint256 i = 0; i < symbols.length; i++) {
+            if (symbols[i] == _USDC_SYMBOL) continue; // already covered as slot 0
+            allowedTokens[i + 1] = componentRegistry.getComponentAddress(symbols[i]);
+            allowedPrices[i + 1] = i < snapshotPrices.length ? snapshotPrices[i] : 0;
+        }
+    }
+
+    /// @dev Price of an endpoint token from the allowlist; reverts when the token is not an
+    ///      allowed endpoint. Returns 0 for an allowlisted-but-unpriced slot (only possible
+    ///      for the skipped USDC-duplicate slot, which real paths never name).
+    function _allowedEndpointPrice(
+        address token,
+        address[] memory allowedTokens,
+        uint256[] memory allowedPrices
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        for (uint256 i = 0; i < allowedTokens.length; i++) {
+            if (allowedTokens[i] == token) {
+                if (allowedPrices[i] == 0) revert IndexFacet_SwapTokenNotAllowed(token);
+                return allowedPrices[i];
+            }
+        }
+        revert IndexFacet_SwapTokenNotAllowed(token);
+    }
+
+    /// @dev Turnover cap for a rebalance: 1.5x the weight gap between the stored intent's
+    ///      target values and the current balances, priced with the same cached snapshot
+    ///      the value guard uses.
+    function _rebalanceTurnoverCapUsd8(
+        IndexComponentRegistry componentRegistry,
+        uint256[] memory cachedPrices
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        IndexStorage.Layout storage s = IndexStorage.layout();
+        uint256 gapUsd8 = 0;
+        for (uint256 i = 0; i < s.pendingIntent.symbols.length; i++) {
+            address token = componentRegistry.getComponentAddress(s.pendingIntent.symbols[i]);
+            uint256 current = Math.mulDiv(
+                IERC20(token).balanceOf(address(this)),
+                cachedPrices[i],
+                10 ** IERC20Metadata(token).decimals(),
+                Math.Rounding.Floor
+            );
+            uint256 target = s.pendingIntent.targetValues[i];
+            gapUsd8 += current > target ? current - target : target - current;
+        }
+        return Math.mulDiv(gapUsd8, TURNOVER_MARGIN_NUM, TURNOVER_MARGIN_DEN, Math.Rounding.Floor);
     }
 
     /// @dev Checks whether a selector belongs to the DEX module by querying the FacetRegistry.

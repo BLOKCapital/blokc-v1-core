@@ -189,11 +189,15 @@ contract RebalancerFuzzTest is RebalancerTestBase {
 
     /// @notice With an empty component list and zero-value gardens, the round must
     ///         revert with ZeroTotalValue.
-    function testFuzz_emptySymbols_noValue_reverts(uint256 seed) public {
+    function testFuzz_emptySymbols_noValue_advancesInsteadOfWedging(uint256 seed) public {
+        // External audit H03: a zero-value batch used to revert Rebalancer_ZeroTotalValue
+        // with the cursor parked, wedging the index type. It now counts as processed —
+        // the round completes (single empty batch) and the cooldown re-binds.
         blokc2Index.setWeights(new bytes32[](0), new uint256[](0));
         _warpPastInterval();
-        vm.expectRevert(abi.encodeWithSelector(Rebalancer_ZeroTotalValue.selector, INDEX_TYPE));
-        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, vm.getBlockTimestamp() + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0, "round completed");
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp, "anchor bound");
     }
 
     /// @notice When USDC is an index component (not a cash buffer), the round
@@ -321,14 +325,14 @@ contract RebalancerFuzzTest is RebalancerTestBase {
         _warpPastInterval();
 
         uint256 before = _portfolioValue(one);
-        if (before == 0) {
-            vm.expectRevert(abi.encodeWithSelector(Rebalancer_ZeroTotalValue.selector, INDEX_TYPE));
-            rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
-        } else {
-            rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, vm.getBlockTimestamp() + 300);
+        if (before != 0) {
             uint256 afterValue = _portfolioValue(one);
             assertGe(afterValue, Math.mulDiv(before, 9950, 10_000, Math.Rounding.Floor), "value lost beyond 0.5%");
         }
+        // Zero-value gardens no longer revert (H03): the batch completes and the cursor
+        // is cleared either way
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

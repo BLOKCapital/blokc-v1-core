@@ -5,9 +5,21 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Facet } from "src/garden/facets/Facet.sol";
 import { FeeBase } from "src/garden/facets/feeBase/FeeBase.sol";
+import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
+import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 /// @notice Thrown when approving the zero address as spender
 error ApproveFacet_ZeroSpender();
+
+/// @notice Thrown when approveTokens is attempted before the FacetRegistry has published the
+///         canonical rebalancer (fail-closed — no canonical spender, no approvals)
+error ApproveFacet_CanonicalRebalancerNotSet();
+
+/// @notice Thrown when the spender is not the DAO's canonical rebalancer (external audit H01:
+///         pre-session max allowances to arbitrary spenders were a fee-free exit rail)
+/// @param provided The spender that was passed
+/// @param canonical The canonical rebalancer it must match
+error ApproveFacet_SpenderNotCanonicalRebalancer(address provided, address canonical);
 
 /// @notice Thrown when a zero token address appears in the approval list
 error ApproveFacet_ZeroToken();
@@ -37,12 +49,20 @@ contract ApproveFacet is Facet, FeeBase {
     /// @notice Grants max allowance for `tokens` to `spender` from the garden's balances.
     /// @param tokens Component token addresses (plus USDC when it is not a component of
     ///               the garden's index — the Rebalancer pulls it separately)
-    /// @param spender The contract allowed to pull tokens — the CumulativeRebalancer
+    /// @param spender The contract allowed to pull tokens — the DAO's canonical
+    ///                CumulativeRebalancer (validated against the FacetRegistry)
     function approveTokens(address[] calldata tokens, address spender) external onlyGardenOwner {
         // Fee-session containment: no parallel value egress while a feeable session is live
         _revertIfFeeSessionActive();
 
         if (spender == address(0)) revert ApproveFacet_ZeroSpender();
+
+        // Spender containment (external audit H01): the allowance exists solely so the
+        // CumulativeRebalancer can pull balances — any other spender is a fee-free exit
+        // rail. Fail-closed while the canonical rebalancer is unpublished.
+        address canonical = IFacetRegistry(LibDiamond.layout().facetRegistry).getCanonicalRebalancer();
+        if (canonical == address(0)) revert ApproveFacet_CanonicalRebalancerNotSet();
+        if (spender != canonical) revert ApproveFacet_SpenderNotCanonicalRebalancer(spender, canonical);
 
         for (uint256 i = 0; i < tokens.length; i++) {
             if (tokens[i] == address(0)) revert ApproveFacet_ZeroToken();
