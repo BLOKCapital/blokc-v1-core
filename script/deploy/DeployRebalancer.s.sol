@@ -11,7 +11,11 @@ pragma solidity ^0.8.31;
 ################################################################################*/
 
 import { BaseScript } from "script/Base.s.sol";
+import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { Rebalancer } from "src/rebalancer/Rebalancer.sol";
+import {
+    UniswapV3DepthQuoteFacet
+} from "src/garden/facets/utilityFacets/arbitrumOne/uniswapV3/UniswapV3DepthQuoteFacet.sol";
 import { console2 } from "forge-std/console2.sol";
 
 /**
@@ -39,7 +43,11 @@ contract DeployRebalancer is BaseScript {
         // below gets the matching freshly-deployed facet. For Uniswap V3, pass the
         // liquidity-aware UniswapV3DepthQuoteFacet (price-only quoting selects
         // factory-canonical-but-empty pools and the router reverts at execution).
-        address uniswapV3QuoteFacet = vm.envAddress("UNISWAP_V3_QUOTE_FACET_ADDRESS");
+        // Liquidity-aware Uniswap V3 quoting is deployed fresh here (price-only quoting
+        // selects factory-canonical-but-empty pools and the router reverts at execution)
+        UniswapV3DepthQuoteFacet depthFacet = new UniswapV3DepthQuoteFacet();
+        address uniswapV3QuoteFacet = address(depthFacet);
+        console2.log("UniswapV3DepthQuoteFacet deployed at:", uniswapV3QuoteFacet);
         address uniswapV2QuoteFacet = vm.envAddress("UNISWAP_V2_QUOTE_FACET_ADDRESS");
         address camelotV3QuoteFacet = vm.envAddress("CAMELOT_V3_QUOTE_FACET_ADDRESS");
         address camelotV2QuoteFacet = vm.envAddress("CAMELOT_V2_QUOTE_FACET_ADDRESS");
