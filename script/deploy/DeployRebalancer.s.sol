@@ -130,7 +130,9 @@ contract DeployRebalancer is BaseScript {
         console2.log("Canonical index registries + rebalancer published on FacetRegistry");
 
         console2.log("");
-        console2.log("Next: DeployGardens (grants allowances via approveTokens, configures fee modules, connects gardens).");
+        console2.log(
+            "Next: DeployGardens (grants allowances via approveTokens, configures fee modules, connects gardens)."
+        );
         console2.log("Rebalance rounds: rebalancer.cumulativeRebalance(keccak256(\"BLOKC2\")) after the 24h cooldown.");
         console2.log("");
         console2.log("To add a new DEX in the future:");
