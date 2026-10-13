@@ -28,6 +28,11 @@ interface IApproveTokens {
  *         - REBALANCER_ADDRESS
  *         - INDEX_COMPONENT_REGISTRY_ADDRESS
  */
+// FRESH-STACK ONLY: the facet versions cut in here call
+// IFacetRegistry.getCanonicalRebalancer()/getCanonicalIndexRegistries(), which exist only on
+// FacetRegistry deployments from this commit onward. A garden whose constructor-frozen
+// facetRegistry pointer targets an older registry permanently loses approveTokens and
+// configureIndexModule once these facets are installed. Never cut into the beta-1 stack.
 contract UpgradeGardens is BaseScript {
     address internal constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 

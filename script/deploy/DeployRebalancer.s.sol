@@ -37,14 +37,10 @@ contract DeployRebalancer is BaseScript {
         address poolRegistry = vm.envAddress("POOL_REGISTRY_ADDRESS");
         address facetRegistry = vm.envAddress("FACET_REGISTRY_ADDRESS");
 
-        // Per-DEX quote facets: each DEX's registered quoteSelector (from the pool
-        // registry) is dispatched to its own facet. A facet that lacks a DEX's
-        // selector would silently skip every pool of that DEX, so each setDexConfig
-        // below gets the matching freshly-deployed facet. For Uniswap V3, pass the
-        // liquidity-aware UniswapV3DepthQuoteFacet (price-only quoting selects
-        // factory-canonical-but-empty pools and the router reverts at execution).
-        // Liquidity-aware Uniswap V3 quoting is deployed fresh here (price-only quoting
-        // selects factory-canonical-but-empty pools and the router reverts at execution)
+        // Per-DEX quote facets: each setDexConfig gets the matching facet (a facet lacking
+        // a DEX's quote selector silently skips every pool of that DEX). Uniswap V3 uses
+        // the liquidity-aware depth facet, deployed fresh here — price-only quoting selects
+        // factory-canonical-but-empty pools and the router reverts at execution.
         UniswapV3DepthQuoteFacet depthFacet = new UniswapV3DepthQuoteFacet();
         address uniswapV3QuoteFacet = address(depthFacet);
         console2.log("UniswapV3DepthQuoteFacet deployed at:", uniswapV3QuoteFacet);
@@ -121,18 +117,23 @@ contract DeployRebalancer is BaseScript {
         rebalancer.setMaxGardensPerBatch(keccak256("BLOKC10"), defaultBatch);
         console2.log("Configured max gardens per batch:", defaultBatch);
 
-        console2.log("");
-        console2.log("Next steps:");
-        console2.log("1. DAO: rebalancer.addIndexToType(keccak256(\"BLOKC2\"), <blokc2-index-address>)");
-        console2.log("2. DAO: rebalancer.addIndexToType(keccak256(\"BLOKC5\"), <blokc5-index-address>)");
-        console2.log(
-            "3. Garden owners: approve(token).approve(rebalancer, type(uint256).max) for each component + USDC"
-        );
-        console2.log("4. Anyone: rebalancer.cumulativeRebalance(keccak256(\"BLOKC2\")) after 24h cooldown");
+        rebalancer.addIndexToType(keccak256("BLOKC2"), vm.envAddress("BLOKC2_INDEX_ADDRESS"));
+        rebalancer.addIndexToType(keccak256("BLOKC5"), vm.envAddress("BLOKC5_INDEX_ADDRESS"));
+        rebalancer.addIndexToType(keccak256("BLOKC10"), vm.envAddress("BLOKC10_INDEX_ADDRESS"));
+        console2.log("Registered 3 index types on the rebalancer");
 
+        // Publish the canonical trust set on the FacetRegistry (runs as its owner):
+        // configureIndexModule validates the trio and approveTokens accepts only the
+        // rebalancer. MUST run before DeployGardens — both calls fail closed otherwise.
+        IFacetRegistry(facetRegistry).setCanonicalIndexRegistries(indexFactory, componentRegistry, poolRegistry);
+        IFacetRegistry(facetRegistry).setCanonicalRebalancer(address(rebalancer));
+        console2.log("Canonical index registries + rebalancer published on FacetRegistry");
+
+        console2.log("");
+        console2.log("Next: DeployGardens (grants allowances via approveTokens, configures fee modules, connects gardens).");
+        console2.log("Rebalance rounds: rebalancer.cumulativeRebalance(keccak256(\"BLOKC2\")) after the 24h cooldown.");
         console2.log("");
         console2.log("To add a new DEX in the future:");
         console2.log("   rebalancer.setDexConfig(DEX_ID, routerAddress, quoteFacetAddress, DEX_TYPE)");
-        console2.log("No code changes required for V2/V3-style DEXs.");
     }
 }
