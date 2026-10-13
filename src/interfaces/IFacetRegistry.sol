@@ -171,6 +171,28 @@ interface IFacetRegistry {
         view
         returns (address feeRegistry, address treasuryRegistry, address onboarderRegistry);
 
+    /// @notice Publishes the DAO's canonical CumulativeRebalancer (approveTokens spender gate)
+    function setCanonicalRebalancer(address rebalancer) external;
+
+    /// @notice Returns the DAO's canonical rebalancer (zero until published — approveTokens
+    ///         fails closed while unset)
+    function getCanonicalRebalancer() external view returns (address);
+
+    /// @notice Publishes the DAO's canonical index-module registries (configureIndexModule gate)
+    function setCanonicalIndexRegistries(
+        address indexFactory,
+        address indexComponentRegistry,
+        address poolRegistry
+    )
+        external;
+
+    /// @notice Returns the DAO's canonical index registries (all zero until published —
+    ///         gardens refuse configureIndexModule while unset, fail-closed)
+    function getCanonicalIndexRegistries()
+        external
+        view
+        returns (address indexFactory, address indexComponentRegistry, address poolRegistry);
+
     /// @notice Checks if a garden type is registered
     /// @param gardenTypeId The garden type to check
     /// @return True if the garden type is registered

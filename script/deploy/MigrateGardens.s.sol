@@ -41,6 +41,8 @@ import { console2 } from "forge-std/console2.sol";
  *         max. This is bounded: after RetireOldRebalancer removes the index types, the old
  *         rebalancer's cumulativeRebalance reverts NoIndicesRegistered permanently.
  */
+// FRESH-STACK ONLY — see UpgradeGardens.s.sol. Gardens whose facetRegistry predates the
+// canonical getters cannot run configureIndexModule or approveTokens at all.
 contract MigrateGardens is BaseScript {
     address internal constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 

@@ -600,6 +600,11 @@ contract E2ESimulation is Test {
         treasuryRegistry.setTreasuryAddress(deployer, bytes32("e2e"));
         registry.setCanonicalFeeRegistries(addrFeeRegistry, addrTreasuryRegistry, addrOnboarderRegistry);
 
+        // Canonical index trio + rebalancer — configureIndexModule and approveTokens
+        // validate against these (fail-closed while unset)
+        registry.setCanonicalIndexRegistries(addrIndexFactory, addrComponentRegistry, addrLiquidityPoolRegistry);
+        registry.setCanonicalRebalancer(addrRebalancer);
+
         bytes32[] memory indexGardenModules = new bytes32[](4);
         indexGardenModules[0] = MODULE_DEX;
         indexGardenModules[1] = MODULE_WITHDRAW;

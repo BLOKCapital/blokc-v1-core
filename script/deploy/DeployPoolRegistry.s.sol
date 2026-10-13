@@ -22,8 +22,18 @@ interface IMinimalPair {
 contract DeployLiquidityPoolRegistry is BaseScript {
     function run() public broadcaster {
         setUp();
-        LiquidityPoolRegistry liquidityPoolRegistry = new LiquidityPoolRegistry{ salt: salt }(deployer);
-        console2.log("LiquidityPoolRegistry deployed at:", address(liquidityPoolRegistry));
+
+        // Re-seed an already-deployed registry when POOL_REGISTRY_ADDRESS is set (e.g. after a
+        // partial broadcast failure) — otherwise deploy fresh via CREATE2.
+        address existing = vm.envOr("POOL_REGISTRY_ADDRESS", address(0));
+        LiquidityPoolRegistry liquidityPoolRegistry;
+        if (existing != address(0)) {
+            liquidityPoolRegistry = LiquidityPoolRegistry(existing);
+            console2.log("Seeding EXISTING LiquidityPoolRegistry at:", existing);
+        } else {
+            liquidityPoolRegistry = new LiquidityPoolRegistry{ salt: salt }(deployer);
+            console2.log("LiquidityPoolRegistry deployed at:", address(liquidityPoolRegistry));
+        }
 
         // Hard gate: the four arbitrumOne DEX bases reach this registry through the compile-time
         // ArbitrumOneAddresses.POOL_REGISTRY_ADDRESS constant (re-exported by each base). Stale
@@ -69,18 +79,26 @@ contract DeployLiquidityPoolRegistry is BaseScript {
         //  REGISTER DEXes (must be done before adding pools)
         // =====================================================================
 
-        liquidityPoolRegistry.registerDex(
-            uniswapV3, IUniswapV3.uniswapV3Swap.selector, IUniswapV3.uniswapV3Quote.selector
-        );
-        liquidityPoolRegistry.registerDex(
-            uniswapV2, IUniswapV2.uniswapV2Swap.selector, IUniswapV2.uniswapV2Quote.selector
-        );
-        liquidityPoolRegistry.registerDex(
-            camelotV3, ICamelotV3.camelotV3Swap.selector, ICamelotV3.camelotV3Quote.selector
-        );
-        liquidityPoolRegistry.registerDex(
-            camelotV2, ICamelotV2.camelotV2Swap.selector, ICamelotV2.camelotV2Quote.selector
-        );
+        if (!liquidityPoolRegistry.isDexRegistered(uniswapV3)) {
+            liquidityPoolRegistry.registerDex(
+                uniswapV3, IUniswapV3.uniswapV3Swap.selector, IUniswapV3.uniswapV3Quote.selector
+            );
+        }
+        if (!liquidityPoolRegistry.isDexRegistered(uniswapV2)) {
+            liquidityPoolRegistry.registerDex(
+                uniswapV2, IUniswapV2.uniswapV2Swap.selector, IUniswapV2.uniswapV2Quote.selector
+            );
+        }
+        if (!liquidityPoolRegistry.isDexRegistered(camelotV3)) {
+            liquidityPoolRegistry.registerDex(
+                camelotV3, ICamelotV3.camelotV3Swap.selector, ICamelotV3.camelotV3Quote.selector
+            );
+        }
+        if (!liquidityPoolRegistry.isDexRegistered(camelotV2)) {
+            liquidityPoolRegistry.registerDex(
+                camelotV2, ICamelotV2.camelotV2Swap.selector, ICamelotV2.camelotV2Quote.selector
+            );
+        }
 
         // =====================================================================
         //  UNISWAP V3 POOLS
@@ -288,6 +306,11 @@ contract DeployLiquidityPoolRegistry is BaseScript {
     )
         internal
     {
+        // Idempotent: re-runs after partial broadcast failures skip already-registered pools
+        if (registry.isPoolRegistered(poolAddress)) {
+            console2.log("  pool already registered, skipping:", poolAddress);
+            return;
+        }
         address token0 = IMinimalPair(poolAddress).token0();
         address token1 = IMinimalPair(poolAddress).token1();
         require(

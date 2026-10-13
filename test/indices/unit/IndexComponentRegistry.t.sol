@@ -566,6 +566,23 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         icr.fetchPriceStrict(bytes32("BTC"));
     }
 
+    function test_fetchPriceStrict_revertsOnStaleFeed_servesCachedOtherwise() public setComponentPriceFeed {
+        // External audit L01: strict reads gated only on the deviation flag — a feed stall
+        // silently priced the persisted fee basis off a stale round. Strict must revert
+        // when the served record is older than the heartbeat (fetchPrice still degrades).
+        vm.warp(block.timestamp + 3601); // BTC heartbeat (1h) elapsed, no new round
+
+        uint256 cached = icr.fetchPrice(bytes32("BTC")); // graceful degrade, FeedStale event
+        assertEq(cached, btcPrice);
+
+        vm.expectRevert(abi.encodeWithSelector(IndexComponentRegistry__FeedFrozenError.selector, btcAddress));
+        icr.fetchPriceStrict(bytes32("BTC"));
+
+        // Feed recovers with a fresh round: strict reads work again
+        btcPriceFeed.refresh(73_000e18); // in-band fresh round (4.3% vs EMA)
+        assertEq(icr.fetchPriceStrict(bytes32("BTC")), 73_000e18);
+    }
+
     function test_feedFailureCounter_deletedUnderFeedKeyOnUnregister() public {
         SwitchableOracle linkFeed = new SwitchableOracle("LINK", 10_000e18);
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](1);

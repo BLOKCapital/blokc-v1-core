@@ -21,7 +21,7 @@ contract DeployIndex is BaseScript {
 
         // =====================================================================
         // 13 Components: BTC, ETH, USDC + BLOKC-10 altcoins
-        // (LINK, UNI, ARB, AAVE, GMX, PENDLE, GRT, CRV, RDNT, DAI)
+        // (LINK, UNI, ARB, AAVE, GMX, PENDLE, GRT, CRV, ZRO, DAI)
         // =====================================================================
         IndexComponentRegistry.Component[] memory components = new IndexComponentRegistry.Component[](13);
 

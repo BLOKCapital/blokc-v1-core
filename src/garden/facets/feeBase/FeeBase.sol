@@ -217,9 +217,8 @@ abstract contract FeeBase {
             IndexComponentRegistry componentRegistry = IndexComponentRegistry(componentRegistryAddress);
             token = componentRegistry.getComponentAddress(symbol);
 
-            // Deposit-universe check: credited basis must be realizable into exit USDC, and the
-            // unwind only converts the active session's own symbols — a deposit outside that
-            // universe would permanently suppress the feeable profit (audit: basis laundering)
+            // Deposits are restricted to the session's own symbols: the unwind only
+            // converts those, so any other credit could never be realized into exit USDC.
             address indexAddress = IndexStorage.layout().indexAddress;
             if (indexAddress == address(0)) revert FeeFacet_SymbolNotInIndex(symbol);
             (bytes32[] memory sessionSymbols,) = Index(indexAddress).getWeights();

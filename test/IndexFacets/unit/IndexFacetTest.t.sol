@@ -50,7 +50,11 @@ import {
     IndexFacet_RebalanceReentrancy,
     IndexFacet_ZeroTotalValue,
     IndexFacet_ModuleNotConfigured,
-    IndexFacet_ConfigureRequiresDisconnected
+    IndexFacet_ConfigureRequiresDisconnected,
+    IndexFacet_CanonicalIndexRegistriesNotSet,
+    IndexFacet_IndexRegistryNotCanonical,
+    IndexFacet_SwapTokenNotAllowed,
+    IndexFacet_TurnoverCapExceeded
 } from "../../../src/garden/facets/indexFacets/IndexBase.sol";
 
 // =============================================================================
@@ -238,6 +242,39 @@ contract MockERC20 is IERC20, IERC20Metadata {
             returns (address feeRegistry, address treasuryRegistry, address onboarderRegistry)
         {
             return (canonicalFeeRegistry, canonicalTreasuryRegistry, canonicalOnboarderRegistry);
+        }
+
+        address canonicalRebalancer;
+        address canonicalIndexFactory;
+        address canonicalIndexComponentRegistry;
+        address canonicalPoolRegistry;
+
+        function setCanonicalRebalancer(address rebalancer) external {
+            canonicalRebalancer = rebalancer;
+        }
+
+        function getCanonicalRebalancer() external view returns (address) {
+            return canonicalRebalancer;
+        }
+
+        function setCanonicalIndexRegistries(
+            address indexFactory,
+            address indexComponentRegistry,
+            address poolRegistry
+        )
+            external
+        {
+            canonicalIndexFactory = indexFactory;
+            canonicalIndexComponentRegistry = indexComponentRegistry;
+            canonicalPoolRegistry = poolRegistry;
+        }
+
+        function getCanonicalIndexRegistries()
+            external
+            view
+            returns (address indexFactory, address indexComponentRegistry, address poolRegistry)
+        {
+            return (canonicalIndexFactory, canonicalIndexComponentRegistry, canonicalPoolRegistry);
         }
 
         function setModuleId(bytes4 sel, bytes32 moduleId) external {
@@ -772,14 +809,21 @@ contract MockERC20 is IERC20, IERC20Metadata {
             // Deploy harness
             h = new IndexFacetHarness();
 
+            // Use vm.store to write directly into the harness's storage.
+            h.setFacetRegistry(address(facetRegistry));
+
+            // Publish canonical index trio + rebalancer BEFORE configureIndexModule —
+            // configuration validates against them (fail-closed, external audit H02)
+            facetRegistry.setCanonicalIndexRegistries(
+                address(factory), address(componentRegistry), address(poolRegistry)
+            );
+            facetRegistry.setCanonicalRebalancer(address(dexFacet)); // any mock address works for units
+
             // Wire storage — the module's protocol addresses are diamond-storage config,
             // set at install via configureIndexModule (no compile-time constants anymore).
             h.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
             _etchMockAt(IndexStorage.USDC_ADDRESS, address(usdc));
             _etchMockAt(IndexStorage.WETH_ADDRESS, address(weth));
-
-            // Use vm.store to write directly into the harness's storage.
-            h.setFacetRegistry(address(facetRegistry));
 
             // Wire the base fee module (canonical-validated, mandatory before connect)
             feeRegistry = new MockFeeRegistry();
@@ -1512,6 +1556,153 @@ contract MockERC20 is IERC20, IERC20Metadata {
     }
 
     // =============================================================================
+    //  Swap containment (external audits C01 + M02) + canonical configuration (H02)
+    // =============================================================================
+
+    contract SwapContainmentTest is IndexFacetTestBase {
+        // Unregistered non-component token — value parked here would be invisible to the
+        // fee and unwind accounting
+        MockERC20 internal usdt;
+
+        function setUp() public override {
+            super.setUp();
+            usdt = new MockERC20("USDT", 6);
+
+            // Converting stub so swap legs actually move tokens (needed for the pass case)
+            poolRegistry.setSwapSelector(keccak256("USDC_DEX"), h.swapToUsdc.selector);
+            facetRegistry.setModuleId(h.swapToUsdc.selector, keccak256("DEX"));
+            h.setUsdcRate(address(wbtc), 6e20); // 1 sat = 6e-6 USDC... 1e7 sat = 6000e6 USDC
+        }
+
+        /// @dev Exact 60/40 at-target portfolio (total $10_000: WETH $6000 = 2e18,
+        ///      WBTC $4000 = 6_666_667 sat, USDC 0) — intent targets equal current values
+        function _goToTarget() internal {
+            h.setTokenBalance(address(weth), 2e18);
+            h.setTokenBalance(address(wbtc), 6_666_667);
+            h.setTokenBalance(address(usdc), 0);
+        }
+
+        function _intentThenDrift() internal {
+            _connect();
+            _createIntent();
+            h.setTokenBalance(address(wbtc), 6_666_667 + 833_333); // +$500 WBTC excess
+        }
+
+        function _step(address tokenIn, address tokenOut, uint256 amountIn) internal pure returns (SwapStep memory) {
+            SwapStep memory step;
+            step.dexId = keccak256("TEST_DEX");
+            step.instruction.amountIn = amountIn;
+            step.instruction.amountOut = 0;
+            step.instruction.tokens = new address[](2);
+            step.instruction.tokens[0] = tokenIn;
+            step.instruction.tokens[1] = tokenOut;
+            return step;
+        }
+
+        function test_rebalance_endpointNotAllowed() public {
+            _connect();
+            _createIntent();
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _step(IndexStorage.USDC_ADDRESS, address(usdt), 1e6);
+            vm.expectRevert(abi.encodeWithSelector(IndexFacet_SwapTokenNotAllowed.selector, address(usdt)));
+            h.rebalance(steps);
+        }
+
+        function test_rebalance_inputEndpointNotAllowed() public {
+            _connect();
+            _createIntent();
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _step(address(usdt), address(weth), 1e6);
+            vm.expectRevert(abi.encodeWithSelector(IndexFacet_SwapTokenNotAllowed.selector, address(usdt)));
+            h.rebalance(steps);
+        }
+
+        function test_rebalance_foreignIntermediateHopAllowed() public {
+            // Multi-hop [WBTC, USDT, USDC] is legitimate: only the ENDPOINTS are constrained
+            _goToTarget();
+            _connect();
+            _createIntent();
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _step(address(wbtc), IndexStorage.USDC_ADDRESS, 0); // zero-input multi-hop
+            steps[0].instruction.tokens = new address[](3);
+            steps[0].instruction.tokens[0] = address(wbtc);
+            steps[0].instruction.tokens[1] = address(usdt);
+            steps[0].instruction.tokens[2] = IndexStorage.USDC_ADDRESS;
+            steps[0].dexId = keccak256("USDC_DEX");
+            h.rebalance(steps); // no revert — intermediates unconstrained
+        }
+
+        function test_unwind_endpointNotAllowed() public {
+            _connect();
+            vm.expectRevert(abi.encodeWithSelector(IndexFacet_SwapTokenNotAllowed.selector, address(usdt)));
+            h.unwindAndDisconnectExt(_unwindStepsEndingIn(address(usdt)));
+        }
+
+        function _unwindStepsEndingIn(address finalToken) internal view returns (SwapStep[] memory) {
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _step(address(weth), finalToken, WETH_BALANCE);
+            return steps;
+        }
+
+        function test_rebalance_turnoverCap_blocksChurn() public {
+            // At target: the weight gap is 0, so ANY declared input churns (external audit
+            // C01: a round trip through one pool burns the daily loss allowance as LP fees)
+            _goToTarget();
+            _connect();
+            _createIntent();
+            SwapStep[] memory steps = new SwapStep[](2);
+            steps[0] = _step(address(wbtc), IndexStorage.USDC_ADDRESS, 6_666_667);
+            steps[1] = _step(IndexStorage.USDC_ADDRESS, address(wbtc), 1);
+            vm.expectRevert(); // TurnoverCapExceeded — any declared input exceeds the ~0 gap cap
+            h.rebalance(steps);
+        }
+
+        function test_rebalance_turnoverCap_allowsGapSizedRoute() public {
+            // $500 WBTC excess: gap = $500; a declared input of exactly the gap passes the
+            // 1.5x cap, the converting stub restores the target balance, and the rebalance
+            // lands in band
+            _goToTarget();
+            _intentThenDrift();
+
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _step(address(wbtc), IndexStorage.USDC_ADDRESS, 833_333);
+            steps[0].dexId = keccak256("USDC_DEX");
+            h.rebalance(steps);
+
+            // WBTC back at target
+            assertEq(wbtc.balanceOf(address(h)), 6_666_667);
+        }
+
+        function test_rebalance_turnoverCap_revertsBeyondGap() public {
+            _goToTarget();
+            _intentThenDrift(); // gap = $500, cap = $750
+
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _step(address(wbtc), IndexStorage.USDC_ADDRESS, 83_333_333); // $5000 declared vs $750 cap
+            vm.expectRevert(); // TurnoverCapExceeded(turnover, cap) — args derived from snapshot rounding
+            h.rebalance(steps);
+        }
+
+        function test_configure_revertsWhenNotCanonical() public {
+            address fake = address(0xdead);
+            vm.expectRevert(
+                abi.encodeWithSelector(IndexFacet_IndexRegistryNotCanonical.selector, fake, address(componentRegistry))
+            );
+            h.configureIndexModule(address(factory), fake, address(poolRegistry));
+
+            vm.expectRevert(
+                abi.encodeWithSelector(IndexFacet_IndexRegistryNotCanonical.selector, fake, address(factory))
+            );
+            h.configureIndexModule(fake, address(componentRegistry), address(poolRegistry));
+
+            vm.expectRevert(
+                abi.encodeWithSelector(IndexFacet_IndexRegistryNotCanonical.selector, fake, address(poolRegistry))
+            );
+            h.configureIndexModule(address(factory), address(componentRegistry), fake);
+        }
+    }
+
+    // =============================================================================
     //  View functions
     // =============================================================================
 
@@ -1717,6 +1908,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             FeeTestBase fresh = new FeeTestBase(); // has its own harness, also configured...
             // Instead: deploy a bare harness with no fee config
             IndexFacetHarness bare = new IndexFacetHarness();
+            bare.setFacetRegistry(address(facetRegistry)); // canonicals published in setUp
             bare.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
             vm.expectRevert(FeeFacet_FeeModuleNotConfigured.selector);
             bare.connectToIndexWithOnboarderExt(address(index), onboarder);
@@ -2013,11 +2205,12 @@ contract MockERC20 is IERC20, IERC20Metadata {
         }
 
         function test_fees_configureFeeModule_revert_canonicalNotSet() public {
-            // Fail-closed: with no canonical fee registries published on the garden's
-            // FacetRegistry, configuration is impossible
+            // Fail-closed: with no canonical registries published on the garden's
+            // FacetRegistry, neither module configuration is possible
             IndexFacetHarness bare = new IndexFacetHarness();
-            bare.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
             bare.setFacetRegistry(address(new MockFacetRegistry())); // no canonical published
+            vm.expectRevert(IndexFacet_CanonicalIndexRegistriesNotSet.selector);
+            bare.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
             vm.expectRevert(FeeFacet_CanonicalRegistriesNotSet.selector);
             bare.configureFeeModuleExt(address(feeRegistry), address(treasuryRegistry), address(onboarderRegistry));
         }
@@ -2037,6 +2230,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             // Fee sessions are mandatory: an unconfigured garden cannot connect at all — the
             // legacy fee-free connect-profit-disconnect cycle is closed (audit: opt-out)
             IndexFacetHarness bare = new IndexFacetHarness();
+            bare.setFacetRegistry(address(facetRegistry)); // canonicals published in setUp
             bare.configureIndexModule(address(factory), address(componentRegistry), address(poolRegistry));
             vm.expectRevert(FeeFacet_FeeModuleNotConfigured.selector);
             bare.connectToIndexExt(address(index));

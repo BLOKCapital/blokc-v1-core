@@ -14,6 +14,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IPAllActionV3 } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPAllActionV3.sol";
+import { IPMarket } from "@pendle/pendle-core-v2-public/contracts/interfaces/IPMarket.sol";
 import {
     TokenInput,
     TokenOutput,
@@ -105,8 +106,11 @@ abstract contract PendleV2Base {
     {
         IPAllActionV3 router = IPAllActionV3(PENDLE_V2_ROUTER_ADDRESS);
 
-        IERC20 tokenOut = IERC20(output.tokenOut);
+        // The router pulls the PT via transferFrom — approve before the sale, reset after.
+        (, IERC20 pt,) = IPMarket(market).readTokens();
+        pt.forceApprove(address(router), exactPtIn);
         (netTokenOut, netSyFee, netSyInterm) = router.swapExactPtForToken(receiver, market, exactPtIn, output, limit);
+        pt.forceApprove(address(router), 0);
         emit PendleV2FacetSwappedExactPtForToken(receiver, market, exactPtIn, netTokenOut, netSyFee, netSyInterm);
     }
 }
