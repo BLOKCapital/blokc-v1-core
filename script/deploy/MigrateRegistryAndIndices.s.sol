@@ -39,6 +39,7 @@ import { console2 } from "forge-std/console2.sol";
  *           CIRCULATING_SUPPLY_ADDRESS      live HardcodedCirculatingSupply
  *           POOL_REGISTRY_ADDRESS           live LiquidityPoolRegistry (unchanged)
  *           FACET_REGISTRY_ADDRESS          live FacetRegistry
+ *           PROTOCOL_STATUS_ADDRESS         live ProtocolStatus (Rebalancer pause gate)
  *           UNISWAP_V2_QUOTE_FACET_ADDRESS  live stock quote facets for the other DEXes
  *           CAMELOT_V2_QUOTE_FACET_ADDRESS
  *           CAMELOT_V3_QUOTE_FACET_ADDRESS
@@ -153,6 +154,7 @@ contract MigrateRegistryAndIndices is BaseScript {
         address circulatingSupply = vm.envAddress("CIRCULATING_SUPPLY_ADDRESS");
         address poolRegistry = vm.envAddress("POOL_REGISTRY_ADDRESS");
         address facetRegistry = vm.envAddress("FACET_REGISTRY_ADDRESS");
+        address protocolStatus = vm.envAddress("PROTOCOL_STATUS_ADDRESS");
 
         // ── 1. Fixed component registry + 13 components + bands ──────────────
         IndexComponentRegistry registry = new IndexComponentRegistry(deployer);
@@ -212,9 +214,11 @@ contract MigrateRegistryAndIndices is BaseScript {
         console2.log("NEW UniswapV3DepthQuoteFacet:", address(depthFacet));
 
         address usdc = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-        Rebalancer rebalancer =
-            new Rebalancer(deployer, address(indexFactory), address(registry), poolRegistry, facetRegistry, usdc);
+        Rebalancer rebalancer = new Rebalancer(
+            deployer, address(indexFactory), address(registry), poolRegistry, facetRegistry, usdc, protocolStatus
+        );
         console2.log("NEW Rebalancer:", address(rebalancer));
+        console2.log("ProtocolStatus:", protocolStatus);
 
         rebalancer.setDexConfig(
             keccak256("UNISWAP_V3"),

@@ -108,7 +108,13 @@ contract RebalancerFuzzTest is RebalancerTestBase {
     ///         BatchSizeNotSet (zero batch size is the "not set" state).
     function testFuzz_rebalance_batchSizeNotSet_reverts(uint256 seed) public {
         Rebalancer fresh = new Rebalancer(
-            owner, address(indexFactory), address(compRegistry), address(poolRegistry), address(1), address(usdc)
+            owner,
+            address(indexFactory),
+            address(compRegistry),
+            address(poolRegistry),
+            address(1),
+            address(usdc),
+            address(protocolStatus)
         );
         vm.prank(owner);
         fresh.addIndexToType(INDEX_TYPE, address(blokc2Index));

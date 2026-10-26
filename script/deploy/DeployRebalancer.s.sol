@@ -36,6 +36,7 @@ contract DeployRebalancer is BaseScript {
         address componentRegistry = vm.envAddress("INDEX_COMPONENT_REGISTRY_ADDRESS");
         address poolRegistry = vm.envAddress("POOL_REGISTRY_ADDRESS");
         address facetRegistry = vm.envAddress("FACET_REGISTRY_ADDRESS");
+        address protocolStatus = vm.envAddress("PROTOCOL_STATUS_ADDRESS");
 
         // Per-DEX quote facets: each setDexConfig gets the matching facet (a facet lacking
         // a DEX's quote selector silently skips every pool of that DEX). Uniswap V3 uses
@@ -54,10 +55,11 @@ contract DeployRebalancer is BaseScript {
         address usdc = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
         Rebalancer rebalancer = new Rebalancer{ salt: salt }(
-            deployer, indexFactory, componentRegistry, poolRegistry, facetRegistry, usdc
+            deployer, indexFactory, componentRegistry, poolRegistry, facetRegistry, usdc, protocolStatus
         );
 
         console2.log("Rebalancer deployed at:", address(rebalancer));
+        console2.log("ProtocolStatus:", protocolStatus);
         console2.log("Owner (DAO):", deployer);
 
         // =====================================================================

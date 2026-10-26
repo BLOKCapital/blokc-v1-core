@@ -395,7 +395,13 @@ contract E2ESimulation is Test {
 
         vm.startPrank(deployer);
         Rebalancer rebalancer = new Rebalancer(
-            deployer, addrIndexFactory, addrComponentRegistry, addrLiquidityPoolRegistry, addrFacetRegistry, USDC
+            deployer,
+            addrIndexFactory,
+            addrComponentRegistry,
+            addrLiquidityPoolRegistry,
+            addrFacetRegistry,
+            USDC,
+            addrProtocolStatus
         );
         addrRebalancer = address(rebalancer);
         vm.stopPrank();
