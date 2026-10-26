@@ -20,6 +20,7 @@ import { IGardenFactory } from "src/interfaces/IGardenFactory.sol";
 import { IFacetRegistry } from "src/interfaces/IFacetRegistry.sol";
 import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
+import { IERC173 } from "src/interfaces/IERC173.sol";
 
 // Local Contracts
 import { Garden } from "src/garden/Garden.sol";
@@ -316,8 +317,43 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
     }
 
     /// @inheritdoc IGardenFactory
-    function getGardenOwner(address garden) external view returns (address) {
-        return _gardenToOwner[garden];
+    function getGardenOwner(address garden) public view returns (address) {
+        if (!_gardens.contains(garden)) {
+            return address(0);
+        }
+        (bool success, address liveOwner) = _liveGardenOwner(garden);
+        return success ? liveOwner : _gardenToOwner[garden];
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getGardensOwnedBy(address user) external view returns (address[] memory gardens) {
+        uint256 total = _gardens.length();
+        address[] memory matches = new address[](total);
+        uint256 count;
+        for (uint256 i = 0; i < total; i++) {
+            address garden = _gardens.at(i);
+            (bool success, address liveOwner) = _liveGardenOwner(garden);
+            if (success && liveOwner == user) {
+                matches[count] = garden;
+                count++;
+            }
+        }
+
+        gardens = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            gardens[i] = matches[i];
+        }
+    }
+
+    /// @inheritdoc IGardenFactory
+    function getGardensOwnedByCount(address user) external view returns (uint256 count) {
+        uint256 total = _gardens.length();
+        for (uint256 i = 0; i < total; i++) {
+            (bool success, address liveOwner) = _liveGardenOwner(_gardens.at(i));
+            if (success && liveOwner == user) {
+                count++;
+            }
+        }
     }
 
     /// @inheritdoc IGardenFactory
@@ -369,7 +405,7 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
 
     /// @inheritdoc IGardenFactory
     function getGardenInfo(address garden) external view returns (address owner, bytes32 gardenType, bool registered) {
-        owner = _gardenToOwner[garden];
+        owner = getGardenOwner(garden);
         gardenType = _gardenToType[garden];
         registered = _gardens.contains(garden);
     }
@@ -385,6 +421,20 @@ contract GardenFactory is Ownable, ReentrancyGuard, IGardenFactory {
         gardenTypes = new bytes32[](length);
         for (uint256 i = 0; i < length; i++) {
             gardenTypes[i] = _gardenToType[gardens[i]];
+        }
+    }
+
+    // ========================================================================
+    //                       INTERNAL FUNCTIONS
+    // ========================================================================
+
+    /// @dev Reads a garden's live ERC-173 owner, tolerating a garden that no longer
+    ///      exposes `owner()` (e.g. after a facet upgrade) so view getters cannot brick.
+    function _liveGardenOwner(address garden) internal view returns (bool success, address liveOwner) {
+        try IERC173(garden).owner() returns (address gardenOwner) {
+            return (true, gardenOwner);
+        } catch {
+            return (false, address(0));
         }
     }
 }

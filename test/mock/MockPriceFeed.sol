@@ -46,8 +46,8 @@ contract MockOracle is AggregatorV3Interface {
         updatedAt = block.timestamp;
     }
 
-    function decimals() external pure returns (uint8) {
-        return 18;
+    function decimals() external pure virtual returns (uint8) {
+        return 8;
     }
 
     function description() external view returns (string memory) {
@@ -65,5 +65,14 @@ contract MockOracle is AggregatorV3Interface {
 
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (roundId, answer, startedAt, updatedAt, answeredInRound);
+    }
+}
+
+/// @notice Non-8-decimal feed used to prove registration rejects unsupported precision.
+contract MockOracle18 is MockOracle {
+    constructor(string memory _symbol, uint256 _answer) MockOracle(_symbol, _answer) { }
+
+    function decimals() external pure override returns (uint8) {
+        return 18;
     }
 }

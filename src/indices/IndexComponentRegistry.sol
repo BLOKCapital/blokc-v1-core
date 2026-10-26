@@ -25,6 +25,14 @@ error IndexComponentRegistry_InvalidComponentAddress();
 /// @notice Thrown when price feed address is zero
 error IndexComponentRegistry_InvalidPriceFeedAddress();
 
+/// @notice Thrown when a component's price feed does not report exactly 8 decimals
+/// @dev All protocol valuation math assumes Chainlink's standard 8-decimal raw units. A feed with
+///      `d` decimals would be valued by 10^(8-d) relative to USD, and an over-valued component can
+///      lock `unwindAndDisconnect`; registration therefore rejects anything other than 8 decimals.
+/// @param priceFeed The rejected price feed address
+/// @param decimals The feed's reported decimals
+error IndexComponentRegistry__InvalidPriceFeedDecimals(address priceFeed, uint8 decimals);
+
 /// @notice Thrown when attempting to register an already registered component
 error IndexComponentRegistry_ComponentAlreadyRegistered();
 
@@ -247,9 +255,15 @@ contract IndexComponentRegistry is Ownable {
             if (_isPriceStale(currResponse.timestamp, component.heartbeat)) {
                 revert IndexComponentRegistry__FeedFrozenError(component.tokenAddress);
             }
+
+            uint8 feedDecimals = newFeed.decimals();
+            if (feedDecimals != 8) {
+                revert IndexComponentRegistry__InvalidPriceFeedDecimals(component.priceFeedAddress, feedDecimals);
+            }
+
             _componentAddresses.add(component.tokenAddress);
             _components[component.symbol] = component;
-            oracleRecords[component.tokenAddress].decimals = newFeed.decimals();
+            oracleRecords[component.tokenAddress].decimals = feedDecimals;
             OracleRecord memory _oracleRecord = oracleRecords[component.tokenAddress];
             _processFeedResponses(component.tokenAddress, component, currResponse, prevResponse, _oracleRecord);
             emit ComponentRegistered(component.symbol, component.tokenAddress, component.priceFeedAddress);

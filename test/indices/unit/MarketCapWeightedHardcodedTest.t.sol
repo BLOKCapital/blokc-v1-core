@@ -86,8 +86,8 @@ contract MarketCapWeightedHardcodedTest is IndicesTestSetUp {
         syms[0] = bytes32("BTC");
         syms[1] = bytes32("ETH");
 
-        uint256 btcMc = Math.mulDiv(BTC_SUPPLY, btcPrice, 1e18);
-        uint256 ethMc = Math.mulDiv(ETH_SUPPLY, ethPrice, 1e18);
+        uint256 btcMc = Math.mulDiv(BTC_SUPPLY, btcPrice, 1e8);
+        uint256 ethMc = Math.mulDiv(ETH_SUPPLY, ethPrice, 1e8);
         uint256 totalMc = btcMc + ethMc;
 
         uint256[] memory weights = hardcoded.getWeights(syms);
@@ -103,8 +103,8 @@ contract MarketCapWeightedHardcodedTest is IndicesTestSetUp {
     ///         floored, then proportionally rescaled.
     function test_hardcoded_getWeights_tinyComponent_flooredAndRescaled() public {
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](2);
-        comps[0] = _component("WBTC", makeAddr("WBTC"), 1e23); // $100k
-        comps[1] = _component("WETH", makeAddr("WETH"), 1e10); // $1e-8 — collapse
+        comps[0] = _component("WBTC", makeAddr("WBTC"), 1e13); // $100k in 8-decimal units
+        comps[1] = _component("WETH", makeAddr("WETH"), 1); // $1e-8 in 8-decimal units — collapse
         _register(comps);
 
         bytes32[] memory syms = new bytes32[](2);
@@ -131,9 +131,9 @@ contract MarketCapWeightedHardcodedTest is IndicesTestSetUp {
     /// @notice All five BLOKC5 symbols at chosen oracle prices — exact math.
     function test_blokc5_getWeights_exactMath() public {
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](3);
-        comps[0] = _component("LINK", makeAddr("LINK"), 1e21); // $1000
-        comps[1] = _component("UNI", makeAddr("UNI"), 1e21); // $1000
-        comps[2] = _component("ARB", makeAddr("ARB"), 1e18); // $1
+        comps[0] = _component("LINK", makeAddr("LINK"), 1e11); // $1000 in 8-decimal units
+        comps[1] = _component("UNI", makeAddr("UNI"), 1e11); // $1000 in 8-decimal units
+        comps[2] = _component("ARB", makeAddr("ARB"), 1e8); // $1 in 8-decimal units
         _register(comps);
 
         bytes32[] memory syms = new bytes32[](5);
@@ -143,11 +143,11 @@ contract MarketCapWeightedHardcodedTest is IndicesTestSetUp {
         syms[3] = bytes32("UNI");
         syms[4] = bytes32("ARB");
 
-        uint256 btcMc = Math.mulDiv(BTC_SUPPLY, btcPrice, 1e18);
-        uint256 ethMc = Math.mulDiv(ETH_SUPPLY, ethPrice, 1e18);
-        uint256 linkMc = Math.mulDiv(LINK_SUPPLY, 1e21, 1e18);
-        uint256 uniMc = Math.mulDiv(UNI_SUPPLY, 1e21, 1e18);
-        uint256 arbMc = Math.mulDiv(ARB_SUPPLY, 1e18, 1e18);
+        uint256 btcMc = Math.mulDiv(BTC_SUPPLY, btcPrice, 1e8);
+        uint256 ethMc = Math.mulDiv(ETH_SUPPLY, ethPrice, 1e8);
+        uint256 linkMc = Math.mulDiv(LINK_SUPPLY, 1e11, 1e8);
+        uint256 uniMc = Math.mulDiv(UNI_SUPPLY, 1e11, 1e8);
+        uint256 arbMc = Math.mulDiv(ARB_SUPPLY, 1e8, 1e8);
         uint256 totalMc = btcMc + ethMc + linkMc + uniMc + arbMc;
 
         uint256[] memory weights = blokc5.getWeights(syms);
@@ -169,9 +169,9 @@ contract MarketCapWeightedHardcodedTest is IndicesTestSetUp {
     ///         must NOT revert — floored, then proportionally rescaled.
     function test_blokc5_getWeights_tinyComponent_flooredAndRescaled() public {
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](3);
-        comps[0] = _component("LINK", makeAddr("LINK"), 1e21);
-        comps[1] = _component("UNI", makeAddr("UNI"), 1e21);
-        comps[2] = _component("ARB", makeAddr("ARB"), 1e10); // collapse
+        comps[0] = _component("LINK", makeAddr("LINK"), 1e11);
+        comps[1] = _component("UNI", makeAddr("UNI"), 1e11);
+        comps[2] = _component("ARB", makeAddr("ARB"), 1); // collapse
         _register(comps);
 
         bytes32[] memory syms = new bytes32[](5);

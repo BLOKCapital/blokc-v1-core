@@ -21,8 +21,8 @@ contract IndicesTestSetUp is Test {
     MockOracle btcPriceFeed;
     MockOracle ethPriceFeed;
 
-    uint256 btcPrice = 70_000e18;
-    uint256 ethPrice = 3000e18;
+    uint256 btcPrice = 70_000e8;
+    uint256 ethPrice = 3000e8;
 
     address owner = makeAddr("owner");
     address btcAddress = makeAddr("BTC");
