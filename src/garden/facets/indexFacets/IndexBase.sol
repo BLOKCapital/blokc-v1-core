@@ -137,6 +137,28 @@ error IndexFacet_UnwindRequired();
 /// @param remaining The remaining balance
 error IndexFacet_ComponentRemained(bytes32 symbol, uint256 remaining);
 
+/// @notice Thrown when a rebalance is executed with an empty step set — it would clear the
+///         pending intent and burn the rebalance cooldown without moving any value
+error IndexFacet_EmptyRebalance();
+
+/// @notice Thrown when a swap step's token path and pool list do not describe exactly one
+///         pool per hop (empty path, or tokens.length != pools.length + 1)
+error IndexFacet_InvalidSwapPath();
+
+/// @notice Thrown when a single swap step exceeds the per-step hop bound
+/// @param hops The number of hops in the step
+/// @param maxHops The maximum allowed hops per step
+error IndexFacet_TooManyHops(uint256 hops, uint256 maxHops);
+
+/// @notice Thrown when a swap step names the same pool more than once — repeated pools can
+///         round-trip the same notional while paying a fee per hop
+/// @param pool The duplicated pool address
+error IndexFacet_DuplicatePool(address pool);
+
+/// @notice Thrown when a swap step's path starts and ends on the same token (round-trip churn)
+/// @param token The token appearing at both endpoints
+error IndexFacet_CircularSwap(address token);
+
 /**
  * @title IndexBase
  * @author BLOK Capital DAO
@@ -464,6 +486,10 @@ abstract contract IndexBase is FeeBase {
             revert IndexFacet_IntentExpired();
         }
 
+        // An empty step set would clear the pending intent and burn the full rebalance
+        // cooldown without moving any value (M05).
+        if (steps.length == 0) revert IndexFacet_EmptyRebalance();
+
         (, address componentRegistryAddress,) = _protocolAddresses();
         IndexComponentRegistry componentRegistry = IndexComponentRegistry(componentRegistryAddress);
 
@@ -513,11 +539,19 @@ abstract contract IndexBase is FeeBase {
     uint256 internal constant TURNOVER_MARGIN_NUM = 15_000;
     uint256 internal constant TURNOVER_MARGIN_DEN = 10_000;
 
+    /// @dev Upper bound on hops (fee-paying swap events) per SwapStep. The turnover cap
+    ///      charges each step's declared input once, so an unbounded multi-hop path could
+    ///      pay fees on the same notional many times over; bounding hops caps that
+    ///      leakage per step (C01 residual). Legitimate rebalance/unwind routes are 1-2 hops.
+    uint256 internal constant MAX_HOPS_PER_STEP = 4;
+
     /// @notice Execute swap steps through the DEX facets with endpoint and turnover
     ///         containment.
-    /// @dev Validates both path endpoints against the allowed token list, tracks the
-    ///      cumulative declared input value against the turnover cap, then resolves and
-    ///      calls the DEX facet. Intermediate multi-hop tokens are unconstrained.
+    /// @dev Validates each step's path shape and hop bound, both path endpoints against
+    ///      the allowed token list, tracks the cumulative declared input value against the
+    ///      turnover cap, then resolves and calls the DEX facet. Intermediate multi-hop
+    ///      tokens are unconstrained, but a step may not repeat a pool or start and end on
+    ///      the same token.
     /// @param steps Array of swap steps to execute
     /// @param allowedTokens Endpoint allowlist: USDC + the active session's/intent's symbols
     /// @param allowedPrices Oracle prices for allowedTokens (USD 8 decimals; USDC = 1e8),
@@ -545,7 +579,26 @@ abstract contract IndexBase is FeeBase {
             if (!_isDexFunction(selector)) revert IndexFacet_SelectorNotWhitelisted(selector);
 
             SwapInstruction calldata instruction = steps[i].instruction;
-            if (instruction.tokens.length < 2) revert IndexFacet_SwapTokenNotAllowed(address(0));
+
+            // Path-shape validation (C01 residual): one pool per hop, a bounded hop count,
+            // no repeated pool, and no round trip. A single step otherwise encodes an
+            // arbitrarily long multi-hop route that pays a DEX fee per hop while only its
+            // declared input is charged against the turnover cap.
+            uint256 hops = instruction.pools.length;
+            if (hops == 0 || instruction.tokens.length != hops + 1) {
+                revert IndexFacet_InvalidSwapPath();
+            }
+            if (hops > MAX_HOPS_PER_STEP) revert IndexFacet_TooManyHops(hops, MAX_HOPS_PER_STEP);
+            for (uint256 j = 0; j < hops; j++) {
+                for (uint256 k = j + 1; k < hops; k++) {
+                    if (instruction.pools[j] == instruction.pools[k]) {
+                        revert IndexFacet_DuplicatePool(instruction.pools[j]);
+                    }
+                }
+            }
+            if (instruction.tokens[0] == instruction.tokens[instruction.tokens.length - 1]) {
+                revert IndexFacet_CircularSwap(instruction.tokens[0]);
+            }
 
             // Endpoint containment (M02): value must only move between USDC and the active
             // session's/intent's tokens — anything else is invisible to the fee accounting
