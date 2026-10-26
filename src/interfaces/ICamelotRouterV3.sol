@@ -58,6 +58,7 @@ interface ICamelotRouterV3 {
     /// @notice Parameters for a single-hop exact-output swap.
     /// @param tokenIn The address of the input token.
     /// @param tokenOut The address of the output token.
+    /// @param fee The pool fee tier for the swap (part of the router's exact-output ABI).
     /// @param recipient The address that receives the output tokens.
     /// @param deadline The Unix timestamp after which the transaction reverts.
     /// @param amountOut The exact amount of output tokens desired.
@@ -66,6 +67,7 @@ interface ICamelotRouterV3 {
     struct ExactOutputSingleParams {
         address tokenIn;
         address tokenOut;
+        uint24 fee;
         address recipient;
         uint256 deadline;
         uint256 amountOut;

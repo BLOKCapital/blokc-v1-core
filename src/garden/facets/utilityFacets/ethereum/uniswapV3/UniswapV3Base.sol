@@ -210,8 +210,8 @@ abstract contract UniswapV3Base {
 
         tokenIn.forceApprove(UNISWAP_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
-        // Encode path (token, fee, token, fee, token, ...)
-        bytes memory path = _encodePath(params.pathWithFees);
+        // Encode reversed path for exact output (tokenOut, fee, ..., tokenIn)
+        bytes memory path = _encodePathReversed(params.pathWithFees);
         ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
             path: path,
             recipient: address(this),
@@ -484,7 +484,7 @@ abstract contract UniswapV3Base {
         }
     }
 
-    /// @notice Encodes a multi-hop path for Uniswap V3 router
+    /// @notice Encodes a multi-hop exact-input path for the Uniswap V3 router
     /// @dev Encodes path as: token0, fee0, token1, fee1, token2, ...
     /// @param pathWithFees Array of TokenWithFee describing the path
     /// @return path Encoded path bytes
@@ -492,6 +492,23 @@ abstract contract UniswapV3Base {
         path = abi.encodePacked(pathWithFees[0].token);
         for (uint256 i = 1; i < pathWithFees.length; ++i) {
             path = abi.encodePacked(path, pathWithFees[i - 1].fee, pathWithFees[i].token);
+        }
+    }
+
+    /// @notice Encodes a multi-hop exact-output path for the Uniswap V3 router
+    /// @dev Uniswap V3 `exactOutput` expects the path reversed: tokenN, feeN-1, ..., token0.
+    ///      pathWithFees[i].fee connects pathWithFees[i].token to pathWithFees[i + 1].token.
+    /// @param pathWithFees Array of TokenWithFee describing the forward path
+    /// @return path Encoded reversed path bytes
+    function _encodePathReversed(IUniswapV3.TokenWithFee[] memory pathWithFees)
+        internal
+        pure
+        returns (bytes memory path)
+    {
+        uint256 last = pathWithFees.length - 1;
+        path = abi.encodePacked(pathWithFees[last].token);
+        for (uint256 i = last; i > 0; --i) {
+            path = abi.encodePacked(path, pathWithFees[i - 1].fee, pathWithFees[i - 1].token);
         }
     }
 

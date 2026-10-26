@@ -37,8 +37,10 @@ error CamelotV3Facet_InvalidPath();
 /**
  * @title CamelotV3Base
  * @notice Base contract for Camelot V3 swaps and quotes on Arbitrum One. Camelot V3 uses
- *         the Algebra protocol with dynamic fees — no fee parameter is needed. One pool
- *         per token pair, identified by factory's poolByPair(tokenA, tokenB).
+ *         the Algebra protocol with dynamic fees. Exact-input single swaps use a 7-field
+ *         router ABI (no fee); exact-output single swaps use an 8-field router ABI that
+ *         includes the pool fee. One pool per token pair, identified by factory's
+ *         poolByPair(tokenA, tokenB).
  */
 abstract contract CamelotV3Base {
     using SafeERC20 for IERC20;
@@ -82,10 +84,12 @@ abstract contract CamelotV3Base {
                     })
                 );
             } else {
+                uint24 fee = IUniswapV3Pool(instruction.pools[0]).fee();
                 _camelotV3ExactOutputSingle(
                     ICamelotV3.CamelotV3ExactOutputSingleParams({
                         tokenIn: instruction.tokens[0],
                         tokenOut: instruction.tokens[1],
+                        fee: fee,
                         recipient: address(this),
                         deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         amountOut: instruction.amountOut,
@@ -194,6 +198,7 @@ abstract contract CamelotV3Base {
             ICamelotRouterV3.ExactOutputSingleParams({
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
+                fee: params.fee,
                 recipient: address(this),
                 deadline: params.deadline,
                 amountOut: params.amountOut,
@@ -209,7 +214,7 @@ abstract contract CamelotV3Base {
         ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
         IERC20(params.path[0]).forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
-        bytes memory encodedPath = _encodePath(params.path);
+        bytes memory encodedPath = _encodePathReversed(params.path);
         uint256 amountIn = router.exactOutput(
             ICamelotRouterV3.ExactOutputParams({
                 path: encodedPath,
@@ -351,10 +356,20 @@ abstract contract CamelotV3Base {
         }
     }
 
+    /// @notice Encodes a multi-hop exact-input path in forward order (tokenIn ... tokenOut).
     function _encodePath(address[] memory path) internal pure returns (bytes memory encodedPath) {
         encodedPath = abi.encodePacked(path[0]);
         for (uint256 i = 1; i < path.length; ++i) {
             encodedPath = abi.encodePacked(encodedPath, path[i]);
+        }
+    }
+
+    /// @notice Encodes a multi-hop exact-output path in reverse order (tokenOut ... tokenIn).
+    /// @dev Camelot V3 (Algebra) `exactOutput` expects the path to end at the input token.
+    function _encodePathReversed(address[] memory path) internal pure returns (bytes memory encodedPath) {
+        encodedPath = abi.encodePacked(path[path.length - 1]);
+        for (uint256 i = path.length - 1; i > 0; --i) {
+            encodedPath = abi.encodePacked(encodedPath, path[i - 1]);
         }
     }
 }

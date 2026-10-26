@@ -19,8 +19,9 @@ import { SwapInstruction, QuoteInstruction } from "src/interfaces/ISwapInstructi
  * @title CamelotV3Facet
  * @author BLOK Capital DAO
  * @notice Facet for Camelot V3 swaps and quotes on Arbitrum One. Single swap selector,
- *         single quote selector. Camelot V3 uses dynamic fees (Algebra protocol) — no
- *         fee parameter needed.
+ *         single quote selector. Camelot V3 uses dynamic fees (Algebra protocol): exact-input
+ *         single swaps use a 7-field router ABI (no fee), while exact-output single swaps
+ *         use an 8-field router ABI that includes the pool fee.
  */
 contract CamelotV3Facet is ICamelotV3, CamelotV3Base, Facet {
     // ========================================================================
