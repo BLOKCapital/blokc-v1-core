@@ -104,6 +104,43 @@ contract UpgradeTest is UpgradeTestBase {
         assertEq(loupe.facetAddress(ModuleFacetA.modFuncA1.selector), address(0), "selector should be removed");
     }
 
+    function test_upgrade_selectorMovedBetweenModules_laggingGarden() public {
+        // v1: MODULE_1 owns modFuncA1/modFuncA2, MODULE_2 owns modFuncB1/modFuncB2.
+        address garden = _setupDualModuleGarden();
+        _performUpgrade(garden, gardenOwner);
+
+        IDiamondLoupe loupe = IDiamondLoupe(garden);
+        assertEq(loupe.facetAddress(ModuleFacetA.modFuncA1.selector), address(modFacetA), "v1 selector on modFacetA");
+
+        // Move modFuncA1 from MODULE_1 to MODULE_2: MODULE_1 gets a Remove history entry,
+        // MODULE_2 gets a current Add entry pointing at a facet that implements it.
+        bytes4[] memory movedSelectors = new bytes4[](1);
+        movedSelectors[0] = ModuleFacetA.modFuncA1.selector;
+        _removeFacetFromModule(MODULE_1, movedSelectors);
+        _addFacetToModule(MODULE_2, address(modFacetA2), movedSelectors);
+
+        assertEq(
+            registry.getModuleIdBySelector(ModuleFacetA.modFuncA1.selector), MODULE_2, "selector now owned by MODULE_2"
+        );
+
+        // The lagging garden replays MODULE_1's Remove history. That must NOT delete the
+        // diamond entry, because MODULE_2 owns it now; MODULE_2's cut replaces the facet.
+        _performUpgrade(garden, gardenOwner);
+
+        assertEq(
+            loupe.facetAddress(ModuleFacetA.modFuncA1.selector),
+            address(modFacetA2),
+            "moved selector must route to the new module facet, not address(0)"
+        );
+        assertEq(
+            loupe.facetAddress(ModuleFacetA.modFuncA2.selector),
+            address(modFacetA),
+            "unmoved selector must stay on the original facet"
+        );
+        assertEq(ModuleFacetA2(garden).modFuncA1(), 10, "moved selector should be callable");
+        assertEq(ModuleFacetA(garden).modFuncA2(), 2, "unmoved selector should remain callable");
+    }
+
     function test_upgrade_incrementalUpgrades() public {
         // Step 1: Install module with FacetA
         address garden = _setupSingleModuleGarden();
