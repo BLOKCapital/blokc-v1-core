@@ -54,6 +54,12 @@ error Rebalancer_DeadlineExpired(uint256 deadline, uint256 blockTimestamp);
 error Rebalancer_BatchSizeNotSet(bytes32 indexTypeId);
 error Rebalancer_ProtocolInactive();
 
+/// @dev Minimal view used to read the protocol state as a raw word, avoiding enum
+///      range-check bytecode in the size-constrained Rebalancer runtime.
+interface IProtocolStatusView {
+    function getProtocolStatus() external view returns (uint256);
+}
+
 /// @notice Thrown when an external-only helper (used for internal try/catch isolation) is
 ///         called from outside the contract
 error Rebalancer_InternalOnly();
@@ -143,7 +149,7 @@ contract Rebalancer is Ownable {
     ILiquidityPoolRegistry public immutable POOL_REGISTRY;
     IFacetRegistry public immutable FACET_REGISTRY;
     address public immutable USDC;
-    IProtocolStatus public immutable PROTOCOL_STATUS;
+    IProtocolStatus private immutable PROTOCOL_STATUS;
 
     // ========================================================================
     // State — DAO-managed DEX configuration
@@ -380,12 +386,15 @@ contract Rebalancer is Ownable {
      *        to limit MEV exposure. The tx reverts if any swap's deadline has passed.
      */
     function cumulativeRebalance(bytes32 indexTypeId, uint256 deadline) external {
-        if (deadline < block.timestamp) revert Rebalancer_DeadlineExpired(deadline, block.timestamp);
-        if (deadline > block.timestamp + 1 hours) revert Rebalancer_DeadlineExpired(deadline, block.timestamp);
+        uint256 currentTime = block.timestamp;
+        if (deadline < currentTime) revert Rebalancer_DeadlineExpired(deadline, currentTime);
+        if (deadline > currentTime + 1 hours) revert Rebalancer_DeadlineExpired(deadline, currentTime);
 
         // The permissionless pooled rebalance must stop while the protocol is paused.
         // UPGRADES_DISABLED is still an active protocol and does not block rebalances.
-        if (PROTOCOL_STATUS.getProtocolStatus() == IProtocolStatus.State.INACTIVE) {
+        if (
+            IProtocolStatusView(address(PROTOCOL_STATUS)).getProtocolStatus() == uint256(IProtocolStatus.State.INACTIVE)
+        ) {
             revert Rebalancer_ProtocolInactive();
         }
 
