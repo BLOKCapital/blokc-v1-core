@@ -71,6 +71,8 @@ contract ApproveFacet is Facet, FeeBase {
         if (spender != canonical) revert ApproveFacet_SpenderNotCanonicalRebalancer(spender, canonical);
 
         ApproveStorage.Layout storage approvals = ApproveStorage.layout();
+        approvals._storageLayoutVersion = ApproveStorage.STORAGE_LAYOUT_VERSION;
+
         for (uint256 i = 0; i < tokens.length; i++) {
             address token = tokens[i];
             if (token == address(0)) revert ApproveFacet_ZeroToken();

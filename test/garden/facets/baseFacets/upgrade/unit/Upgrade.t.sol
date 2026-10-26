@@ -6,6 +6,8 @@ import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
 import { IDiamondLoupe } from "src/garden/facets/baseFacets/loupe/IDiamondLoupe.sol";
 import { IUpgrade } from "src/garden/facets/baseFacets/upgrade/IUpgrade.sol";
 import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
+import { ApproveStorage } from "src/garden/facets/utilityFacets/ApproveStorage.sol";
+import { LibStorageSlot } from "src/garden/libraries/LibStorageSlot.sol";
 
 // ── Errors
 error UpgradeFacet_NoModuleUpgradesAvailable();
@@ -13,6 +15,7 @@ error UpgradeFacet_HashMismatch();
 error Garden_UnauthorizedCaller();
 error Garden_UpgradesDisabled();
 error Garden_ProtocolIsInactive();
+error UpgradeFacet_StorageLayoutMismatch(string libraryName, uint256 stored, uint256 expected);
 
 contract UpgradeTest is UpgradeTestBase {
     event GardenUpgraded(IDiamondCut.FacetCut[] facetCuts);
@@ -139,6 +142,27 @@ contract UpgradeTest is UpgradeTestBase {
         );
         assertEq(ModuleFacetA2(garden).modFuncA1(), 10, "moved selector should be callable");
         assertEq(ModuleFacetA(garden).modFuncA2(), 2, "unmoved selector should remain callable");
+    }
+
+    function test_upgrade_revertsOnApproveStorageLayoutMismatch() public {
+        address garden = _setupSingleModuleGarden();
+        _performUpgrade(garden, gardenOwner);
+
+        // Create a pending module upgrade so the storage-version check is reached.
+        _replaceFacetInModule(MODULE_1, address(modFacetA2), selsModA);
+
+        // Corrupt the ApproveStorage layout version in the diamond's storage.
+        bytes32 approveStorageSlot = LibStorageSlot.deriveStorageSlot(type(ApproveStorage).name);
+        assertEq(approveStorageSlot, keccak256(bytes("ApproveStorage")) & ~bytes32(uint256(0xff)));
+        vm.store(garden, approveStorageSlot, bytes32(uint256(999)));
+        assertEq(uint256(vm.load(garden, approveStorageSlot)), 999);
+
+        IUpgrade iUpgrade = _upgradeOf(garden);
+        (, bytes32 hashData) = iUpgrade.upgradeDetails();
+
+        vm.prank(gardenOwner);
+        vm.expectRevert(abi.encodeWithSelector(UpgradeFacet_StorageLayoutMismatch.selector, "ApproveStorage", 999, 1));
+        iUpgrade.upgrade(hashData);
     }
 
     function test_upgrade_incrementalUpgrades() public {

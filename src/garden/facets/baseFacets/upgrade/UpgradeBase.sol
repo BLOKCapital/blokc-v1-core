@@ -27,6 +27,7 @@ import {
     RewardCollectionStorage
 } from "src/garden/facets/utilityFacets/arbitrumOne/rewardCollection/RewardCollectionStorage.sol";
 import { FeeStorage } from "src/garden/facets/indexFacets/FeeStorage.sol";
+import { ApproveStorage } from "src/garden/facets/utilityFacets/ApproveStorage.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 // OpenZeppelin
@@ -543,6 +544,9 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
             RewardCollectionStorage.STORAGE_LAYOUT_VERSION
         );
         _checkLayoutVersion("FeeStorage", FeeStorage.layout()._storageLayoutVersion, FeeStorage.STORAGE_LAYOUT_VERSION);
+        _checkLayoutVersion(
+            "ApproveStorage", ApproveStorage.layout()._storageLayoutVersion, ApproveStorage.STORAGE_LAYOUT_VERSION
+        );
     }
 
     /// @notice Checks a single layout version and reverts on mismatch.

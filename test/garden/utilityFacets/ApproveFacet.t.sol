@@ -6,6 +6,8 @@ import { IUpgrade } from "src/garden/facets/baseFacets/upgrade/IUpgrade.sol";
 import { IERC173 } from "src/interfaces/IERC173.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ApproveFacet } from "src/garden/facets/utilityFacets/ApproveFacet.sol";
+import { ApproveStorage } from "src/garden/facets/utilityFacets/ApproveStorage.sol";
+import { LibStorageSlot } from "src/garden/libraries/LibStorageSlot.sol";
 import { MockERC20 } from "../../mock/MockERC20.sol";
 
 interface IApproveTokens {
@@ -83,6 +85,20 @@ contract ApproveFacetTest is DiamondTestBase {
 
         assertEq(IERC20(tokenA).allowance(garden, spender), type(uint256).max, "tokenA allowance");
         assertEq(IERC20(tokenB).allowance(garden, spender), type(uint256).max, "tokenB allowance");
+    }
+
+    function test_approveTokens_initialisesStorageLayoutVersion() public {
+        bytes32 slot = LibStorageSlot.deriveStorageSlot(type(ApproveStorage).name);
+        assertEq(uint256(vm.load(garden, slot)), 0, "version must be uninitialised before first grant");
+
+        vm.prank(diamondOwner);
+        IApproveTokens(garden).approveTokens(_singleToken(address(tokenA)), spender);
+
+        assertEq(
+            uint256(vm.load(garden, slot)),
+            ApproveStorage.STORAGE_LAYOUT_VERSION,
+            "version must be initialised on first grant"
+        );
     }
 
     function test_approveTokens_isIdempotent() public {
