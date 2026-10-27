@@ -41,6 +41,7 @@ interface ICamelotV3 {
     struct CamelotV3ExactOutputSingleParams {
         address tokenIn;
         address tokenOut;
+        uint24 fee;
         address recipient;
         uint256 deadline;
         uint256 amountOut;
@@ -62,7 +63,8 @@ interface ICamelotV3 {
 
     /// @notice Single entry point for all Camelot V3 swaps.
     ///         Handles single-hop and multi-hop, exact-input and exact-output.
-    ///         No fee parameter needed — Camelot V3 uses dynamic fees.
+    ///         Exact-input single swaps use a 7-field router ABI (no fee); exact-output
+    ///         single swaps use an 8-field router ABI that includes the pool fee.
     /// @param instruction The universal SwapInstruction (same struct across all DEX facets)
     function camelotV3Swap(SwapInstruction calldata instruction) external;
 

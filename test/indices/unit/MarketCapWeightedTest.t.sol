@@ -44,13 +44,13 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
          * Calculation
          * BTC
          * Supply - 1
-         * Price - 70_000e18 -- While calculation Decimal is removed
+         * Price - 70_000e8 -- 8-decimal Chainlink units; divided out by 1e8
          * Total Market Cap of BTC - 70000
          * Total Market Cap = 70_000
          *
          * ETH
          * Supply - 2
-         * Price - 3000e18
+         * Price - 3000e8
          * Toatl MArket Cap of ETH - 6_000
          * Total Market cap = 76_000
          *
@@ -79,15 +79,15 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
 
     function test_getWeights_equalMarketCaps() public {
         /**
-         * 3 tokens, each with supply=1 and price=1_000e18 (18 decimals)
-         * marketCap per token = 1 * 1_000e18 / 1e18 = 1_000
+         * 3 tokens, each with supply=1 and price=1_000e8 (8 decimals)
+         * marketCap per token = 1 * 1_000e8 / 1e8 = 1_000
          * total = 3_000
          * expected weight each = 1_000/3_000 * 1e18
          */
 
-        MockOracle oracle1 = new MockOracle("TOKEN1", 1000e18);
-        MockOracle oracle2 = new MockOracle("TOKEN2", 1000e18);
-        MockOracle oracle3 = new MockOracle("TOKEN3", 1000e18);
+        MockOracle oracle1 = new MockOracle("TOKEN1", 1000e8);
+        MockOracle oracle2 = new MockOracle("TOKEN2", 1000e8);
+        MockOracle oracle3 = new MockOracle("TOKEN3", 1000e8);
 
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](3);
         comps[0] = IndexComponentRegistry.Component({
@@ -159,7 +159,7 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
 
         for (uint256 i = 0; i < count; i++) {
             bytes32 sym = tokenNames[i];
-            uint256 price = (i + 1) * 1000e18;
+            uint256 price = (i + 1) * 1000e8;
             MockOracle oracle = new MockOracle(string(abi.encodePacked(sym)), price);
 
             syms[i] = sym;
@@ -196,7 +196,7 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
     // ═══════════════════════════════════════════════════════════════════════
 
     function test_getWeights_marketCapExceedsSanityBound() public {
-        MockOracle oracle1 = new MockOracle("TOKEN1", 1e18);
+        MockOracle oracle1 = new MockOracle("TOKEN1", 1e8);
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](1);
         comps[0] = IndexComponentRegistry.Component({
             symbol: bytes32("TOKEN1"), tokenAddress: makeAddr("T1"), priceFeedAddress: address(oracle1), heartbeat: 3600
@@ -220,8 +220,8 @@ contract MarketCapWeightedTest is IndicesTestSetUp {
     }
 
     function test_getWeights_componentWeightBelowMinimum() public {
-        MockOracle oracleTiny = new MockOracle("TOKEN1", 1e18);
-        MockOracle oracleBig = new MockOracle("TOKEN2", 1e18);
+        MockOracle oracleTiny = new MockOracle("TOKEN1", 1e8);
+        MockOracle oracleBig = new MockOracle("TOKEN2", 1e8);
 
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](2);
         comps[0] = IndexComponentRegistry.Component({

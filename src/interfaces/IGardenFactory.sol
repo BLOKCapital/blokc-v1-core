@@ -30,7 +30,10 @@ interface IGardenFactory {
     function getAllGardens() external view returns (address[] memory gardens);
 
     /// @notice Returns all gardens created by a specific user
-    /// @param user The address of the user
+    /// @dev This is a creation-time index: it is keyed by the original creator and does NOT follow
+    ///      ERC-173 ownership transfers. For the garden's current owner use `getGardenOwner`; for
+    ///      gardens currently owned by a user use `getGardensOwnedBy`.
+    /// @param user The address of the creator
     /// @return gardens Array of garden addresses created by the specified user
     function getUserGardens(address user) external view returns (address[] memory gardens);
 
@@ -50,8 +53,9 @@ interface IGardenFactory {
     function getTotalGardens() external view returns (uint256 count);
 
     /// @notice Returns the number of gardens created by a specific user
-    /// @param user The address of the user
-    /// @return count The number of gardens owned by the user
+    /// @dev Creator-indexed like `getUserGardens`: it does not follow ownership transfers.
+    /// @param user The address of the creator
+    /// @return count The number of gardens created by the user
     function getUserGardenCount(address user) external view returns (uint256 count);
 
     /// @notice Returns which indices (1-10) are still available for a user
@@ -93,10 +97,26 @@ interface IGardenFactory {
     /// @return The garden type identifier (bytes32(0) if not registered)
     function getGardenType(address garden) external view returns (bytes32);
 
-    /// @notice Returns the owner of a deployed garden
+    /// @notice Returns the CURRENT ERC-173 owner of a deployed garden
+    /// @dev Reads `IERC173(garden).owner()` live, so it follows ownership transfers. Falls back to
+    ///      the creator recorded at registration if the garden no longer exposes `owner()`.
     /// @param garden The address of the garden
-    /// @return The owner address (address(0) if not registered)
+    /// @return The current owner address (address(0) if not registered)
     function getGardenOwner(address garden) external view returns (address);
+
+    /// @notice Returns all registered gardens whose CURRENT ERC-173 owner is `user`
+    /// @dev Unlike `getUserGardens`, this is a live ownership query, not a creation-time index.
+    ///      Gardens whose `owner()` call reverts are skipped.
+    /// @param user The address of the current owner
+    /// @return gardens Array of garden addresses currently owned by the user
+    function getGardensOwnedBy(address user) external view returns (address[] memory gardens);
+
+    /// @notice Returns the number of registered gardens whose CURRENT ERC-173 owner is `user`
+    /// @dev Live ownership query equivalent to `getGardensOwnedBy(user).length`; reverting
+    ///      `owner()` calls are skipped.
+    /// @param user The address of the current owner
+    /// @return count The number of gardens currently owned by the user
+    function getGardensOwnedByCount(address user) external view returns (uint256 count);
 
     /// @notice Returns all gardens of a specific type
     /// @param gardenType The garden type identifier
@@ -123,20 +143,24 @@ interface IGardenFactory {
         returns (address[] memory gardens);
 
     /// @notice Returns all gardens of a specific type created by a user
-    /// @param user The address of the user
+    /// @dev Creator-indexed like `getUserGardens`: it does NOT follow ERC-173 ownership transfers.
+    ///      Use `getGardenOwner` for current ownership, or filter `getGardensOwnedBy` by garden type.
+    /// @param user The address of the creator
     /// @param gardenType The garden type identifier
-    /// @return gardens Array of garden addresses of the specified type owned by the user
+    /// @return gardens Array of garden addresses of the specified type created by the user
     function getUserGardensByType(address user, bytes32 gardenType) external view returns (address[] memory gardens);
 
     /// @notice Returns the number of gardens of a specific type created by a user
-    /// @param user The address of the user
+    /// @dev Creator-indexed like `getUserGardensByType`: it does not follow ownership transfers.
+    /// @param user The address of the creator
     /// @param gardenType The garden type identifier
-    /// @return count The number of gardens of the specified type owned by the user
+    /// @return count The number of gardens of the specified type created by the user
     function getUserGardensByTypeCount(address user, bytes32 gardenType) external view returns (uint256 count);
 
     /// @notice Returns full info for a single garden in one call
+    /// @dev `owner` is the live ERC-173 owner, matching `getGardenOwner`.
     /// @param garden The address of the garden
-    /// @return owner The garden owner
+    /// @return owner The garden's current owner
     /// @return gardenType The garden type identifier
     /// @return registered Whether the garden is registered in the factory
     function getGardenInfo(address garden) external view returns (address owner, bytes32 gardenType, bool registered);

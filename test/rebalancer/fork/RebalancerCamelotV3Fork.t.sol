@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
 
 import { Rebalancer } from "src/rebalancer/Rebalancer.sol";
+import { MockProtocolStatus } from "test/mock/MockProtocolStatus.sol";
 import { QuoteInstruction } from "src/interfaces/ISwapInstruction.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -55,6 +56,7 @@ contract RebalancerCamelotV3ForkTest is Test {
     MockComponentRegistry internal compRegistry;
     MockIndexFactory internal indexFactory;
     MockIndex internal idx;
+    MockProtocolStatus internal protocolStatus;
     ForkCamelotV3Quote internal quote;
 
     function setUp() public {
@@ -78,6 +80,7 @@ contract RebalancerCamelotV3ForkTest is Test {
         compRegistry = new MockComponentRegistry();
         indexFactory = new MockIndexFactory();
         idx = new MockIndex();
+        protocolStatus = new MockProtocolStatus();
 
         compRegistry.setComponent(bytes32("WETH"), WETH);
         compRegistry.setPrice(WETH, 3000e8);
@@ -113,7 +116,8 @@ contract RebalancerCamelotV3ForkTest is Test {
             address(compRegistry),
             address(poolRegistry),
             address(1), // facetRegistry — not exercised by the swap path
-            USDC
+            USDC,
+            address(protocolStatus)
         );
         quote = new ForkCamelotV3Quote();
         vm.startPrank(owner);

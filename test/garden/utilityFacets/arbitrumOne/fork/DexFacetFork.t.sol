@@ -100,10 +100,12 @@ contract DexFacetForkTest is Test {
     address internal constant CAMELOT_V3_POOL = 0xB1026b8e7276e7AC75410F1fcbbe21796e8f7526;
 
     /// @notice LiquidityPoolRegistry address hardcoded inside the current DEX facet sources
-    address internal constant POOL_REGISTRY = 0x8C7ab1B167caB83486D518969d4D004C8E91b960;
+    address internal constant POOL_REGISTRY = 0x12e6c5117E0edb0E1A9ca7f7d3159b2807EA2C2C;
     /// @notice Previous pool registry address (some deployed/live protocol versions still
     ///         hardcode this one inside the facets)
-    address internal constant POOL_REGISTRY_LEGACY = 0xA3178280c191dD46c551b91c651F337E47594d85;
+    address internal constant POOL_REGISTRY_LEGACY = 0x8C7ab1B167caB83486D518969d4D004C8E91b960;
+    /// @notice Older pool registry address retained for compatibility with legacy facets
+    address internal constant POOL_REGISTRY_OLDER = 0xA3178280c191dD46c551b91c651F337E47594d85;
 
     /// @notice Reference fork block (verified servable at development time).
     ///         The public Arbitrum RPC prunes historical state within ~30 minutes, so the
@@ -394,15 +396,13 @@ contract DexFacetForkTest is Test {
     // ========================================================================
 
     /// @notice Real WETH -> USDC swap on the canonical Camelot V3 (Algebra) pool with deadline 0.
-    /// @dev The facet's camelotV3Quote reads pool.fee()/observe() which the deployed Algebra
-    ///      pool does not implement (it exposes globalState()/getTimepoints()), so the quote
-    ///      would revert. The expected output is therefore computed with the same math the
-    ///      facet uses, reading the pool's real spot price (globalState.price) and fee.
+    /// @dev The expected output comes from the facet's own quote, which reads the pool through
+    ///      Algebra's `globalState()` and `getTimepoints()` methods.
     function testFork_CamelotV3_SwapWithDeadlineZero() public {
         uint256 amountIn = WETH_AMOUNT;
         _fundGardenFromPool(CAMELOT_V3_POOL, amountIn);
 
-        uint256 expected = _camelotV3SpotQuote(CAMELOT_V3_POOL, amountIn);
+        uint256 expected = ICamelotV3(address(garden)).camelotV3Quote(_quoteInstruction(CAMELOT_V3_POOL, amountIn));
         uint256 minOut = _applySlippage(expected);
 
         (uint256 outReceived, uint256 wethSpent) = _executeSwap(
@@ -453,6 +453,30 @@ contract DexFacetForkTest is Test {
             ),
             "Transaction too old"
         );
+    }
+
+    /// @notice Real exact-output single-hop swap on the canonical Camelot V3 (Algebra) pool.
+    /// @dev Exercises the 8-field exactOutputSingle ABI and the dynamic fee read from
+    ///      `globalState().fee`; the pool does not implement Uniswap V3's `fee()`.
+    function testFork_CamelotV3_ExactOutputSingle() public {
+        uint256 amountInMaximum = WETH_AMOUNT;
+        _fundGardenFromPool(CAMELOT_V3_POOL, amountInMaximum);
+
+        uint256 quotedOut = _camelotV3SpotQuote(CAMELOT_V3_POOL, amountInMaximum);
+        uint256 amountOut = quotedOut * 90 / 100;
+
+        (uint256 outReceived, uint256 wethSpent) = _executeSwap(
+            ICamelotV3.camelotV3Swap.selector,
+            abi.encodeWithSelector(
+                ICamelotV3.camelotV3Swap.selector,
+                _exactOutputSwapInstruction(CAMELOT_V3_POOL, amountOut, amountInMaximum, 0)
+            )
+        );
+
+        assertEq(outReceived, amountOut, "exact output not delivered");
+        assertGt(wethSpent, 0, "no input spent");
+        assertLe(wethSpent, amountInMaximum, "input exceeded maximum");
+        assertEq(IERC20(WETH).balanceOf(address(garden)), amountInMaximum - wethSpent, "unexpected WETH balance");
     }
 
     // ========================================================================
@@ -600,6 +624,31 @@ contract DexFacetForkTest is Test {
         });
     }
 
+    function _exactOutputSwapInstruction(
+        address pool,
+        uint256 amountOut,
+        uint256 amountInMaximum,
+        uint256 deadline
+    )
+        internal
+        pure
+        returns (SwapInstruction memory si)
+    {
+        address[] memory tokens = new address[](2);
+        tokens[0] = WETH;
+        tokens[1] = USDC;
+        address[] memory pools = new address[](1);
+        pools[0] = pool;
+        si = SwapInstruction({
+            amountIn: amountInMaximum,
+            amountOut: amountOut,
+            tokens: tokens,
+            pools: pools,
+            exactOutput: true,
+            deadline: deadline
+        });
+    }
+
     // ========================================================================
     // Funding — real tokens transferred from the pool that holds them (no minting)
     // ========================================================================
@@ -643,7 +692,7 @@ contract DexFacetForkTest is Test {
     function _installPoolRegistryAtHardcodedAddress() internal {
         LiquidityPoolRegistry registryImplementation = new LiquidityPoolRegistry(address(this));
 
-        address[2] memory targets = [POOL_REGISTRY, POOL_REGISTRY_LEGACY];
+        address[3] memory targets = [POOL_REGISTRY, POOL_REGISTRY_LEGACY, POOL_REGISTRY_OLDER];
         for (uint256 i; i < targets.length; i++) {
             vm.etch(targets[i], address(registryImplementation).code);
             vm.store(targets[i], bytes32(0), bytes32(uint256(uint160(address(this)))));
@@ -700,7 +749,7 @@ contract DexFacetForkTest is Test {
     }
 
     function _registerDexesAndPools() internal {
-        address[2] memory targets = [POOL_REGISTRY, POOL_REGISTRY_LEGACY];
+        address[3] memory targets = [POOL_REGISTRY, POOL_REGISTRY_LEGACY, POOL_REGISTRY_OLDER];
         for (uint256 i; i < targets.length; i++) {
             LiquidityPoolRegistry lpr = LiquidityPoolRegistry(targets[i]);
 

@@ -154,9 +154,13 @@ contract DeployAndTestFork is Script {
         // =====================================================================
         // 7. Deploy Rebalancer — ALL constructor args are real
         // =====================================================================
+        address protocolStatus = IGardenFactory(GARDEN_FACTORY).getProtocolStatus();
+        console2.log("ProtocolStatus:", protocolStatus);
+
         vm.startBroadcast(deployer);
-        Rebalancer rebalancer =
-            new Rebalancer(deployer, INDEX_FACTORY, COMPONENT_REGISTRY, POOL_REGISTRY, FACET_REGISTRY, USDC);
+        Rebalancer rebalancer = new Rebalancer(
+            deployer, INDEX_FACTORY, COMPONENT_REGISTRY, POOL_REGISTRY, FACET_REGISTRY, USDC, protocolStatus
+        );
         console2.log("Rebalancer deployed at:", address(rebalancer));
 
         // =====================================================================
@@ -224,6 +228,7 @@ contract DeployAndTestFork is Script {
 
 interface IGardenFactory {
     function createGarden(uint256 index, bytes32 gardenType) external returns (address);
+    function getProtocolStatus() external view returns (address);
 }
 
 interface IIndexFactory {

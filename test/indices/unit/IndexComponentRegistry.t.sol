@@ -3,7 +3,7 @@ pragma solidity ^0.8.31;
 
 import { Test, Vm } from "forge-std/Test.sol";
 
-import { MockOracle } from "../../mock/MockPriceFeed.sol";
+import { MockOracle, MockOracle18 } from "../../mock/MockPriceFeed.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { AggregatorV3Interface } from "src/interfaces/AggregatorV3Interface.sol";
@@ -19,6 +19,7 @@ import {
     IndexComponentRegistry_TotalComponentsAndSymbolsMismatch,
     IndexComponentRegistry__FeedFrozenError,
     IndexComponentRegistry__InvalidFeedResponseError,
+    IndexComponentRegistry__InvalidPriceFeedDecimals,
     IndexComponentRegistry__InvalidDeviationBps,
     IndexComponentRegistry__InvalidDeviationTimeout,
     IndexComponentRegistry__PriceDeviationTooHigh
@@ -49,7 +50,7 @@ contract SwitchableOracle is AggregatorV3Interface {
     }
 
     function decimals() external pure returns (uint8) {
-        return 18;
+        return 8;
     }
 
     function description() external view returns (string memory) {
@@ -103,14 +104,14 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         assertEq(btcRecord.timestamp, block.timestamp);
         assertEq(btcRecord.lastUpdated, block.timestamp);
         assertEq(btcRecord.roundId, 12_345);
-        assertEq(btcRecord.decimals, 18);
+        assertEq(btcRecord.decimals, 8);
         assertEq(btcRecord.isFeedWorking, true);
 
         assertEq(ethRecord.price, ethPrice);
         assertEq(ethRecord.timestamp, block.timestamp);
         assertEq(ethRecord.lastUpdated, block.timestamp);
         assertEq(ethRecord.roundId, 12_345);
-        assertEq(ethRecord.decimals, 18);
+        assertEq(ethRecord.decimals, 8);
         assertEq(ethRecord.isFeedWorking, true);
 
         // check for token address
@@ -167,6 +168,25 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
             })
         );
         icr.registerComponents(components);
+    }
+
+    function test_registerComponent_revert_invalidPriceFeedDecimals() public {
+        MockOracle18 linkFeed = new MockOracle18("LINK", 10_000e8);
+        IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](1);
+        comps[0] = IndexComponentRegistry.Component({
+            symbol: bytes32("LINK"),
+            tokenAddress: makeAddr("LINK"),
+            priceFeedAddress: address(linkFeed),
+            heartbeat: 3600
+        });
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IndexComponentRegistry__InvalidPriceFeedDecimals.selector, address(linkFeed), uint8(18)
+            )
+        );
+        icr.registerComponents(comps);
     }
 
     function test_registerComponent_revert_already_resgistered() public {
@@ -288,8 +308,8 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         vm.warp(block.timestamp + 3601);
 
         // prices within 10% of EMA (EMA initialized to registration price: BTC=70_000, ETH=3000)
-        int256 newPriceBtc = 77_000e18; // ~9% increase from EMA — within 10%
-        int256 newPriceEth = 2900e18; // ~3.3% decrease from EMA — within 10%
+        int256 newPriceBtc = 77_000e8; // ~9% increase from EMA — within 10%
+        int256 newPriceEth = 2900e8; // ~3.3% decrease from EMA — within 10%
 
         btcPriceFeed.refresh(newPriceBtc);
         ethPriceFeed.refresh(newPriceEth);
@@ -305,11 +325,11 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         uint256 registeredAt = block.timestamp;
         vm.warp(registeredAt + 36_001);
 
-        // BTC: 70_000e18 -> 20_000e18 is a ~71% EMA-relative drop — far outside the 10% band,
+        // BTC: 70_000e8 -> 20_000e8 is a ~71% EMA-relative drop — far outside the 10% band,
         // but below the 2x broken-feed cap. The FIRST deviating read only records the deviation
         // (persistence clock starts); the cached price is served. After the 1h timeout has
         // elapsed since that first rejection, the next read auto-accepts the market price.
-        int256 newPriceBtc = 20_000e18;
+        int256 newPriceBtc = 20_000e8;
         btcPriceFeed.refresh(newPriceBtc);
 
         uint256 firstDeviationAt = block.timestamp;
@@ -319,7 +339,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
 
         vm.warp(firstDeviationAt + 3600);
         vm.expectEmit(true, false, false, true, address(icr));
-        emit IndexComponentRegistry.DeviationTimeoutAccepted(btcAddress, 20_000e18, btcPrice);
+        emit IndexComponentRegistry.DeviationTimeoutAccepted(btcAddress, 20_000e8, btcPrice);
 
         uint256 price = icr.fetchPrice(bytes32("BTC"));
         assertEq(price, uint256(newPriceBtc)); // market price accepted, not cached
@@ -336,13 +356,13 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         uint256 deviationAt = block.timestamp + 1800;
         vm.warp(deviationAt);
 
-        // BTC: 70_000e18 -> 20_000e18 is ~71% drop, well above the 10% band
-        int256 newPriceBtc = 20_000e18;
+        // BTC: 70_000e8 -> 20_000e8 is ~71% drop, well above the 10% band
+        int256 newPriceBtc = 20_000e8;
         btcPriceFeed.refresh(newPriceBtc);
 
         // deviation floor: (70_000 − 20_000) × 1e4 / 70_000, rounded down
         vm.expectEmit(true, false, false, true, address(icr));
-        emit IndexComponentRegistry.PriceDeviationRejected(btcAddress, 20_000e18, btcPrice, 7142, 1000);
+        emit IndexComponentRegistry.PriceDeviationRejected(btcAddress, 20_000e8, btcPrice, 7142, 1000);
 
         // return with the previous price
         uint256 storedPrice = icr.fetchPrice(bytes32("BTC"));
@@ -360,7 +380,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
 
         // Bad price: ~21% below EMA of 70_000 — clearly outside 10% threshold
         vm.warp(block.timestamp + 1800);
-        int256 badPrice = 55_000e18;
+        int256 badPrice = 55_000e8;
         btcPriceFeed.refresh(badPrice);
 
         uint256 cachedPrice = icr.fetchPrice(bytes32("BTC"));
@@ -372,7 +392,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         // Recovered price: ~5.7% below EMA of 70_000 — within 10% threshold
         // Keep total warp under 3600 to avoid hitting the stale-price boundary
         vm.warp(block.timestamp + 1000);
-        int256 recoveredPrice = 66_000e18;
+        int256 recoveredPrice = 66_000e8;
         btcPriceFeed.refresh(recoveredPrice);
 
         uint256 newPrice = icr.fetchPrice(bytes32("BTC"));
@@ -388,7 +408,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
 
     function test_autoAccept_boundary_exactTimeout_accepts() public setComponentPriceFeed {
         vm.warp(block.timestamp + 3599);
-        btcPriceFeed.refresh(20_000e18);
+        btcPriceFeed.refresh(20_000e8);
 
         // First deviating read: records the deviation, serves the cached price
         uint256 rejected = icr.fetchPrice(bytes32("BTC"));
@@ -398,14 +418,14 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         // Exactly firstDeviationAt + DEFAULT_DEVIATION_TIMEOUT (>= comparison): accepted
         vm.warp(firstDeviationAt + 3600);
         uint256 accepted = icr.fetchPrice(bytes32("BTC"));
-        assertEq(accepted, 20_000e18);
+        assertEq(accepted, 20_000e8);
     }
 
     function test_autoAccept_cap_twoX_neverAutoAccepted() public setComponentPriceFeed {
         // A 2x move = exactly 10_000 bps EMA-relative — the broken-feed tier. It is rejected
         // forever (strict < cap) and only forceResync can adopt it.
         vm.warp(block.timestamp + 1800);
-        btcPriceFeed.refresh(140_000e18);
+        btcPriceFeed.refresh(140_000e8);
 
         uint256 rejected = icr.fetchPrice(bytes32("BTC"));
         assertEq(rejected, btcPrice);
@@ -418,38 +438,38 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
 
     function test_autoAccept_cap_justUnderTwoX_acceptedAfterPersistence() public setComponentPriceFeed {
         vm.warp(block.timestamp + 1800);
-        btcPriceFeed.refresh(139_000e18); // 1.986x = 9_857 bps EMA-relative — under the cap
+        btcPriceFeed.refresh(139_000e8); // 1.986x = 9_857 bps EMA-relative — under the cap
 
         uint256 firstDeviationAt = block.timestamp;
         assertEq(icr.fetchPrice(bytes32("BTC")), btcPrice); // rejected on first sight
 
         vm.warp(firstDeviationAt + 3600);
-        assertEq(icr.fetchPrice(bytes32("BTC")), 139_000e18); // auto-accepted after persistence
+        assertEq(icr.fetchPrice(bytes32("BTC")), 139_000e8); // auto-accepted after persistence
     }
 
     function test_bandBoundary_exactBand_accepted() public setComponentPriceFeed {
         vm.warp(block.timestamp + 1800);
 
         // Drop of exactly 10%: deviation = 7_000 × 1e4 / 70_000 = 1000 bps == band (strict >)
-        btcPriceFeed.refresh(63_000e18);
-        assertEq(icr.fetchPrice(bytes32("BTC")), 63_000e18);
+        btcPriceFeed.refresh(63_000e8);
+        assertEq(icr.fetchPrice(bytes32("BTC")), 63_000e8);
     }
 
     function test_bandBoundary_bandPlusOne_rejected() public setComponentPriceFeed {
         vm.warp(block.timestamp + 1800);
 
         // Drop of 10.01%: deviation = 7_007 × 1e4 / 70_000 = 1001 bps > band
-        btcPriceFeed.refresh(62_993e18);
+        btcPriceFeed.refresh(62_993e8);
         assertEq(icr.fetchPrice(bytes32("BTC")), btcPrice);
     }
 
     function test_consecutiveRejections_accumulateAndReset() public setComponentPriceFeed {
         vm.warp(block.timestamp + 1800);
-        btcPriceFeed.refresh(55_000e18); // −21.4%
+        btcPriceFeed.refresh(55_000e8); // −21.4%
         icr.fetchPrice(bytes32("BTC"));
 
         vm.warp(block.timestamp + 1000); // 2800 < heartbeat, still fresh-window rejections
-        btcPriceFeed.refresh(50_000e18); // −28.6% vs original EMA
+        btcPriceFeed.refresh(50_000e8); // −28.6% vs original EMA
         icr.fetchPrice(bytes32("BTC"));
 
         IndexComponentRegistry.OracleRecord memory record = icr.getOracleRecord(bytes32("BTC"));
@@ -457,7 +477,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
 
         // An accepted round resets the streak
         vm.warp(block.timestamp + 100); // 2900 total, still inside the 3600 heartbeat
-        btcPriceFeed.refresh(66_000e18); // −5.7% vs original EMA
+        btcPriceFeed.refresh(66_000e8); // −5.7% vs original EMA
         icr.fetchPrice(bytes32("BTC"));
 
         record = icr.getOracleRecord(bytes32("BTC"));
@@ -475,8 +495,8 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
 
         // A 16.7% move now passes the 25% band
         vm.warp(block.timestamp + 1800);
-        btcPriceFeed.refresh(84_000e18);
-        assertEq(icr.fetchPrice(bytes32("BTC")), 84_000e18);
+        btcPriceFeed.refresh(84_000e8);
+        assertEq(icr.fetchPrice(bytes32("BTC")), 84_000e8);
     }
 
     function test_setMaxDeviationBps_revert_nonOwner() public setComponentPriceFeed {
@@ -520,25 +540,25 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
     function test_forceResync() public setComponentPriceFeed {
         // Create an unresolved deviation rejection
         vm.warp(block.timestamp + 1800);
-        btcPriceFeed.refresh(20_000e18);
+        btcPriceFeed.refresh(20_000e8);
         icr.fetchPrice(bytes32("BTC"));
         assertEq(icr.getOracleRecord(bytes32("BTC")).firstDeviationAt != 0, true);
 
         // Publish a new round, then resync to it without waiting for the timeout
         vm.warp(block.timestamp + 100);
-        btcPriceFeed.refresh(66_000e18);
+        btcPriceFeed.refresh(66_000e8);
 
         vm.startPrank(owner);
         icr.forceResync(bytes32("BTC"));
         vm.stopPrank();
 
         IndexComponentRegistry.OracleRecord memory record = icr.getOracleRecord(bytes32("BTC"));
-        assertEq(record.price, 66_000e18);
-        assertEq(record.emaPrice, 66_000e18);
+        assertEq(record.price, 66_000e8);
+        assertEq(record.emaPrice, 66_000e8);
         assertEq(record.firstDeviationAt, 0);
         assertEq(record.consecutiveRejections, 0);
         assertEq(record.isFeedWorking, true);
-        assertEq(icr.fetchPrice(bytes32("BTC")), 66_000e18);
+        assertEq(icr.fetchPrice(bytes32("BTC")), 66_000e8);
     }
 
     function test_forceResync_revert_nonOwner() public setComponentPriceFeed {
@@ -555,7 +575,7 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
 
     function test_fetchPriceStrict_reverts_whileDeviationUnresolved() public setComponentPriceFeed {
         vm.warp(block.timestamp + 1800);
-        btcPriceFeed.refresh(20_000e18);
+        btcPriceFeed.refresh(20_000e8);
         icr.fetchPrice(bytes32("BTC"));
 
         vm.expectRevert(
@@ -579,12 +599,12 @@ contract IndexComponentRegistryTest is IndicesTestSetUp {
         icr.fetchPriceStrict(bytes32("BTC"));
 
         // Feed recovers with a fresh round: strict reads work again
-        btcPriceFeed.refresh(73_000e18); // in-band fresh round (4.3% vs EMA)
-        assertEq(icr.fetchPriceStrict(bytes32("BTC")), 73_000e18);
+        btcPriceFeed.refresh(73_000e8); // in-band fresh round (4.3% vs EMA)
+        assertEq(icr.fetchPriceStrict(bytes32("BTC")), 73_000e8);
     }
 
     function test_feedFailureCounter_deletedUnderFeedKeyOnUnregister() public {
-        SwitchableOracle linkFeed = new SwitchableOracle("LINK", 10_000e18);
+        SwitchableOracle linkFeed = new SwitchableOracle("LINK", 10_000e8);
         IndexComponentRegistry.Component[] memory comps = new IndexComponentRegistry.Component[](1);
         comps[0] = IndexComponentRegistry.Component({
             symbol: bytes32("LINK"),

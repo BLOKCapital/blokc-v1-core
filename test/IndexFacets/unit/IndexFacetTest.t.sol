@@ -54,7 +54,12 @@ import {
     IndexFacet_CanonicalIndexRegistriesNotSet,
     IndexFacet_IndexRegistryNotCanonical,
     IndexFacet_SwapTokenNotAllowed,
-    IndexFacet_TurnoverCapExceeded
+    IndexFacet_TurnoverCapExceeded,
+    IndexFacet_EmptyRebalance,
+    IndexFacet_InvalidSwapPath,
+    IndexFacet_TooManyHops,
+    IndexFacet_DuplicatePool,
+    IndexFacet_CircularSwap
 } from "../../../src/garden/facets/indexFacets/IndexBase.sol";
 
 // =============================================================================
@@ -908,6 +913,24 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.rebalanceIntent();
             vm.roll(block.number + 1); // advance past flash-loan protection block delay
         }
+
+        /// @dev A structurally valid no-op swap step (one pool, two tokens, zero amounts).
+        ///      Used wherever a rebalance must reach the post-swap checks: empty step sets
+        ///      are rejected (M05) and every step needs a well-formed path (C01 residual).
+        function _buildNoOpSwapSteps() internal view returns (SwapStep[] memory steps) {
+            steps = new SwapStep[](1);
+            address[] memory tokens = new address[](2);
+            tokens[0] = address(wbtc);
+            tokens[1] = address(weth);
+            address[] memory pools = new address[](1);
+            pools[0] = address(0);
+            steps[0] = SwapStep({
+                dexId: keccak256("TEST_DEX"),
+                instruction: SwapInstruction({
+                    amountIn: 0, amountOut: 0, tokens: tokens, pools: pools, exactOutput: false, deadline: 0
+                })
+            });
+        }
     }
 
     // =============================================================================
@@ -1245,6 +1268,20 @@ contract MockERC20 is IERC20, IERC20Metadata {
             vm.expectRevert(IndexFacet_IntentExpired.selector);
             h.rebalance(new SwapStep[](0));
         }
+
+        // ── Empty step set (M05)
+        // ─────────────────────────────────────
+
+        function test_rebalance_emptySteps_revertAndPreserveIntentAndCooldown() public {
+            uint256 lastRebalanceBefore = h.getLastRebalanceTimestamp();
+
+            vm.expectRevert(IndexFacet_EmptyRebalance.selector);
+            h.rebalance(new SwapStep[](0));
+
+            assertTrue(h.hasPendingIntent(), "pending intent must survive");
+            assertEq(h.getLastRebalanceTimestamp(), lastRebalanceBefore, "cooldown must not advance");
+            assertFalse(h.isRebalancing(), "reentrancy flag must be cleared by the revert");
+        }
     }
 
     // =============================================================================
@@ -1263,23 +1300,6 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(weth), 2e18);
             h.setTokenBalance(address(wbtc), 6_666_666);
             h.setTokenBalance(address(usdc), 0);
-        }
-
-        function _buildNoOpSwapSteps() internal view returns (SwapStep[] memory steps) {
-            // A swap step with a dummy DEX id and minimal instruction so the
-            // rebalance execution passes trivially (no actual token movement).
-            steps = new SwapStep[](1);
-            address[] memory tokens = new address[](2);
-            tokens[0] = address(wbtc);
-            tokens[1] = address(weth);
-            address[] memory pools = new address[](1);
-            pools[0] = address(0);
-            steps[0] = SwapStep({
-                dexId: keccak256("TEST_DEX"),
-                instruction: SwapInstruction({
-                    amountIn: 0, amountOut: 0, tokens: tokens, pools: pools, exactOutput: false, deadline: 0
-                })
-            });
         }
 
         function test_rebalance_clearsRebalancingFlagOnSuccess() public {
@@ -1325,19 +1345,13 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.rebalance(_buildNoOpSwapSteps());
         }
 
-        function test_rebalance_emptySwapCallsSucceeds() public {
-            // Set balances so they match the 60/40 targets within 1% threshold.
-            // Intent was created with total = 10000e8 (3000 WETH + 6000 WBTC + 1000 USDC).
-            // Targets: WETH = 6000e8, WBTC = 4000e8.
-            // WETH needed: 6000e8 * 1e18 / 3000e8 = 2e18
-            // WBTC needed: 4000e8 * 1e8  / 60000e8 = 6_666_666 (rounds down, within 1%)
-            // Zero USDC so total stays predictable.
-            h.setTokenBalance(address(weth), 2e18);
-            h.setTokenBalance(address(wbtc), 6_666_666);
-            h.setTokenBalance(address(usdc), 0);
-
+        function test_rebalance_emptySwapCallsReverts() public {
+            // M05: an empty step set no longer counts as a successful rebalance — it would
+            // clear the pending intent and burn the cooldown without moving any value.
+            vm.expectRevert(IndexFacet_EmptyRebalance.selector);
             h.rebalance(new SwapStep[](0));
-            assertFalse(h.hasPendingIntent());
+
+            assertTrue(h.hasPendingIntent(), "intent must survive the rejected rebalance");
         }
     }
 
@@ -1534,14 +1548,14 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(usdc), 0); // drain USDC so total stays correct
 
             // Should succeed — no revert
-            h.rebalance(new SwapStep[](0));
+            h.rebalance(_buildNoOpSwapSteps());
         }
 
         function test_verify_revertsWhenOutsideThreshold() public {
             // Drive WETH balance to zero — far outside 1% threshold
             h.setTokenBalance(address(weth), 0);
             vm.expectRevert(); // IndexFacet_BalanceOutsideThreshold
-            h.rebalance(new SwapStep[](0));
+            h.rebalance(_buildNoOpSwapSteps());
         }
 
         function test_verify_passesAtExactThresholdBoundary() public {
@@ -1551,7 +1565,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(weth), 2e18 - 2e16);
             h.setTokenBalance(address(usdc), 0);
             h.setTokenBalance(address(wbtc), 6_666_666);
-            h.rebalance(new SwapStep[](0));
+            h.rebalance(_buildNoOpSwapSteps());
         }
     }
 
@@ -1589,14 +1603,43 @@ contract MockERC20 is IERC20, IERC20Metadata {
         }
 
         function _step(address tokenIn, address tokenOut, uint256 amountIn) internal pure returns (SwapStep memory) {
-            SwapStep memory step;
+            address[] memory pools = new address[](1);
+            pools[0] = address(0);
+            return _stepWithPools(tokenIn, tokenOut, amountIn, pools);
+        }
+
+        function _stepWithPools(
+            address tokenIn,
+            address tokenOut,
+            uint256 amountIn,
+            address[] memory pools
+        )
+            internal
+            pure
+            returns (SwapStep memory step)
+        {
             step.dexId = keccak256("TEST_DEX");
             step.instruction.amountIn = amountIn;
             step.instruction.amountOut = 0;
-            step.instruction.tokens = new address[](2);
+            step.instruction.tokens = new address[](pools.length + 1);
             step.instruction.tokens[0] = tokenIn;
-            step.instruction.tokens[1] = tokenOut;
-            return step;
+            step.instruction.tokens[pools.length] = tokenOut;
+            step.instruction.pools = pools;
+        }
+
+        function _stepWithPath(
+            address[] memory tokens,
+            address[] memory pools
+        )
+            internal
+            pure
+            returns (SwapStep memory step)
+        {
+            step.dexId = keccak256("TEST_DEX");
+            step.instruction.amountIn = 0;
+            step.instruction.amountOut = 0;
+            step.instruction.tokens = tokens;
+            step.instruction.pools = pools;
         }
 
         function test_rebalance_endpointNotAllowed() public {
@@ -1622,12 +1665,15 @@ contract MockERC20 is IERC20, IERC20Metadata {
             _goToTarget();
             _connect();
             _createIntent();
+            address[] memory tokens = new address[](3);
+            tokens[0] = address(wbtc);
+            tokens[1] = address(usdt);
+            tokens[2] = IndexStorage.USDC_ADDRESS;
+            address[] memory pools = new address[](2);
+            pools[0] = address(0x1001);
+            pools[1] = address(0x1002);
             SwapStep[] memory steps = new SwapStep[](1);
-            steps[0] = _step(address(wbtc), IndexStorage.USDC_ADDRESS, 0); // zero-input multi-hop
-            steps[0].instruction.tokens = new address[](3);
-            steps[0].instruction.tokens[0] = address(wbtc);
-            steps[0].instruction.tokens[1] = address(usdt);
-            steps[0].instruction.tokens[2] = IndexStorage.USDC_ADDRESS;
+            steps[0] = _stepWithPath(tokens, pools); // zero-input multi-hop
             steps[0].dexId = keccak256("USDC_DEX");
             h.rebalance(steps); // no revert — intermediates unconstrained
         }
@@ -1681,6 +1727,113 @@ contract MockERC20 is IERC20, IERC20Metadata {
             steps[0] = _step(address(wbtc), IndexStorage.USDC_ADDRESS, 83_333_333); // $5000 declared vs $750 cap
             vm.expectRevert(); // TurnoverCapExceeded(turnover, cap) — args derived from snapshot rounding
             h.rebalance(steps);
+        }
+
+        // ── Path-shape containment (C01 residual)
+        // ────────────────────────────────────
+
+        function test_rebalance_rejectsTooManyHops() public {
+            // Nonzero weight gap: the turnover cap alone would not stop a long path whose
+            // declared input is within the gap, so the hop bound must (the review's case).
+            _goToTarget();
+            _intentThenDrift(); // gap = $500, cap = $750
+
+            address[] memory tokens = new address[](6);
+            tokens[0] = address(wbtc);
+            tokens[1] = address(0x2001);
+            tokens[2] = address(0x2002);
+            tokens[3] = address(0x2003);
+            tokens[4] = address(0x2004);
+            tokens[5] = IndexStorage.USDC_ADDRESS;
+            address[] memory pools = new address[](5);
+            for (uint256 i = 0; i < pools.length; i++) {
+                pools[i] = address(uint160(0x3001 + i));
+            }
+
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _stepWithPath(tokens, pools);
+            steps[0].instruction.amountIn = 833_333; // $500 declared — inside the $750 cap
+            vm.expectRevert(abi.encodeWithSelector(IndexFacet_TooManyHops.selector, 5, 4));
+            h.rebalance(steps);
+        }
+
+        function test_rebalance_rejectsDuplicatePool() public {
+            _goToTarget();
+            _connect();
+            _createIntent();
+
+            address[] memory tokens = new address[](3);
+            tokens[0] = address(wbtc);
+            tokens[1] = address(weth);
+            tokens[2] = IndexStorage.USDC_ADDRESS;
+            address[] memory pools = new address[](2);
+            pools[0] = address(0x4001);
+            pools[1] = address(0x4001);
+
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _stepWithPath(tokens, pools);
+            vm.expectRevert(abi.encodeWithSelector(IndexFacet_DuplicatePool.selector, address(0x4001)));
+            h.rebalance(steps);
+        }
+
+        function test_rebalance_rejectsCircularPath() public {
+            _goToTarget();
+            _connect();
+            _createIntent();
+
+            address[] memory tokens = new address[](3);
+            tokens[0] = address(wbtc);
+            tokens[1] = address(weth);
+            tokens[2] = address(wbtc);
+            address[] memory pools = new address[](2);
+            pools[0] = address(0x5001);
+            pools[1] = address(0x5002);
+
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _stepWithPath(tokens, pools);
+            vm.expectRevert(abi.encodeWithSelector(IndexFacet_CircularSwap.selector, address(wbtc)));
+            h.rebalance(steps);
+        }
+
+        function test_rebalance_rejectsMismatchedPath() public {
+            _goToTarget();
+            _connect();
+            _createIntent();
+
+            address[] memory tokens = new address[](3);
+            tokens[0] = address(wbtc);
+            tokens[1] = address(weth);
+            tokens[2] = IndexStorage.USDC_ADDRESS;
+            address[] memory pools = new address[](1);
+            pools[0] = address(0x6001);
+
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _stepWithPath(tokens, pools);
+            vm.expectRevert(IndexFacet_InvalidSwapPath.selector);
+            h.rebalance(steps);
+        }
+
+        function test_rebalance_allowsFourHopPath() public {
+            _goToTarget();
+            _connect();
+            _createIntent();
+
+            address[] memory tokens = new address[](5);
+            tokens[0] = address(wbtc);
+            tokens[1] = address(0x7001);
+            tokens[2] = address(0x7002);
+            tokens[3] = address(0x7003);
+            tokens[4] = IndexStorage.USDC_ADDRESS;
+            address[] memory pools = new address[](4);
+            for (uint256 i = 0; i < pools.length; i++) {
+                pools[i] = address(uint160(0x8001 + i));
+            }
+
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = _stepWithPath(tokens, pools);
+            h.rebalance(steps); // no revert — 4 hops is the boundary
+
+            assertFalse(h.hasPendingIntent());
         }
 
         function test_configure_revertsWhenNotCanonical() public {
@@ -1749,7 +1902,7 @@ contract MockERC20 is IERC20, IERC20Metadata {
             h.setTokenBalance(address(weth), 2e18);
             h.setTokenBalance(address(wbtc), 6_666_666);
             h.setTokenBalance(address(usdc), 0);
-            h.rebalance(new SwapStep[](0));
+            h.rebalance(_buildNoOpSwapSteps());
             assertFalse(h.hasPendingIntent());
         }
 
@@ -2175,6 +2328,35 @@ contract MockERC20 is IERC20, IERC20Metadata {
                 )
             );
             h.unwindAndDisconnectExt(_unwindSteps());
+        }
+
+        function test_fees_unwind_rejectsTooManyHops() public {
+            // The per-step hop bound applies to the unwind too: legitimate exit routes are
+            // 1-2 hops, so a 5-hop leg is churn regardless of which flow submits it.
+            _connectWithOnboarder();
+
+            address[] memory tokens = new address[](6);
+            tokens[0] = address(weth);
+            tokens[1] = address(0x9001);
+            tokens[2] = address(0x9002);
+            tokens[3] = address(0x9003);
+            tokens[4] = address(0x9004);
+            tokens[5] = IndexStorage.USDC_ADDRESS;
+            address[] memory pools = new address[](5);
+            for (uint256 i = 0; i < pools.length; i++) {
+                pools[i] = address(uint160(0xA001 + i));
+            }
+
+            SwapStep[] memory steps = new SwapStep[](1);
+            steps[0] = SwapStep({
+                dexId: keccak256("USDC_DEX"),
+                instruction: SwapInstruction({
+                    amountIn: WETH_BALANCE, amountOut: 0, tokens: tokens, pools: pools, exactOutput: false, deadline: 0
+                })
+            });
+
+            vm.expectRevert(abi.encodeWithSelector(IndexFacet_TooManyHops.selector, 5, 4));
+            h.unwindAndDisconnectExt(steps);
         }
     }
 

@@ -27,6 +27,7 @@ import {
     RewardCollectionStorage
 } from "src/garden/facets/utilityFacets/arbitrumOne/rewardCollection/RewardCollectionStorage.sol";
 import { FeeStorage } from "src/garden/facets/indexFacets/FeeStorage.sol";
+import { ApproveStorage } from "src/garden/facets/utilityFacets/ApproveStorage.sol";
 import { LibDiamond } from "src/garden/libraries/LibDiamond.sol";
 
 // OpenZeppelin
@@ -271,7 +272,8 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
             IDiamondCut.FacetCut[] memory versionHistory =
                 registry.getModuleFacetCutsByVersionRange(moduleId, storedVersion + 1, registryVersion);
 
-            bytes4[] memory removedSelectors = _collectRemovedSelectors(versionHistory, sortedModuleSelectors, ds);
+            bytes4[] memory removedSelectors =
+                _collectRemovedSelectors(registry, versionHistory, sortedModuleSelectors, ds);
 
             if (removedSelectors.length > 0) {
                 pendingFacetCuts[newCutCount++] = IDiamondCut.FacetCut({
@@ -351,12 +353,15 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
 
     /// @notice Filters version history to find selectors that need removal from the diamond
     /// @dev Extracted from _collectModuleUpgrades Phase 3 to reduce stack depth.
-    ///      Uses O(1) diamond check → O(log S) binary search → O(survivors) dedup.
+    ///      Uses O(1) diamond check → O(log S) binary search → O(1) registry ownership check
+    ///      → O(survivors) dedup.
+    /// @param registry The FacetRegistry used to check whether a selector is still owned by any module
     /// @param versionHistory The FacetCut history for the version range being upgraded
     /// @param sortedModuleSelectors The sorted current module selectors (from _diffModuleFacets)
     /// @param ds The DiamondCutStorage layout for O(1) selector lookups
     /// @return removedSelectors The deduplicated selectors to remove (empty array if none)
     function _collectRemovedSelectors(
+        IFacetRegistry registry,
         IDiamondCut.FacetCut[] memory versionHistory,
         bytes4[] memory sortedModuleSelectors,
         DiamondCutStorage.Layout storage ds
@@ -392,6 +397,16 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
 
                 // O(log S): skip if re-added to current module state
                 if (_containsBytes4(sortedModuleSelectors, selector)) continue;
+
+                // O(1): skip selectors that moved to another module. A selector still
+                // registered to ANY module is owned there; removing it from this lagging
+                // module would delete the live function. Only selectors fully removed
+                // from the registry (module id zero) should be removed from the diamond.
+                // isSelectorRegistered guards getModuleIdBySelector, which reverts when
+                // the selector is not registered anywhere.
+                if (registry.isSelectorRegistered(selector)) {
+                    if (registry.getModuleIdBySelector(selector) != bytes32(0)) continue;
+                }
 
                 // O(removeCount): dedup among survivors — removeCount is bounded by
                 // selectors actually in the diamond AND not re-added, typically 0-5
@@ -529,6 +544,9 @@ abstract contract UpgradeBase is DiamondCutBase, IUpgrade {
             RewardCollectionStorage.STORAGE_LAYOUT_VERSION
         );
         _checkLayoutVersion("FeeStorage", FeeStorage.layout()._storageLayoutVersion, FeeStorage.STORAGE_LAYOUT_VERSION);
+        _checkLayoutVersion(
+            "ApproveStorage", ApproveStorage.layout()._storageLayoutVersion, ApproveStorage.STORAGE_LAYOUT_VERSION
+        );
     }
 
     /// @notice Checks a single layout version and reverts on mismatch.

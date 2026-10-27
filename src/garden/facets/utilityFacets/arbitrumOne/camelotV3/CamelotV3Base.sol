@@ -12,8 +12,8 @@ pragma solidity ^0.8.31;
 
 import { ICamelotRouterV3 } from "src/interfaces/ICamelotRouterV3.sol";
 import { ICamelotV3 } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/ICamelotV3.sol";
+import { ICamelotV3Pool } from "src/garden/facets/utilityFacets/arbitrumOne/camelotV3/ICamelotV3Pool.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
-import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { TickMath } from "src/garden/libraries/TickMath.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -37,8 +37,11 @@ error CamelotV3Facet_InvalidPath();
 /**
  * @title CamelotV3Base
  * @notice Base contract for Camelot V3 swaps and quotes on Arbitrum One. Camelot V3 uses
- *         the Algebra protocol with dynamic fees — no fee parameter is needed. One pool
- *         per token pair, identified by factory's poolByPair(tokenA, tokenB).
+ *         the Algebra protocol with dynamic fees. Exact-input single swaps use a 7-field
+ *         router ABI (no fee); exact-output single swaps use an 8-field router ABI that
+ *         includes the pool fee. The fee and TWAP are read through the Algebra pool's
+ *         `globalState()` and `getTimepoints()` methods, not Uniswap V3's `fee()`/`observe()`.
+ *         One pool per token pair, identified by factory's poolByPair(tokenA, tokenB).
  */
 abstract contract CamelotV3Base {
     using SafeERC20 for IERC20;
@@ -82,10 +85,12 @@ abstract contract CamelotV3Base {
                     })
                 );
             } else {
+                uint24 fee = _camelotV3Fee(instruction.pools[0]);
                 _camelotV3ExactOutputSingle(
                     ICamelotV3.CamelotV3ExactOutputSingleParams({
                         tokenIn: instruction.tokens[0],
                         tokenOut: instruction.tokens[1],
+                        fee: fee,
                         recipient: address(this),
                         deadline: instruction.deadline == 0 ? block.timestamp + 30 minutes : instruction.deadline,
                         amountOut: instruction.amountOut,
@@ -194,6 +199,7 @@ abstract contract CamelotV3Base {
             ICamelotRouterV3.ExactOutputSingleParams({
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
+                fee: params.fee,
                 recipient: address(this),
                 deadline: params.deadline,
                 amountOut: params.amountOut,
@@ -209,7 +215,7 @@ abstract contract CamelotV3Base {
         ICamelotRouterV3 router = ICamelotRouterV3(CAMELOT_V3_ROUTER_ADDRESS);
         IERC20(params.path[0]).forceApprove(CAMELOT_V3_ROUTER_ADDRESS, params.amountInMaximum);
 
-        bytes memory encodedPath = _encodePath(params.path);
+        bytes memory encodedPath = _encodePathReversed(params.path);
         uint256 amountIn = router.exactOutput(
             ICamelotRouterV3.ExactOutputParams({
                 path: encodedPath,
@@ -267,11 +273,11 @@ abstract contract CamelotV3Base {
         }
 
         (uint160 sqrtPriceX96,) = _camelotV3GetSqrtTwapX96(pool, twapInterval);
-        address token0 = IUniswapV3Pool(pool).token0();
-        address token1 = IUniswapV3Pool(pool).token1();
+        address token0 = ICamelotV3Pool(pool).token0();
+        address token1 = ICamelotV3Pool(pool).token1();
         uint256 sqrtP = uint256(sqrtPriceX96);
         uint256 Q96 = 1 << 96;
-        uint24 fee = IUniswapV3Pool(pool).fee();
+        uint24 fee = _camelotV3Fee(pool);
 
         uint256 rawAmountOut;
         if (tokenIn == token0 && tokenOut == token1) {
@@ -303,11 +309,11 @@ abstract contract CamelotV3Base {
         }
 
         (uint160 sqrtPriceX96,) = _camelotV3GetSqrtTwapX96(pool, twapInterval);
-        address token0 = IUniswapV3Pool(pool).token0();
-        address token1 = IUniswapV3Pool(pool).token1();
+        address token0 = ICamelotV3Pool(pool).token0();
+        address token1 = ICamelotV3Pool(pool).token1();
         uint256 sqrtP = uint256(sqrtPriceX96);
         uint256 Q96 = 1 << 96;
-        uint24 fee = IUniswapV3Pool(pool).fee();
+        uint24 fee = _camelotV3Fee(pool);
 
         uint256 rawAmountIn;
         if (tokenIn == token0 && tokenOut == token1) {
@@ -337,24 +343,44 @@ abstract contract CamelotV3Base {
     {
         if (poolAddress == address(0)) revert CamelotV3Facet_InvalidPool();
 
+        ICamelotV3Pool pool = ICamelotV3Pool(poolAddress);
+
         if (twapInterval == 0) {
-            (sqrtPriceX96,,,,,,) = IUniswapV3Pool(poolAddress).slot0();
+            (sqrtPriceX96,,) = pool.globalState();
             deadline = block.timestamp + 300;
         } else {
             uint32[] memory secondsAgo = new uint32[](2);
             secondsAgo[0] = twapInterval;
             secondsAgo[1] = 0;
-            (int56[] memory tickCumulative,) = IUniswapV3Pool(poolAddress).observe(secondsAgo);
+            int56[] memory tickCumulative = pool.getTimepoints(secondsAgo);
             int24 avgTick = int24(int56(tickCumulative[1] - tickCumulative[0]) / int56(int32(twapInterval)));
             sqrtPriceX96 = TickMath.getSqrtRatioAtTick(avgTick);
             deadline = block.timestamp + 300;
         }
     }
 
+    /// @notice Reads the pool's current dynamic swap fee from Algebra `globalState()`.
+    /// @param pool Address of the Camelot V3 pool
+    /// @return fee The current swap fee in hundredths of a bip
+    function _camelotV3Fee(address pool) internal view returns (uint24 fee) {
+        (,, uint16 poolFee) = ICamelotV3Pool(pool).globalState();
+        fee = poolFee;
+    }
+
+    /// @notice Encodes a multi-hop exact-input path in forward order (tokenIn ... tokenOut).
     function _encodePath(address[] memory path) internal pure returns (bytes memory encodedPath) {
         encodedPath = abi.encodePacked(path[0]);
         for (uint256 i = 1; i < path.length; ++i) {
             encodedPath = abi.encodePacked(encodedPath, path[i]);
+        }
+    }
+
+    /// @notice Encodes a multi-hop exact-output path in reverse order (tokenOut ... tokenIn).
+    /// @dev Camelot V3 (Algebra) `exactOutput` expects the path to end at the input token.
+    function _encodePathReversed(address[] memory path) internal pure returns (bytes memory encodedPath) {
+        encodedPath = abi.encodePacked(path[path.length - 1]);
+        for (uint256 i = path.length - 1; i > 0; --i) {
+            encodedPath = abi.encodePacked(encodedPath, path[i - 1]);
         }
     }
 }

@@ -35,6 +35,7 @@
     },
     "INDEX": {
       "storage_libraries": [
+        "ApproveStorage",
         "IndexStorage",
         "FeeStorage"
       ]

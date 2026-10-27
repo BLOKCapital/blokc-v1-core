@@ -12,7 +12,8 @@ import { IDiamondCut } from "src/garden/facets/baseFacets/cut/IDiamondCut.sol";
  * @notice Adds the ApproveFacet to the INDEX module of the FacetRegistry (bumping the
  *         module version). The deployed gardens then pick it up through their normal
  *         two-step upgrade (upgradeDetails -> upgrade), after which the garden owner
- *         approves the CumulativeRebalancer to pull component tokens.
+ *         approves the CumulativeRebalancer to pull component tokens and can revoke an
+ *         outgoing or legacy spender.
  *
  *         Env (all required):
  *         - FACET_REGISTRY_ADDRESS
@@ -31,8 +32,9 @@ contract DeployApproveFacet is BaseScript {
         ApproveFacet approveFacet = new ApproveFacet();
         console2.log("ApproveFacet deployed at:", address(approveFacet));
 
-        bytes4[] memory selectors = new bytes4[](1);
+        bytes4[] memory selectors = new bytes4[](2);
         selectors[0] = approveFacet.approveTokens.selector;
+        selectors[1] = approveFacet.revokeTokens.selector;
 
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
         cuts[0] = IDiamondCut.FacetCut({
@@ -46,5 +48,6 @@ contract DeployApproveFacet is BaseScript {
         console2.log("Next steps:");
         console2.log("1. Per garden: garden.upgradeDetails() -> garden.upgrade(hashData) to install the facet");
         console2.log("2. Per garden (owner): garden.approveTokens([<components + USDC>], <rebalancer-address>)");
+        console2.log("3. Optional: garden.revokeTokens([<tokens>], <old-spender>) to clear a rotated or legacy spender");
     }
 }

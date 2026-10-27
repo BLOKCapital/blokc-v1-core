@@ -2,6 +2,7 @@
 pragma solidity ^0.8.31;
 
 import { GardenFactoryTestBase } from "../GardenFactoryTestBase.sol";
+import { IERC173 } from "src/interfaces/IERC173.sol";
 
 contract GardenFactoryTypeViewsTest is GardenFactoryTestBase {
     // ═══════════════════════════════════════════════════════════════════
@@ -34,6 +35,49 @@ contract GardenFactoryTypeViewsTest is GardenFactoryTestBase {
 
     function test_getGardenOwner_returnsZeroForUnknownGarden() public view {
         assertEq(factory.getGardenOwner(address(0xDEAD)), address(0));
+    }
+
+    function test_getGardenOwner_tracksOwnershipTransfer() public {
+        address garden = _createDefaultGarden(alice, 1);
+
+        vm.prank(alice);
+        IERC173(garden).transferOwnership(bob);
+
+        assertEq(factory.getGardenOwner(garden), bob);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //                     getGardensOwnedBy / getGardensOwnedByCount
+    // ═══════════════════════════════════════════════════════════════════
+
+    function test_getGardensOwnedBy_reflectsLiveOwnership() public {
+        address aliceGarden1 = _createDefaultGarden(alice, 1);
+        address aliceGarden2 = _createDefaultGarden(alice, 2);
+        address bobGarden = _createDefaultGarden(bob, 1);
+
+        vm.prank(alice);
+        IERC173(aliceGarden1).transferOwnership(bob);
+
+        address[] memory bobGardens = factory.getGardensOwnedBy(bob);
+        assertEq(bobGardens.length, 2);
+        assertEq(factory.getGardensOwnedByCount(bob), 2);
+        assertTrue(_contains(bobGardens, aliceGarden1));
+        assertTrue(_contains(bobGardens, bobGarden));
+
+        address[] memory aliceGardens = factory.getGardensOwnedBy(alice);
+        assertEq(aliceGardens.length, 1);
+        assertEq(factory.getGardensOwnedByCount(alice), 1);
+        assertEq(aliceGardens[0], aliceGarden2);
+
+        // The creation-time index still reports both gardens for alice.
+        assertEq(factory.getUserGardens(alice).length, 2);
+    }
+
+    function test_getGardensOwnedBy_emptyForUnknownUser() public {
+        _createDefaultGarden(alice, 1);
+
+        assertEq(factory.getGardensOwnedBy(bob).length, 0);
+        assertEq(factory.getGardensOwnedByCount(bob), 0);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -166,6 +210,18 @@ contract GardenFactoryTypeViewsTest is GardenFactoryTestBase {
         assertFalse(registered);
     }
 
+    function test_getGardenInfo_tracksOwnershipTransfer() public {
+        address garden = _createGarden(alice, 1, GARDEN_TYPE_1);
+
+        vm.prank(alice);
+        IERC173(garden).transferOwnership(bob);
+
+        (address infoOwner, bytes32 infoType, bool registered) = factory.getGardenInfo(garden);
+        assertEq(infoOwner, bob);
+        assertEq(infoType, GARDEN_TYPE_1);
+        assertTrue(registered);
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     //                     getUserGardenInfos
     // ═══════════════════════════════════════════════════════════════════
@@ -205,5 +261,12 @@ contract GardenFactoryTypeViewsTest is GardenFactoryTestBase {
         assertEq(aliceGardens.length, 1);
         assertEq(bobGardens.length, 1);
         assertTrue(aliceGardens[0] != bobGardens[0]);
+    }
+
+    function _contains(address[] memory gardens, address garden) internal pure returns (bool) {
+        for (uint256 i = 0; i < gardens.length; i++) {
+            if (gardens[i] == garden) return true;
+        }
+        return false;
     }
 }

@@ -13,6 +13,8 @@ pragma solidity ^0.8.31;
 import "forge-std/Test.sol";
 
 import { Rebalancer } from "src/rebalancer/Rebalancer.sol";
+import { MockProtocolStatus } from "test/mock/MockProtocolStatus.sol";
+import { IProtocolStatus } from "src/interfaces/IProtocolStatus.sol";
 import { ILiquidityPoolRegistry } from "src/interfaces/ILiquidityPoolRegistry.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -31,7 +33,8 @@ import {
     Rebalancer_ExcessiveValueLoss,
     Rebalancer_NothingUndelivered,
     Rebalancer_BatchSizeNotSet,
-    Rebalancer_InvalidConfig
+    Rebalancer_InvalidConfig,
+    Rebalancer_ProtocolInactive
 } from "src/rebalancer/Rebalancer.sol";
 
 // =============================================================================
@@ -574,6 +577,7 @@ abstract contract RebalancerTestBase is Test {
     MockV2Pool internal wethUsdcPool;
     MockV2Pool internal wbtcUsdcPool;
     MockRouter internal router;
+    MockProtocolStatus internal protocolStatus;
     Rebalancer internal rebalancer;
 
     // -- Garden addresses (these are just the user addresses; in production, gardens are diamond proxies) --
@@ -593,6 +597,9 @@ abstract contract RebalancerTestBase is Test {
 
         // -- Deploy mock router (acts as both router and quote facet) --
         router = new MockRouter();
+
+        // -- Deploy protocol status (starts ACTIVE) --
+        protocolStatus = new MockProtocolStatus();
 
         // -- Configure component registry --
         compRegistry.setComponent(SYM_WETH, address(weth));
@@ -656,7 +663,8 @@ abstract contract RebalancerTestBase is Test {
             address(compRegistry),
             address(poolRegistry),
             address(1), // facetRegistry (stored for protocol awareness; not directly called in tests)
-            address(usdc)
+            address(usdc),
+            address(protocolStatus)
         );
 
         // -- Configure DEXs via DAO (identical to how a real deployment would work) --
@@ -1653,7 +1661,13 @@ contract BatchTest is RebalancerTestBase {
     function test_revertsIfBatchSizeNotSet() public {
         // Deploy a fresh rebalancer that has no batch size set
         Rebalancer freshRebalancer = new Rebalancer(
-            owner, address(indexFactory), address(compRegistry), address(poolRegistry), address(1), address(usdc)
+            owner,
+            address(indexFactory),
+            address(compRegistry),
+            address(poolRegistry),
+            address(1),
+            address(usdc),
+            address(protocolStatus)
         );
 
         vm.prank(owner);
@@ -1726,7 +1740,86 @@ contract BatchTest is RebalancerTestBase {
 }
 
 // =============================================================================
-// 9. CAMELOT V3 SWAP ENCODING TESTS
+// 9. PROTOCOL STATUS (M04) TESTS
+// =============================================================================
+// The permissionless pooled rebalance must halt while the protocol is INACTIVE,
+// without advancing the round cursor. UPGRADES_DISABLED is still an active
+// protocol and must not block rebalances.
+
+contract ProtocolStatusTest is RebalancerTestBase {
+    function setUp() public override {
+        super.setUp();
+        vm.prank(owner);
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 1);
+    }
+
+    function test_cumulativeRebalance_revertsWhenProtocolInactive() public {
+        _fundGarden(alice, 1e18, 5_000_000, 0);
+        _fundGarden(bob, 0.5e18, 10_000_000, 0);
+        _warpPastInterval();
+
+        protocolStatus.setStatus(IProtocolStatus.State.INACTIVE);
+
+        vm.expectRevert(Rebalancer_ProtocolInactive.selector);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0, "cursor must not move while inactive");
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), 0, "round must not complete while inactive");
+    }
+
+    function test_cumulativeRebalance_midRoundPauseDoesNotAdvanceCursor() public {
+        _fundGarden(alice, 1e18, 5_000_000, 0);
+        _fundGarden(bob, 0.5e18, 10_000_000, 0);
+        _warpPastInterval();
+
+        // Batch 1 processes alice and advances the cursor.
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        uint256 cursor = rebalancer.gardenCursor(INDEX_TYPE);
+        assertEq(cursor, 1, "first batch should advance the cursor");
+
+        protocolStatus.setStatus(IProtocolStatus.State.INACTIVE);
+        vm.expectRevert(Rebalancer_ProtocolInactive.selector);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), cursor, "paused call must not advance the cursor");
+
+        protocolStatus.setStatus(IProtocolStatus.State.ACTIVE);
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0, "round resumes and completes after reactivation");
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp);
+    }
+
+    function test_cumulativeRebalance_upgradesDisabledStillRebalances() public {
+        _fundGarden(alice, 1e18, 5_000_000, 0);
+        _fundGarden(bob, 0.5e18, 10_000_000, 0);
+        _warpPastInterval();
+
+        protocolStatus.setStatus(IProtocolStatus.State.UPGRADES_DISABLED);
+
+        vm.prank(owner);
+        rebalancer.setMaxGardensPerBatch(INDEX_TYPE, 2);
+
+        rebalancer.cumulativeRebalance(INDEX_TYPE, block.timestamp + 300);
+
+        assertEq(rebalancer.lastRebalanceTimestamp(INDEX_TYPE), block.timestamp, "UPGRADES_DISABLED must not pause");
+        assertEq(rebalancer.gardenCursor(INDEX_TYPE), 0, "round should progress normally");
+    }
+
+    function test_constructor_revertsOnZeroProtocolStatus() public {
+        vm.expectRevert(Rebalancer_InvalidConfig.selector);
+        new Rebalancer(
+            owner,
+            address(indexFactory),
+            address(compRegistry),
+            address(poolRegistry),
+            address(1),
+            address(usdc),
+            address(0)
+        );
+    }
+}
+
+// =============================================================================
+// 10. CAMELOT V3 SWAP ENCODING TESTS
 // =============================================================================
 // Regression: the Rebalancer must encode CamelotV3's exactInputSingle as a
 // 7-param struct (tokenIn, tokenOut, recipient, deadline, amountIn, minOut,

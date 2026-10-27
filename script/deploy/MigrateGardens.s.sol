@@ -37,8 +37,10 @@ import { console2 } from "forge-std/console2.sol";
  *           NEW_REBALANCER          from MigrateRegistryAndIndices output
  *           POOL_REGISTRY_ADDRESS   live LiquidityPoolRegistry (unchanged)
  *
- *         Note: the old rebalancer's allowances are NOT revoked — ApproveFacet only grants
- *         max. This is bounded: after RetireOldRebalancer removes the index types, the old
+ *         Note: this script does not revoke the old rebalancer's allowances — the old spender
+ *         is not derivable once the canonical pointer rotates. The owner can sweep them with
+ *         ApproveFacet.revokeTokens([...], oldRebalancer). The residual rail is bounded even
+ *         before the sweep: after RetireOldRebalancer removes the index types, the old
  *         rebalancer's cumulativeRebalance reverts NoIndicesRegistered permanently.
  */
 // FRESH-STACK ONLY — see UpgradeGardens.s.sol. Gardens whose facetRegistry predates the

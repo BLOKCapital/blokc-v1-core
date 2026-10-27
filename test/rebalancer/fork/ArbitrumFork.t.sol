@@ -12,6 +12,7 @@ pragma solidity ^0.8.31;
 
 import "forge-std/Test.sol";
 import { Rebalancer } from "src/rebalancer/Rebalancer.sol";
+import { MockProtocolStatus } from "test/mock/MockProtocolStatus.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -65,6 +66,7 @@ contract ArbitrumForkTest is Test {
     // ========================================================================
     bool internal forkActive;
     Rebalancer internal rebalancer;
+    MockProtocolStatus internal protocolStatus;
     address internal testIndex;
     address internal garden1;
     address internal garden2;
@@ -178,8 +180,16 @@ contract ArbitrumForkTest is Test {
         // =====================================================================
         // 4. Deploy the Rebalancer — ALL constructor args are real contracts
         // =====================================================================
-        rebalancer =
-            new Rebalancer(address(this), INDEX_FACTORY, COMPONENT_REGISTRY, POOL_REGISTRY, FACET_REGISTRY, USDC);
+        protocolStatus = new MockProtocolStatus();
+        rebalancer = new Rebalancer(
+            address(this),
+            INDEX_FACTORY,
+            COMPONENT_REGISTRY,
+            POOL_REGISTRY,
+            FACET_REGISTRY,
+            USDC,
+            address(protocolStatus)
+        );
 
         rebalancer.setDexConfig(
             keccak256("CAMELOT_V2"),
@@ -460,7 +470,13 @@ contract ArbitrumForkScaleTest is Test {
         mockFactory.setRegistered(address(mockIdx), true);
 
         Rebalancer r = new Rebalancer(
-            address(this), address(mockFactory), address(mockComp), POOL_REGISTRY, FACET_REGISTRY, USDC
+            address(this),
+            address(mockFactory),
+            address(mockComp),
+            POOL_REGISTRY,
+            FACET_REGISTRY,
+            USDC,
+            address(new MockProtocolStatus())
         );
         r.setDexConfig(
             keccak256("CAMELOT_V2"),

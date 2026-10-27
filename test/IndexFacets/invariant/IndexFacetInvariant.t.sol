@@ -56,11 +56,34 @@ contract IndexTimestampActor is IndexFacetTestBase {
         }
     }
 
+    /// @dev Structurally valid no-op step — empty step sets are rejected (M05) and every
+    ///      step must carry one pool per hop (C01 residual).
+    function _noOpStep() internal view returns (SwapStep[] memory steps) {
+        steps = new SwapStep[](1);
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(wbtc);
+        tokens[1] = address(weth);
+        address[] memory pools = new address[](1);
+        pools[0] = address(0);
+        steps[0] = SwapStep({
+            dexId: keccak256("TEST_DEX"),
+            instruction: SwapInstruction({
+                amountIn: 0, amountOut: 0, tokens: tokens, pools: pools, exactOutput: false, deadline: 0
+            })
+        });
+    }
+
     function executeRebalance() external {
         if (!h.hasPendingIntent()) return;
         if (block.timestamp > IndexStorage.layout().lastIntentTimestamp + IndexStorage.INTENT_EXPIRY) return;
         if (block.timestamp < IndexStorage.layout().lastRebalanceTimestamp + IndexStorage.REBALANCE_INTERVAL) return;
-        try h.rebalance(new SwapStep[](0)) {
+
+        // Pin the portfolio to the intent's 60/40 targets so the no-op route lands in band
+        h.setTokenBalance(address(weth), 2e18);
+        h.setTokenBalance(address(wbtc), 6_666_666);
+        h.setTokenBalance(address(usdc), 0);
+
+        try h.rebalance(_noOpStep()) {
             rebalanceExecuted = true;
         } catch { }
     }
