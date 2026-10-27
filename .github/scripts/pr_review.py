@@ -266,12 +266,14 @@ def main():
     with open(event_path) as f:
         event = json.load(f)
 
+    # Triggered either by an `@claude` comment (issue_comment) or by the
+    # `claude-review` label being added to a PR (pull_request).
     comment = event.get("comment", {})
     issue = event.get("issue", {})
-    pr_number = issue.get("number")
+    pr_number = issue.get("number") or event.get("number")
     comment_id = comment.get("id")
     comment_body = comment.get("body", "")
-    comment_user = comment.get("user", {}).get("login", "unknown")
+    comment_user = (comment or event.get("sender", {})).get("login", "unknown")
 
     if not pr_number:
         log("ERROR: Could not determine PR number")

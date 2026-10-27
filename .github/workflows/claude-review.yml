@@ -3,6 +3,10 @@ name: Claude PR Review
 on:
   issue_comment:
     types: [created]
+  # Authors can't request a review from themselves on GitHub, so adding the
+  # `claude-review` label to a PR is the way to request one on your own PRs.
+  pull_request:
+    types: [labeled]
 
 # The GITHUB_TOKEN built-in secret is read-only at the org level (BLOKCapital).
 # We use a PAT with issues:write scope stored as GH_PAT instead.
@@ -12,8 +16,11 @@ jobs:
   review:
     name: Claude Code Review
     if: |
-      contains(github.event.comment.body, '@claude') &&
-      github.event.issue.pull_request != null
+      (github.event_name == 'issue_comment' &&
+        contains(github.event.comment.body, '@claude') &&
+        github.event.issue.pull_request != null) ||
+      (github.event_name == 'pull_request' &&
+        github.event.label.name == 'claude-review')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
